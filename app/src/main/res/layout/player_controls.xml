@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/player_gradient">
+
+    <!-- Верхня панель: назва -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="48dp">
+
+        <TextView
+            android:id="@+id/exo_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="32sp"
+            android:fontFamily="sans-serif-condensed-light"
+            android:letterSpacing="0.05" />
+
+        <TextView
+            android:id="@+id/subtitle_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#88FFFFFF"
+            android:textSize="14sp"
+            android:layout_marginTop="8dp"
+            android:letterSpacing="0.3" />
+    </LinearLayout>
+
+    <!-- Центр: порожньо (кнопки внизу) -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Нижня панель -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="48dp">
+
+        <!-- Кнопки керування -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center"
+            android:layout_marginBottom="16dp">
+
+            <ImageButton
+                android:id="@+id/exo_prev"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/exo_ic_skip_previous"
+                app:tint="#FFFFFF"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_marginHorizontal="8dp" />
+
+            <ImageButton
+                android:id="@+id/exo_rew"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/exo_icon_rewind"
+                app:tint="#FFFFFF"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_marginHorizontal="8dp" />
+
+            <ImageButton
+                android:id="@+id/exo_play_pause"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:background="@drawable/play_button_bg"
+                app:tint="#FFFFFF"
+                android:layout_marginHorizontal="16dp" />
+
+            <ImageButton
+                android:id="@+id/exo_ffwd"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/exo_icon_fastforward"
+                app:tint="#FFFFFF"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_marginHorizontal="8dp" />
+
+            <ImageButton
+                android:id="@+id/exo_next"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/exo_ic_skip_next"
+                app:tint="#FFFFFF"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_marginHorizontal="8dp" />
+        </LinearLayout>
+
+        <!-- Прогрес бар -->
+        <androidx.media3.ui.DefaultTimeBar
+            android:id="@+id/exo_progress"
+            style="@style/PlayerTimeBar"
+            android:layout_width="match_parent"
+            android:layout_height="26dp"
+            android:layout_marginBottom="8dp" />
+
+        <!-- Час -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:alpha="0.5">
+
+            <TextView
+                android:id="@+id/exo_position"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:letterSpacing="0.1" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/exo_duration"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:letterSpacing="0.1" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

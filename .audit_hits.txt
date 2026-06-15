@@ -1,0 +1,14 @@
+﻿
+app\src\main\java\ua\ukrtv\app\data\model\WatchProgress.kt:11:        ((positionMs.toDouble(
+) / durationMs.toDouble()) * 100).toInt().coerceIn(0, 100)
+app\src\main\java\ua\ukrtv\app\data\providers\EneyidaProvider.kt:135:            if (!json.o
+ptBoolean("success")) return null
+app\src\main\java\ua\ukrtv\app\data\providers\StreamManager.kt:33:        return null
+app\src\main\java\ua\ukrtv\app\data\providers\StreamProvider.kt:260:        if (input.isEmpt
+y()) return emptyList()
+app\src\main\java\ua\ukrtv\app\data\providers\UakinoProvider.kt:138:                return n
+ull
+app\src\main\java\ua\ukrtv\app\data\repository\WatchProgressRepository.kt:179:        return
+ null
+
+

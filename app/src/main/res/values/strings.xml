@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">УкрТВ</string>
+    <string name="watch">Дивитися</string>
+    <string name="continue_watching">Продовжити</string>
+    <string name="start_over">Спочатку</string>
+    <string name="season">Сезон</string>
+    <string name="episode">Серія</string>
+    <string name="audio_track">Озвучка</string>
+    <string name="subtitles">Субтитри</string>
+    <string name="subtitles_off">Субтитри вимк</string>
+    <string name="next_episode">Наступна серія →</string>
+    <string name="search">Пошук</string>
+    <string name="search_hint">Введіть назву фільму...</string>
+    <string name="loading">Завантаження...</string>
+    <string name="error_loading">Помилка завантаження</string>
+    <string name="no_results">Нічого не знайдено</string>
+    <string name="popular">Популярне</string>
+    <string name="all_movies">Фільми</string>
+    <string name="all_series">Серіали</string>
+</resources>
