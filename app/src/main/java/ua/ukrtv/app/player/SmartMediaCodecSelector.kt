@@ -13,7 +13,7 @@ import androidx.annotation.OptIn
 @Singleton
 class SmartMediaCodecSelector @Inject constructor() : MediaCodecSelector {
 
-    private var policy: CodecPolicy = CodecPolicy.AUTO
+    @Volatile private var policy: CodecPolicy = CodecPolicy.AUTO
 
     private val defaultSelector = MediaCodecSelector.DEFAULT
 

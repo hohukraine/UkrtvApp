@@ -147,7 +147,11 @@ class DleParser(private val profile: DleProviderProfile) {
             providerName = profile.name,
             seasons = null,
             streamUrl = null,
-            contentType = if (doc.text().contains("сезон") || url.contains("-sezon") || profile.seriesMarkers.any { url.contains(it) && !url.contains("/filmy/") }) ContentType.SERIES else ContentType.MOVIE,
+            contentType = if (
+                (profile.seriesMarkers.any { url.contains(it) && !url.contains("/filmy/") }) ||
+                url.contains("-sezon") ||
+                (!url.contains("/filmy/") && doc.select(".fi-item:contains(сезон)").isNotEmpty())
+            ) ContentType.SERIES else ContentType.MOVIE,
             rating = rating,
             country = country,
             actors = actors,

@@ -2,8 +2,6 @@ package ua.ukrtv.app.ui.detail
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -13,11 +11,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import ua.ukrtv.app.domain.model.Comment
 
 @Composable
@@ -29,6 +29,8 @@ fun CommentsSection(
     modifier: Modifier = Modifier
 ) {
     if (comments.isEmpty()) return
+
+    val context = LocalContext.current
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -44,8 +46,17 @@ fun CommentsSection(
             )
             if (!providerLogoUrl.isNullOrEmpty()) {
                 Spacer(modifier = Modifier.width(8.dp))
+                val logo = providerLogoUrl
+                val logoRequest = remember(logo) {
+                    ImageRequest.Builder(context)
+                        .data(logo)
+                        .size(160, 36)
+                        .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
+                        .crossfade(false)
+                        .build()
+                }
                 AsyncImage(
-                    model = providerLogoUrl,
+                    model = logoRequest,
                     contentDescription = providerName,
                     modifier = Modifier
                         .height(18.dp)
@@ -65,13 +76,11 @@ fun CommentsSection(
         }
 
         val displayComments = remember(comments) { comments.take(15) }
-        LazyColumn(
+        Column(
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 600.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
-            itemsIndexed(displayComments, key = { idx, c -> "$idx|${c.author}|${c.date}|${c.text.length}" }) { _, comment ->
+            displayComments.forEachIndexed { idx, comment ->
                 CommentCard(comment, accentColor)
             }
         }
@@ -91,8 +100,17 @@ private fun CommentCard(
         verticalAlignment = Alignment.Top
     ) {
         if (comment.avatar.isNotBlank()) {
+            val ctx = LocalContext.current
+            val avatarRequest = remember(comment.avatar) {
+                ImageRequest.Builder(ctx)
+                    .data(comment.avatar)
+                    .size(72, 72)
+                    .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
+                    .crossfade(false)
+                    .build()
+            }
             AsyncImage(
-                model = comment.avatar,
+                model = avatarRequest,
                 contentDescription = null,
                 modifier = Modifier
                     .size(36.dp)

@@ -199,7 +199,8 @@ class AjaxPlaylistResolutionStrategy : MediaResolutionStrategy {
         AppLogger.d("AjaxPlaylistResolutionStrategy", "Found news_id=$newsId")
 
         suspend fun fetchSeasonEpisodes(seasonUrl: String, seasonNum: Int): ProviderSeason? {
-            val sHtml = context.client.getHtml(seasonUrl, context.url) ?: return null
+            val sHtml = try { context.client.getHtml(seasonUrl, context.url) } catch (_: Exception) { return null }
+            if (sHtml.isNullOrBlank()) return null
             val sDoc = Jsoup.parse(sHtml)
             val sPlaylistDiv = sDoc.selectFirst(".playlists-ajax, [data-news_id]") ?: return null
             val sNewsId = sPlaylistDiv.attr("data-news_id")
@@ -210,15 +211,17 @@ class AjaxPlaylistResolutionStrategy : MediaResolutionStrategy {
                 .add("news_id", sNewsId)
                 .add("xfield", "playlist")
                 .build()
-            val ajaxResp = context.client.postHtml(ajaxUrl, ajaxBody, seasonUrl, isAjax = true) ?: return null
+            val ajaxResp = try { context.client.postHtml(ajaxUrl, ajaxBody, seasonUrl, isAjax = true) } catch (_: Exception) { return null } ?: return null
             val ajaxJson = try { Gson().fromJson(ajaxResp, Map::class.java) } catch (_: Exception) { return null }
             if (ajaxJson["success"] != true) return null
 
             val playlistHtml = (ajaxJson["response"] as? String) ?: return null
-            val pDoc = Jsoup.parse(playlistHtml)
+            val pDoc = try { Jsoup.parse(playlistHtml) } catch (_: Exception) { return null }
             val eps = mutableListOf<ProviderEpisode>()
             val seen = mutableSetOf<String>()
-            for (li in pDoc.select(".playlists-videos li, li[data-file]")) {
+            val sVideoContainer = pDoc.selectFirst(".playlists-videos")
+            val sEpisodeItems = sVideoContainer?.select("li[data-file]") ?: pDoc.select("li[data-file]")
+            for (li in sEpisodeItems) {
                 var file = li.attr("data-file").ifEmpty { li.attr("data-src") }.ifEmpty { li.attr("data-url") }
                 if (file.isBlank()) continue
                 if (file.startsWith("//")) file = "https:$file"
@@ -238,20 +241,22 @@ class AjaxPlaylistResolutionStrategy : MediaResolutionStrategy {
             .add("xfield", "playlist")
             .build()
 
-        val response = context.client.postHtml(url, body, context.url, isAjax = true) ?: return null
+        val response = try { context.client.postHtml(url, body, context.url, isAjax = true) } catch (_: Exception) { return null } ?: return null
         val json = try { Gson().fromJson(response, Map::class.java) } catch (_: Exception) { return null }
         if (json["success"] != true) return null
 
         val responseHtml = (json["response"] as? String) ?: return null
-        val doc = Jsoup.parse(responseHtml)
+        val doc = try { Jsoup.parse(responseHtml) } catch (_: Exception) { return null }
 
         val allSeasons = mutableListOf<ProviderSeason>()
 
-        // Parse current season episodes
+        // Parse current season episodes (only first/visible voiceover tab)
         val currentSeasonNum = context.defaultSeason ?: 1
         val curEps = mutableListOf<ProviderEpisode>()
         val seen = mutableSetOf<String>()
-        for (li in doc.select(".playlists-videos li, li[data-file]")) {
+        val videoContainer = doc.selectFirst(".playlists-videos")
+        val episodeItems = videoContainer?.select("li[data-file]") ?: doc.select("li[data-file]")
+        for (li in episodeItems) {
             var file = li.attr("data-file").ifEmpty { li.attr("data-src") }.ifEmpty { li.attr("data-url") }
             if (file.isBlank()) continue
             if (file.startsWith("//")) file = "https:$file"
@@ -320,7 +325,7 @@ class IframeResolutionStrategy : MediaResolutionStrategy {
                 if (media.isNotEmpty()) {
                     AppLogger.d("IframeResolutionStrategy", "Found ${media.size} m3u8 in iframe: ${media.first()}")
                     
-                    if (context.config.profile.name == "Eneyida") {
+        if (context.config.profile.name == "Eneyida") {
                         // First: try to extract structured JSON playlist from iframe
                         val jsonPlaylist = try {
                             Regex("""file\s*:\s*['"](\[.*\])['"]""", RegexOption.DOT_MATCHES_ALL)

@@ -133,25 +133,35 @@ class StreamResolver @Inject constructor(
     ): StreamResolutionResult? = resolve(pageUrl, season = season, episode = episode)
 
     suspend fun resolveIframe(iframeUrl: String, referer: String): List<HlsExtractor.ExtractResult> = withContext(Dispatchers.IO) {
-        val stream = if (iframeUrl.contains("/vod/")) {
-            val videoID = iframeUrl.substringAfterLast("/")
-            unifiedStreamProvider.getStreamUrl(videoID)
-        } else null
-        
-        if (stream != null) {
-            listOf(HlsExtractor.ExtractResult(stream, getStreamType(stream)))
-        } else {
-            val html = htmlHttpClient.getHtml(iframeUrl, referer) ?: return@withContext emptyList()
-            hlsExtractor.extractFromHtml(html)
+        try {
+            val stream = if (iframeUrl.contains("/vod/")) {
+                val videoID = iframeUrl.substringAfterLast("/")
+                unifiedStreamProvider.getStreamUrl(videoID)
+            } else null
+
+            if (stream != null) {
+                listOf(HlsExtractor.ExtractResult(stream, getStreamType(stream)))
+            } else {
+                val html = htmlHttpClient.getHtml(iframeUrl, referer) ?: return@withContext emptyList()
+                hlsExtractor.extractFromHtml(html)
+            }
+        } catch (e: Exception) {
+            Log.w("StreamResolver", "resolveIframe failed: ${e.message}")
+            emptyList()
         }
     }
 
     suspend fun resolveVodId(vodIdUrl: String, referer: String): List<HlsExtractor.ExtractResult> = withContext(Dispatchers.IO) {
-        val videoID = vodIdUrl.substringAfterLast("/")
-        val stream = unifiedStreamProvider.getStreamUrl(videoID)
-        if (stream != null) {
-            listOf(HlsExtractor.ExtractResult(stream, getStreamType(stream)))
-        } else {
+        try {
+            val videoID = vodIdUrl.substringAfterLast("/")
+            val stream = unifiedStreamProvider.getStreamUrl(videoID)
+            if (stream != null) {
+                listOf(HlsExtractor.ExtractResult(stream, getStreamType(stream)))
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            Log.w("StreamResolver", "resolveVodId failed: ${e.message}")
             emptyList()
         }
     }

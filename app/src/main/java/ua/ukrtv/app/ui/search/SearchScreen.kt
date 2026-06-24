@@ -80,7 +80,8 @@ class SearchViewModel @Inject constructor(
 
     private fun loadHistory() {
         viewModelScope.launch(Dispatchers.IO) {
-            _history.value = historyDao.getRecent().map { it.query }
+            val recent = historyDao.getRecent().map { it.query }
+            _history.value = recent
         }
     }
 

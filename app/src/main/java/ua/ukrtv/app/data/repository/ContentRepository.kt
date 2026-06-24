@@ -309,11 +309,16 @@ class ContentRepository @Inject constructor(
 
 
     suspend fun getStream(url: String, season: Int?, episode: Int?): StreamResolutionResult? {
-        var res = streamResolver.resolve(url, season = season, episode = episode)
-        if (res == null) {
-            delay(1000)
-            res = streamResolver.resolve(url, season = season, episode = episode)
+        try {
+            var res = streamResolver.resolve(url, season = season, episode = episode)
+            if (res == null) {
+                delay(1000)
+                res = streamResolver.resolve(url, season = season, episode = episode)
+            }
+            return res
+        } catch (e: Exception) {
+            AppLogger.w("ContentRepository", "getStream failed: ${e.message}")
+            return null
         }
-        return res
     }
 }

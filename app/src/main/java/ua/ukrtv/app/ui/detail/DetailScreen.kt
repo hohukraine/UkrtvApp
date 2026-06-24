@@ -24,7 +24,6 @@ import ua.ukrtv.app.domain.model.MediaLaunchState
 import ua.ukrtv.app.domain.model.ContentType
 import ua.ukrtv.app.domain.model.Episode
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Surface
 import ua.ukrtv.app.ui.detail.SeasonEpisodePicker
 import ua.ukrtv.app.ui.detail.CommentsSection
 
@@ -181,7 +180,7 @@ fun DetailContent(
                                     onClick = {}
                                 ) {
                                     Text(
-                                        text = detail.rating!!,
+                                        text = detail.rating,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
                                         color = Color.Black,
                                         fontSize = 14.sp,

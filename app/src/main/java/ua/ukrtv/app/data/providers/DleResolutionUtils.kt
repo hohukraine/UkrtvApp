@@ -134,7 +134,7 @@ object DleResolutionUtils {
             if (items.isEmpty()) return null
             
             val episodes = items.mapIndexedNotNull { idx, li ->
-                val el = li!!
+                val el = li
                 val rawFile = el.attr("data-file").ifEmpty { el.attr("data-url") }.ifEmpty { el.attr("data-id") }
                 val url = parseDleLinks(rawFile)
                 if (url.isEmpty() || url == "0" || url.length < 5 || url.contains("<")) return@mapIndexedNotNull null

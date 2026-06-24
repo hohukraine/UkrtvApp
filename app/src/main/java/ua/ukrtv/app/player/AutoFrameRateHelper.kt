@@ -216,7 +216,8 @@ class AutoFrameRateHelper @Inject constructor(
         val mode = display?.mode
         val supportedModes = display?.supportedModes
 
-        val surfaceStr = if (surface != null) "Surface valid=${surface!!.isValid}" else "null"
+        val s = surface
+        val surfaceStr = if (s != null) "Surface valid=${s.isValid}" else "null"
         val modeStr = if (mode != null) "id=${mode.modeId} ${mode.physicalWidth}x${mode.physicalHeight}@${mode.refreshRate}Hz" else "null"
         val supportedStr = supportedModes?.joinToString(", ") {
             "${it.modeId}: ${it.physicalWidth}x${it.physicalHeight}@${it.refreshRate}Hz"

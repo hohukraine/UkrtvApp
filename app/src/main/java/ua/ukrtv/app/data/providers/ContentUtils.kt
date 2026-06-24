@@ -98,7 +98,7 @@ object ContentUtils {
 
     fun inferContentType(url: String, title: String = ""): ContentType {
         val l = (url + title).lowercase()
-        return if (listOf("сезон", "серіал", "серія", "series", "/seriesss/", "/seriali/").any { l.contains(it) }) ContentType.SERIES else ContentType.MOVIE
+        return if (listOf("сезон", "серіал", "серія", "series", "/seriali/").any { l.contains(it) }) ContentType.SERIES else ContentType.MOVIE
     }
 
     fun extractTitleFromUrl(url: String): String {

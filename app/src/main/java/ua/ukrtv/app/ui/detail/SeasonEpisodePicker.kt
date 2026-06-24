@@ -3,9 +3,6 @@ package ua.ukrtv.app.ui.detail
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -31,8 +28,9 @@ fun SeasonEpisodePicker(
     accentColor: Color = Color(0xFF6E85B7),
     modifier: Modifier = Modifier
 ) {
-    var selectedSeasonNum by remember(seasons) { 
-        mutableStateOf(seasons.firstOrNull()?.number ?: 1) 
+    val seasonKey = remember(seasons) { seasons.map { it.number }.toList() }
+    var selectedSeasonNum by remember(seasonKey) {
+        mutableStateOf(seasons.firstOrNull()?.number ?: 1)
     }
     val selectedSeason = seasons.find { it.number == selectedSeasonNum }
 
@@ -75,7 +73,9 @@ fun SeasonEpisodePicker(
                             border = androidx.compose.foundation.BorderStroke(2.dp, accentColor)
                         )
                     ),
-                    modifier = Modifier.onFocusChanged { }
+                    modifier = Modifier.onFocusChanged { focused ->
+                        if (focused.isFocused) selectedSeasonNum = season.number
+                    }
                 ) {
                     Box(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 10.dp),
@@ -102,21 +102,17 @@ fun SeasonEpisodePicker(
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 84.dp),
+        FlowRow(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(max = 400.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
-            selectedSeason?.episodes?.let { episodes ->
-                items(episodes, key = { it.id }) { episode ->
-                    val onEpClick = remember(selectedSeasonNum, episode.id) {
-                        { onEpisodeClick(selectedSeasonNum, episode) }
-                    }
-                    Surface(
-                        onClick = onEpClick,
+            selectedSeason?.episodes?.forEach { episode ->
+                val onEpClick = remember(selectedSeasonNum, episode.id) {
+                    { onEpisodeClick(selectedSeasonNum, episode) }
+                }
+                Surface(
+                    onClick = onEpClick,
                         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
                         colors = ClickableSurfaceDefaults.colors(
                             containerColor = Color(0xFF1A1A1D),
@@ -134,8 +130,7 @@ fun SeasonEpisodePicker(
                             focusedBorder = androidx.tv.material3.Border(
                                 border = androidx.compose.foundation.BorderStroke(2.dp, accentColor)
                             )
-                        ),
-                        modifier = Modifier.onFocusChanged { }
+                        )
                     ) {
                         Box(
                             modifier = Modifier
@@ -168,4 +163,3 @@ fun SeasonEpisodePicker(
             }
         }
     }
-}

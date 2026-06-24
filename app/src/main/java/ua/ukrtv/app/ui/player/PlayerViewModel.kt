@@ -171,13 +171,18 @@ class PlayerViewModel @Inject constructor(
         context.subtitle = subtitle
         _uiState.value = PlayerUiState.Loading(context.title)
         viewModelScope.launch {
-            val res = withContext(Dispatchers.IO) {
-                streamResolver.resolve(
-                    url = url,
-                    referer = "",
-                    season = context.season,
-                    episode = context.episode
-                )
+            val res = try {
+                withContext(Dispatchers.IO) {
+                    streamResolver.resolve(
+                        url = url,
+                        referer = "",
+                        season = context.season,
+                        episode = context.episode
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w("PlayerViewModel", "Stream resolve failed: ${e.message}")
+                null
             }
             if (res != null) {
                 context.availableStreams.clear()
@@ -347,6 +352,7 @@ class PlayerViewModel @Inject constructor(
 
     override fun onCleared() {
         super.onCleared()
+        playbackStatsTracker.stopTracking()
         autoFrameRateHelper.release()
     }
     fun updatePlaybackState(s: Int) { _playbackState.value = s }
@@ -376,7 +382,10 @@ class PlayerViewModel @Inject constructor(
         return ei > 0 || si > 0
     }
 
+    private var dataSourceFactory: OkHttpDataSource.Factory? = null
+
     fun getDataSourceFactory(): OkHttpDataSource.Factory {
+        dataSourceFactory?.let { return it }
         val playerOkHttpClient = okHttpClient.newBuilder()
             .connectTimeout(ua.ukrtv.app.Constants.CONNECT_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
             .readTimeout(ua.ukrtv.app.Constants.READ_TIMEOUT_MS, java.util.concurrent.TimeUnit.MILLISECONDS)
@@ -405,7 +414,7 @@ class PlayerViewModel @Inject constructor(
                 )
             }
             .build()
-        return OkHttpDataSource.Factory(playerOkHttpClient)
+        return OkHttpDataSource.Factory(playerOkHttpClient).also { dataSourceFactory = it }
     }
 
     fun buildPlayer(context: Context, dsFactory: DataSource.Factory): ExoPlayer {

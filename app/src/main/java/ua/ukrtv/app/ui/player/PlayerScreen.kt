@@ -226,12 +226,13 @@ private fun PlayerContent(
                 }
 
                 LaunchedEffect(endedCountdown) {
-                    if (endedCountdown != null) {
-                        while (endedCountdown!! > 0) {
+                    endedCountdown?.let { countdown ->
+                        if (countdown > 0) {
                             delay(1000)
-                            endedCountdown = endedCountdown!! - 1
+                            endedCountdown = countdown - 1
+                        } else {
+                            endedCountdown = null
                         }
-                        endedCountdown = null
                     }
                 }
 

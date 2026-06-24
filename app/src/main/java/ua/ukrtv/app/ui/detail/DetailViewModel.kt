@@ -80,9 +80,9 @@ class DetailViewModel @Inject constructor(
 
     fun watchContent(season: Int? = null, episode: Int? = null) {
         val detail = currentDetail ?: return
+        _launchState.value = MediaLaunchState.Resolving(detail.title)
         
         viewModelScope.launch {
-            _launchState.value = MediaLaunchState.Resolving(detail.title)
             
             val res = withContext(Dispatchers.IO) {
                 streamResolver.resolve(

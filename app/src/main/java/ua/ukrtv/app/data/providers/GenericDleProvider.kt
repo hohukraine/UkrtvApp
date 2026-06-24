@@ -77,18 +77,28 @@ class GenericDleProvider(
 
     override suspend fun getHomeSections(page: Int): List<HomeSection> = withContext(Dispatchers.IO) {
         val path = if (page > 1) "page/$page/" else ""
-        htmlHttpClient.getHtml(absoluteUrl(path))?.let { html ->
-            val doc = Jsoup.parse(html, baseUrl)
-            val movies = config.parsingStrategy.extractMovies(doc)
-            if (movies.isNotEmpty()) listOf(HomeSection("Новинки", movies)) else emptyList()
-        } ?: emptyList()
+        try {
+            htmlHttpClient.getHtml(absoluteUrl(path))?.let { html ->
+                val doc = Jsoup.parse(html, baseUrl)
+                val movies = config.parsingStrategy.extractMovies(doc)
+                if (movies.isNotEmpty()) listOf(HomeSection("Новинки", movies)) else emptyList()
+            } ?: emptyList()
+        } catch (e: Exception) {
+            AppLogger.w("$name:HomeSections", "Failed to load: ${e.message}")
+            emptyList()
+        }
     }
 
     override suspend fun getMoviesByCategory(category: ContentCategory, page: Int): List<Movie> = withContext(Dispatchers.IO) {
         config.profile.categoryPaths[category]?.let { path ->
             val fullUrl = absoluteUrl(if (page > 1) "${path}page/$page/" else path)
-            htmlHttpClient.getHtml(fullUrl)?.let { html ->
-                config.parsingStrategy.extractMovies(html)
+            try {
+                htmlHttpClient.getHtml(fullUrl)?.let { html ->
+                    config.parsingStrategy.extractMovies(html)
+                }
+            } catch (e: Exception) {
+                AppLogger.w("$name:Category", "Failed: ${e.message}")
+                emptyList()
             }
         } ?: emptyList()
     }
@@ -128,9 +138,13 @@ class GenericDleProvider(
 
     override suspend fun getMovieDetails(url: String): MovieDetail = withContext(Dispatchers.IO) {
         detailCache.get(url)?.let { return@withContext it }
-        htmlHttpClient.getHtml(url)?.let { html ->
-            config.parsingStrategy.extractDetail(html, url).also { detailCache.put(url, it) }
-        } ?: throw Exception("Failed to load details")
+        try {
+            htmlHttpClient.getHtml(url)?.let { html ->
+                config.parsingStrategy.extractDetail(html, url).also { detailCache.put(url, it) }
+            } ?: throw Exception("Empty response")
+        } catch (e: Exception) {
+            throw Exception("Failed to load details for $url: ${e.message}")
+        }
     }
 
     override suspend fun getMediaSource(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean): MediaSource? = withContext(Dispatchers.IO) {
@@ -140,7 +154,10 @@ class GenericDleProvider(
         val hasSeasonMarkers = html.contains("сезон", true) || html.contains("season", true) ||
                 pageUrl.contains("-sezon", true) || pageUrl.contains("/series/", true) ||
                 pageUrl.contains("/serialy/", true) || pageUrl.contains("/anime/", true)
-        val detectedType = if (hasSeasonMarkers && html.contains("<li") && html.contains("data-file")) ContentType.SERIES else ContentType.MOVIE
+        val detectedType = if (
+            (hasSeasonMarkers && html.contains("<li") && html.contains("data-file")) ||
+            config.profile.seriesMarkers.any { pageUrl.contains(it) }
+        ) ContentType.SERIES else ContentType.MOVIE
 
         val ctx = ResolutionContext(pageUrl, html, sessionUserHash, detectedType, htmlHttpClient, unifiedStreamProvider, config, isDeep = isDeep)
         AppLogger.d("$name:MediaSource", "Resolving: isDeep=$isDeep, detectedType=$detectedType, season=$season")

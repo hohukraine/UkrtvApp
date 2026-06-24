@@ -27,7 +27,7 @@ class PlaybackStatsTracker @Inject constructor(
     private var contentId: String = ""
     private var episodeId: String? = null
     private var statsJob: Job? = null
-    private var trackingActive = false
+    @Volatile private var trackingActive = false
     private var videoFrameMetadataListener: VideoFrameMetadataListener? = null
     private var playerListener: Player.Listener? = null
 
@@ -160,6 +160,12 @@ class PlaybackStatsTracker @Inject constructor(
 
     private fun saveCurrentStats() {
         val currentFpsSamples = fpsSampleCount.get()
+        val currentPlayer = player
+        val videoFormat = currentPlayer?.let { p ->
+            p.currentTracks.groups
+                .firstOrNull { it.type == androidx.media3.common.C.TRACK_TYPE_VIDEO }
+                ?.getTrackFormat(0)
+        }
         val stats = PlaybackStats(
             deviceId = deviceId,
             contentId = contentId,
@@ -168,9 +174,9 @@ class PlaybackStatsTracker @Inject constructor(
             droppedFrames = droppedFrames.get(),
             bufferUnderruns = bufferUnderruns.get(),
             totalWatchTimeMs = totalWatchTimeMs.get(),
-            formatCodec = _stats.value?.formatCodec,
-            formatHeight = _stats.value?.formatHeight ?: 0,
-            formatBitrate = _stats.value?.formatBitrate ?: 0
+            formatCodec = videoFormat?.codecs?.substringBefore(".") ?: _stats.value?.formatCodec,
+            formatHeight = videoFormat?.height ?: _stats.value?.formatHeight ?: 0,
+            formatBitrate = videoFormat?.bitrate ?: _stats.value?.formatBitrate ?: 0
         )
         _stats.value = stats
         scope.launch {
