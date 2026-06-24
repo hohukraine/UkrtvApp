@@ -10,6 +10,7 @@ import android.view.Display
 import android.view.Surface
 import android.view.WindowManager
 import androidx.media3.common.Format
+import dagger.hilt.android.qualifiers.ApplicationContext
 import ua.ukrtv.app.util.AppLogger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,7 +18,7 @@ import kotlin.math.abs
 
 @Singleton
 class AutoFrameRateHelper @Inject constructor(
-    private val context: Context
+    @ApplicationContext private val context: Context
 ) {
     private var isEnabled: Boolean = true
     private var surface: Surface? = null
