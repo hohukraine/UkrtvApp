@@ -35,7 +35,6 @@ class HlsExtractor {
             results.add(ExtractResult(normalizeUrl(it.value), StreamType.MP4))
         }
 
-        // Search for qualities in JSON-like structures
         val qualityPattern = Regex("""[\[({]?(\d{3,4}p?)[\])}]?\s*[:]?\s*((?:https?:)?//[^\s,"'\]]+)""", RegexOption.IGNORE_CASE)
         qualityPattern.findAll(html).forEach { match ->
             val label = match.groupValues[1]
@@ -48,7 +47,6 @@ class HlsExtractor {
             results.add(ExtractResult(url, type, label, label.filter { it.isDigit() }.toIntOrNull() ?: 0))
         }
 
-        // Update results with quality if found in URL for those without labels
         val labeledResults = results.map { result ->
             if (result.label == null) {
                 val quality = Regex("""(\d{3,4})p?""").find(result.url)?.groupValues?.get(1)?.toIntOrNull() ?: 0
@@ -60,7 +58,6 @@ class HlsExtractor {
 
         val allResults = labeledResults.toMutableList()
 
-        // Base64 decoding for ashdi and others
         val base64Pattern = Regex("""["']([A-Za-z0-9+/]{40,})={0,2}["']""")
         base64Pattern.findAll(html).forEach { match ->
             try {

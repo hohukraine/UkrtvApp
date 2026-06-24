@@ -22,10 +22,6 @@ class WatchProgressRepository @Inject constructor(
 ) {
     private val PROGRESS_PREFIX = "p_"
     private val STATS_PREFIX = "s_"
-    
-    // Keep for migration if needed, but for now we'll just use new system
-    private val OLD_PROGRESS_KEY = stringPreferencesKey("watch_progress")
-    private val OLD_STATS_KEY = stringPreferencesKey("playback_stats")
 
     fun getDeviceId(): String {
         return android.provider.Settings.Secure.getString(
@@ -63,11 +59,6 @@ class WatchProgressRepository @Inject constructor(
                 timestamp = System.currentTimeMillis()
             )
             preferences[prefKey] = gson.toJson(updated)
-            
-            // Clean up old combined key if it exists to save space (optional)
-            if (preferences.contains(OLD_PROGRESS_KEY)) {
-                preferences.remove(OLD_PROGRESS_KEY)
-            }
         }
     }
 
@@ -86,6 +77,14 @@ class WatchProgressRepository @Inject constructor(
      */
     suspend fun getProgressWithDeviceInfo(contentId: String, episodeId: String? = null): WatchProgress? {
         return null 
+    }
+
+    suspend fun deleteProgress(contentId: String) {
+        val prefix = "$PROGRESS_PREFIX$contentId"
+        dataStore.edit { prefs ->
+            val keysToRemove = prefs.asMap().keys.filter { it.name.startsWith(prefix) }
+            keysToRemove.forEach { prefs.remove(it) }
+        }
     }
 
     suspend fun getAllProgress(): List<WatchProgress> {
@@ -107,9 +106,6 @@ class WatchProgressRepository @Inject constructor(
         
         dataStore.edit { preferences ->
             preferences[prefKey] = gson.toJson(stats)
-            if (preferences.contains(OLD_STATS_KEY)) {
-                preferences.remove(OLD_STATS_KEY)
-            }
         }
     }
 

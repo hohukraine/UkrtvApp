@@ -4,152 +4,114 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.launch
-import ua.ukrtv.app.domain.model.ContentType
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
+import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.MovieDetail
-import ua.ukrtv.app.domain.usecase.GetMovieDetailsUseCase
-import ua.ukrtv.app.domain.usecase.GetStreamUseCase
-import ua.ukrtv.app.domain.model.StreamResolutionResult
-import ua.ukrtv.app.domain.model.Season
-import ua.ukrtv.app.data.model.CachedMovie
-import ua.ukrtv.app.data.repository.FavoritesRepository
+import ua.ukrtv.app.domain.model.ContentType
+import ua.ukrtv.app.domain.model.MediaLaunchState
+import ua.ukrtv.app.data.repository.ContentRepository
+import ua.ukrtv.app.data.repository.WatchProgressRepository
+import ua.ukrtv.app.data.streaming.StreamResolver
+import ua.ukrtv.app.util.AppLogger
 import javax.inject.Inject
-
-sealed class WatchState {
-    object Idle : WatchState()
-    object Searching : WatchState()
-    object NotFound : WatchState()
-}
-
-data class PlayRequest(
-    val streamResult: StreamResolutionResult,
-    val title: String,
-    val season: Int?,
-    val episode: Int?,
-    val contentId: String,
-    val seasons: List<Season>?
-)
 
 sealed class DetailState {
     object Loading : DetailState()
     data class Success(
-        val detail: MovieDetail
-    ) : DetailState() {
-        val id: String get() = detail.id
-        val title: String get() = detail.title
-        val overview: String get() = detail.description
-        val posterPath: String get() = detail.poster
-        val backdropPath: String get() = detail.backdrop ?: detail.poster
-        val releaseDate: String? get() = detail.year
-        val type: ContentType get() = detail.contentType
-    }
+        val detail: MovieDetail,
+        val watchProgress: Long = 0L
+    ) : DetailState()
     data class Error(val message: String) : DetailState()
 }
 
 @HiltViewModel
 class DetailViewModel @Inject constructor(
-    private val savedStateHandle: SavedStateHandle,
-    private val getMovieDetailsUseCase: GetMovieDetailsUseCase,
-    private val getStreamUseCase: GetStreamUseCase,
-    private val favoritesRepository: FavoritesRepository
+    savedStateHandle: SavedStateHandle,
+    private val mediaRepository: ContentRepository,
+    private val watchProgressRepository: WatchProgressRepository,
+    private val streamResolver: StreamResolver
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<DetailState>(DetailState.Loading)
     val state: StateFlow<DetailState> = _state
 
-    private val _watchState = MutableStateFlow<WatchState>(WatchState.Idle)
-    val watchState: StateFlow<WatchState> = _watchState
+    private val _launchState = MutableStateFlow<MediaLaunchState>(MediaLaunchState.Idle)
+    val launchState: StateFlow<MediaLaunchState> = _launchState
 
-    private val _navigationEvent = MutableSharedFlow<PlayRequest>(extraBufferCapacity = 1)
-    val navigationEvent: SharedFlow<PlayRequest> = _navigationEvent.asSharedFlow()
-
-    private val _isFavorite = MutableStateFlow(false)
-    val isFavorite: StateFlow<Boolean> = _isFavorite
+    private var currentDetail: MovieDetail? = null
 
     init {
-        val id = savedStateHandle.get<String>("id") ?: ""
-        val url = savedStateHandle.get<String>("url") ?: ""
-        if (id.isNotEmpty()) {
-            loadDetail(id, url)
+        val id = savedStateHandle.get<String>("id")
+        val url = savedStateHandle.get<String>("url")
+        val typeStr = savedStateHandle.get<String>("type")
+        val type = typeStr?.let { try { ContentType.valueOf(it) } catch (_: Exception) { null } }
+
+        if (id != null && url != null) {
+            loadDetail(id, url, type)
         } else {
-            _state.value = DetailState.Error("Невірні дані")
+            _state.value = DetailState.Error("Відсутні дані для завантаження")
         }
     }
 
-    private fun loadDetail(id: String, url: String) {
+    private fun loadDetail(id: String, url: String, type: ContentType?) {
         viewModelScope.launch {
-            getMovieDetailsUseCase(id, url).collect { result ->
+            _state.value = DetailState.Loading
+            
+            // Get progress first
+            val progress = watchProgressRepository.getProgress(id)
+
+            mediaRepository.getDetails(id, url, type?.let { 
+                if (it == ContentType.SERIES) ua.ukrtv.app.data.providers.ContentCategory.SERIES 
+                else ua.ukrtv.app.data.providers.ContentCategory.MOVIES 
+            }).collect { result ->
                 result.onSuccess { detail ->
-                    _state.value = DetailState.Success(detail)
-                    _isFavorite.value = favoritesRepository.isFavorite(detail.id)
+                    currentDetail = detail
+                    _state.value = DetailState.Success(
+                        detail = detail,
+                        watchProgress = progress?.positionMs ?: 0L
+                    )
                 }.onFailure { e ->
-                    _state.value = DetailState.Error(e.message ?: "Помилка завантаження")
+                    _state.value = DetailState.Error(e.message ?: "Не вдалося завантажити деталі")
                 }
             }
         }
     }
 
-    fun toggleFavorite() {
-        val currentState = _state.value as? DetailState.Success ?: return
-        viewModelScope.launch {
-            favoritesRepository.toggleFavorite(
-                CachedMovie(
-                    id = currentState.detail.id,
-                    title = currentState.detail.title,
-                    posterPath = currentState.detail.poster,
-                    backdropPath = currentState.detail.poster,
-                    overview = currentState.detail.description,
-                    year = currentState.detail.year ?: "",
-                    rating = 0.0,
-                    providerUrl = currentState.detail.pageUrl,
-                    providerName = currentState.detail.providerName,
-                    cachedAt = System.currentTimeMillis()
-                )
-            )
-            _isFavorite.value = !_isFavorite.value
-        }
-    }
-
     fun watchContent(season: Int? = null, episode: Int? = null) {
-        val currentState = _state.value as? DetailState.Success ?: return
+        val detail = currentDetail ?: return
+        
         viewModelScope.launch {
-            _watchState.value = WatchState.Searching
+            _launchState.value = MediaLaunchState.Resolving(detail.title)
             
-            // Якщо вибрано конкретну серію, пробуємо використати її URL
-            val targetUrl = if (season != null && episode != null) {
-                currentState.detail.seasons
-                    ?.find { it.number == season }
-                    ?.episodes?.find { it.number == episode }
-                    ?.pageUrl ?: currentState.detail.pageUrl
-            } else {
-                currentState.detail.pageUrl
+            val res = withContext(Dispatchers.IO) {
+                streamResolver.resolve(
+                    url = detail.pageUrl,
+                    referer = "",
+                    season = season,
+                    episode = episode
+                )
             }
 
-            val streamResult = getStreamUseCase(targetUrl)
-            if (streamResult != null) {
-                _watchState.value = WatchState.Idle
-                _navigationEvent.emit(
-                    PlayRequest(
-                        streamResult = streamResult,
-                        title = currentState.title,
-                        season = season,
-                        episode = episode,
-                        contentId = currentState.id,
-                        seasons = currentState.detail.seasons
-                    )
+            if (res != null) {
+                _launchState.value = MediaLaunchState.Ready(
+                    contentId = detail.id,
+                    title = detail.title,
+                    subtitle = if (season != null && episode != null) "S$season E$episode" else "",
+                    posterUrl = detail.poster,
+                    streamResult = res,
+                    season = season,
+                    episode = episode,
+                    seasons = res.seasons
                 )
             } else {
-                _watchState.value = WatchState.NotFound
+                _launchState.value = MediaLaunchState.Error("Стрім не знайдено")
+                AppLogger.e("DetailViewModel", "Failed to resolve stream for ${detail.title}")
             }
         }
     }
 
-    fun resetWatchState() {
-        _watchState.value = WatchState.Idle
+    fun resetLaunchState() {
+        _launchState.value = MediaLaunchState.Idle
     }
 }

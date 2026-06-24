@@ -2,20 +2,13 @@ package ua.ukrtv.app.data.providers
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import okhttp3.RequestBody
-import kotlinx.coroutines.*
-import org.jsoup.Jsoup
 import ua.ukrtv.app.domain.model.ContentType
-import ua.ukrtv.app.domain.model.Movie
-import ua.ukrtv.app.domain.model.MovieDetail
-import ua.ukrtv.app.data.model.ParsedMovie
-import ua.ukrtv.app.domain.model.Season
 import ua.ukrtv.app.domain.model.Episode
+import ua.ukrtv.app.domain.model.Movie
+import ua.ukrtv.app.domain.model.Season
 import ua.ukrtv.app.domain.model.StreamResolutionResult
 import ua.ukrtv.app.domain.model.StreamType
-import ua.ukrtv.app.util.AppLogger
 
 @Parcelize
 data class SearchItem(
@@ -40,7 +33,9 @@ sealed class MediaSource : Parcelable {
         val url: String,
         val fallbackUrls: List<String> = emptyList(),
         override val referer: String = "",
-        override val providerName: String = ""
+        override val providerName: String = "",
+        val voiceover: String? = null,
+        val subtitles: String? = null
     ) : MediaSource(), Parcelable {
         override val primaryUrl: String get() = url
         override val allUrls: List<String> get() = listOf(url) + fallbackUrls
@@ -67,7 +62,9 @@ data class ProviderSeason(
 data class ProviderEpisode(
     val number: Int,
     val title: String,
-    val url: String
+    val url: String,
+    val voiceover: String? = null,
+    val subtitles: String? = null
 ) : Parcelable
 
 @Parcelize
@@ -79,80 +76,6 @@ data class StreamResult(
     val referer: String = "",
     val providerBaseUrl: String = ""
 ) : Parcelable
-
-interface StreamProvider {
-    val name: String
-    val baseUrl: String
-    val hasPublicSearch: Boolean
-
-    suspend fun getEffectiveBaseUrl(): String = baseUrl
-
-    suspend fun initializeSession(): Boolean
-    suspend fun search(query: String, limit: Int = 10): List<SearchItem>
-    suspend fun getMediaSource(pageUrl: String): MediaSource?
-    suspend fun getMovieDetails(id: String, url: String): MovieDetail
-
-    suspend fun getStreamUrl(pageUrl: String): StreamResult? {
-        val source = getMediaSource(pageUrl)
-        return when (source) {
-            is MediaSource.Movie -> StreamResult(
-                url = source.url,
-                source = source,
-                providerName = name,
-                hostSource = "adapter",
-                referer = source.referer,
-                providerBaseUrl = baseUrl
-            )
-            is MediaSource.Series -> {
-                val firstEp = source.seasons.firstOrNull()?.episodes?.firstOrNull()
-                StreamResult(
-                    url = firstEp?.url ?: "",
-                    source = source,
-                    providerName = name,
-                    hostSource = "series",
-                    referer = source.referer,
-                    providerBaseUrl = baseUrl
-                )
-            }
-            null -> null
-        }
-    }
-
-    fun supportsUrl(url: String): Boolean
-    fun clearCache(url: String? = null)
-}
-
-abstract class BaseStreamProvider(
-    protected val client: OkHttpClient,
-    protected val htmlHttpClient: ua.ukrtv.app.data.network.HtmlHttpClient
-) : StreamProvider {
-
-    override suspend fun getEffectiveBaseUrl(): String = baseUrl
-
-    override fun clearCache(url: String?) {
-        // Cache removed in radical refactoring
-    }
-
-    protected suspend fun getHtml(
-        url: String,
-        referer: String? = null,
-        isAjax: Boolean = false
-    ): String? = htmlHttpClient.getHtml(url, referer, isAjax)
-
-    protected suspend fun postHtml(
-        url: String,
-        body: RequestBody,
-        referer: String? = null,
-        isAjax: Boolean = false
-    ): String? = htmlHttpClient.postHtml(url, body, referer, isAjax)
-
-    protected fun absoluteUrl(href: String): String =
-        if (href.startsWith("http")) href else baseUrl.trimEnd('/') + (if (href.startsWith("/")) "" else "/") + href
-
-    override suspend fun getMovieDetails(id: String, url: String): MovieDetail {
-        throw UnsupportedOperationException("getMovieDetails must be implemented by child or avoided")
-    }
-}
 
 fun MediaSource.toStreamResolutionResult(
     providerName: String,
@@ -182,8 +105,9 @@ fun MediaSource.toStreamResolutionResult(
         fallbackStreams = fallback,
         providerName = providerName,
         sourcePageUrl = sourcePageUrl,
-        source = this
+        seasons = if (this is MediaSource.Series) this.seasons.map { it.toDomainSeason() } else null
     )
+
 }
 
 fun ProviderSeason.toDomainSeason(): Season = Season(
@@ -193,7 +117,9 @@ fun ProviderSeason.toDomainSeason(): Season = Season(
             id = ep.url,
             number = ep.number,
             title = ep.title,
-            pageUrl = ep.url
+            pageUrl = ep.url,
+            voiceover = ep.voiceover,
+            subtitles = ep.subtitles
         )
     }
 )
@@ -210,25 +136,3 @@ fun SearchItem.toMovie(): Movie {
         shortDescription = shortDescription
     )
 }
-
-fun ParsedMovie.toMovie(): Movie = Movie(
-    id = id,
-    title = title,
-    poster = poster,
-    year = year,
-    type = type,
-    pageUrl = pageUrl,
-    genres = genres,
-    shortDescription = shortDescription
-)
-
-fun ParsedMovie.toSearchItem(): SearchItem = SearchItem(
-    title = title,
-    url = pageUrl,
-    imageUrl = poster,
-    provider = "", // To be set by provider
-    type = type,
-    year = year,
-    genres = genres,
-    shortDescription = shortDescription
-)

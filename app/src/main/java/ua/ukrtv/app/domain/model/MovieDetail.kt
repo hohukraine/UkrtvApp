@@ -14,7 +14,9 @@ data class Episode(
     val id: String,
     val number: Int,
     val title: String,
-    val pageUrl: String
+    val pageUrl: String,
+    val voiceover: String? = null,
+    val subtitles: String? = null
 ) : Parcelable
 
 data class MovieDetail(
@@ -38,7 +40,10 @@ data class MovieDetail(
     val actors: List<String> = emptyList(),
     val director: List<String> = emptyList(),
     val episodeCount: Int? = null,
-    val seasonCount: Int? = null
+    val seasonCount: Int? = null,
+    val tmdbId: Int? = null,
+    val comments: List<Comment> = emptyList(),
+    val brandColor: String? = null
 ) {
     val isSeries: Boolean get() = contentType == ContentType.SERIES || !seasons.isNullOrEmpty()
 }

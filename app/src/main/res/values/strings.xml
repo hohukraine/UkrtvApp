@@ -18,4 +18,37 @@
     <string name="popular">Популярне</string>
     <string name="all_movies">Фільми</string>
     <string name="all_series">Серіали</string>
+
+    <!-- Player -->
+    <string name="retry">ПОВТОРИТИ</string>
+    <string name="video_not_found">Відео не знайдено</string>
+    <string name="quality">Якість</string>
+    <string name="quality_auto">Авто</string>
+    <string name="quality_video">Якість відео</string>
+    <string name="no_internet">Немає підключення до інтернету</string>
+    <string name="seek_backward">Назад 10 секунд</string>
+    <string name="seek_forward">Вперед 10 секунд</string>
+    <string name="play">Відтворити</string>
+    <string name="pause">Пауза</string>
+    <string name="fix_black_screen">Виправити чорний екран</string>
+    <string name="network_error">Помилка мережі. Перевірте з\'єднання.</string>
+    <string name="unsupported_format">Непідтримуваний формат відео.</string>
+    <string name="decoder_error">Помилка декодування. Спробуйте іншу якість.</string>
+    <string name="timeout_error">Час очікування вичерпано. Спробуйте ще раз.</string>
+    <string name="blocked_error">Доступ до відео обмежено.</string>
+    <string name="playback_error">Помилка відтворення: %s</string>
+    <string name="next_episode_countdown">НАСТУПНА СЕРІЯ ЧЕРЕЗ %d</string>
+
+    <!-- TV Channels -->
+    <string name="channel_continue_title">Продовжити перегляд</string>
+    <string name="channel_continue_desc">Ваші серіали та фільми</string>
+    <string name="channel_popular_title">Популярне на УкрТВ</string>
+    <string name="channel_popular_desc">Найкращі українські фільми та серіали</string>
+    <string name="search_settings_desc">Пошук фільмів та серіалів</string>
+    <string name="progress_percent">%d%% переглянуто</string>
+    <string name="popular_query_movies">фільми українською</string>
+    <string name="popular_query_series">серіали українською</string>
+    <string name="popular_query_cartoons">мультфільми</string>
+    <string name="popular_query_anime">аніме</string>
+    <string name="popular_query_new">новинки</string>
 </resources>

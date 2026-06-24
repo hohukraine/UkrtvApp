@@ -5,7 +5,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.mockkStatic
 import kotlinx.coroutines.runBlocking
-import okhttp3.OkHttpClient
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -14,11 +13,8 @@ import ua.ukrtv.app.domain.model.MovieDetail
 import ua.ukrtv.app.data.providers.MediaSource as ProviderMediaSource
 import ua.ukrtv.app.data.providers.ProviderEpisode
 import ua.ukrtv.app.data.providers.ProviderSeason
-import ua.ukrtv.app.data.providers.StreamProvider
+import ua.ukrtv.app.data.providers.MediaProvider
 import ua.ukrtv.app.data.providers.SearchItem
-import ua.ukrtv.app.data.network.HtmlHttpClient
-import ua.ukrtv.app.data.network.RequestHeaders
-import ua.ukrtv.app.data.network.RetryPolicy
 import ua.ukrtv.app.data.providers.ProviderManager
 
 class StreamResolverTest {
@@ -36,10 +32,9 @@ class StreamResolverTest {
         every { Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
 
         fakeProvider = FakeProvider()
-        val client = OkHttpClient()
-        val htmlHttpClient = HtmlHttpClient(client, RequestHeaders(), RetryPolicy(), null, null)
         val providerManager = mockk<ProviderManager>(relaxed = true)
-        resolver = StreamResolver(FakeStreamManager(fakeProvider, providerManager), htmlHttpClient)
+        val unifiedStreamProvider = mockk<ua.ukrtv.app.data.streaming.UnifiedStreamProvider>(relaxed = true)
+        resolver = StreamResolver(FakeStreamManager(fakeProvider, providerManager), unifiedStreamProvider)
     }
 
     @Test
@@ -92,42 +87,45 @@ class StreamResolverTest {
         fakeProvider.stubMovie = ProviderMediaSource.Movie(
             "https://cdn.test/stream.m3u8",
             emptyList(),
-            "https://eneyida.tv/some-page.html",
-            "Eneyida"
+            "https://uakino.best/some-page.html",
+            "Uakino"
         )
-        val result = resolver.resolve("https://eneyida.tv/some-page.html")
+        val result = resolver.resolve("https://uakino.best/some-page.html")
         assertNotNull(result)
-        assertEquals("https://eneyida.tv/some-page.html", result!!.referer)
+        assertEquals("https://uakino.best/some-page.html", result!!.referer)
     }
 
     private class FakeStreamManager(
         private val provider: FakeProvider,
         providerManager: ProviderManager
     ) : ua.ukrtv.app.data.providers.StreamManager(providerManager) {
-        override suspend fun getStream(pageUrl: String): ProviderMediaSource? {
-            return provider.getMediaSource(pageUrl)
+        override suspend fun getStream(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean): ProviderMediaSource? {
+            return provider.getMediaSource(pageUrl, season, episode, isDeep)
         }
 
-        override suspend fun tryProviders(pageUrl: String): ProviderMediaSource? {
-            return provider.getMediaSource(pageUrl)
+        override suspend fun tryProviders(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean): ProviderMediaSource? {
+            return provider.getMediaSource(pageUrl, season, episode, isDeep)
         }
     }
 
-    private class FakeProvider : StreamProvider {
+    private class FakeProvider : MediaProvider {
         var stubMovie: ProviderMediaSource.Movie? = null
         var stubSeries: ProviderMediaSource.Series? = null
 
+        override val id = "fake"
         override val name = "Fake"
         override val baseUrl = "https://fake.test/"
-        override val hasPublicSearch = false
+        override val brandColor = "#000000"
+        override val logoUrl = ""
 
+        override fun getHomeCategories(): List<ua.ukrtv.app.data.providers.ContentCategory> = emptyList()
         override suspend fun initializeSession(): Boolean = true
+        override suspend fun getHomeSections(page: Int): List<ua.ukrtv.app.domain.model.HomeSection> = emptyList()
+        override suspend fun getMoviesByCategory(category: ua.ukrtv.app.data.providers.ContentCategory, page: Int): List<ua.ukrtv.app.domain.model.Movie> = emptyList()
         override suspend fun search(query: String, limit: Int): List<SearchItem> = emptyList()
-        override suspend fun getMediaSource(pageUrl: String): ProviderMediaSource? {
+        override suspend fun getMovieDetails(url: String): MovieDetail = MovieDetail(url.hashCode().toString(), "", "", "", null, emptyList(), url, name, null, null)
+        override suspend fun getMediaSource(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean): ProviderMediaSource? {
             return if (pageUrl.contains("series")) stubSeries else stubMovie
-        }
-        override suspend fun getMovieDetails(id: String, url: String): MovieDetail {
-            return MovieDetail(id, "", "", "", null, emptyList(), url, name, null, null)
         }
         override fun supportsUrl(url: String): Boolean = true
         override fun clearCache(url: String?) {}

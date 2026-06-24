@@ -31,6 +31,8 @@ class SmartMediaCodecSelector @Inject constructor() : MediaCodecSelector {
     ): List<MediaCodecInfo> {
         val candidates = defaultSelector.getDecoderInfos(mimeType, requiresSecureDecoder, requiresTunnelingDecoder)
         
+        if (candidates.isEmpty()) return emptyList()
+        
         val sorted = when (policy) {
             CodecPolicy.SOFTWARE_FIRST -> {
                 val swDecoders = candidates.filter { 
@@ -39,11 +41,17 @@ class SmartMediaCodecSelector @Inject constructor() : MediaCodecSelector {
                 if (swDecoders.isNotEmpty()) {
                     swDecoders
                 } else {
-                    // Fallback to hardware if no software decoders found (should not happen for standard mimes)
                     candidates.sortedBy { it.hardwareAccelerated }
                 }
             }
-            else -> {
+            CodecPolicy.HARDWARE_FIRST -> {
+                candidates.sortedWith(compareByDescending<MediaCodecInfo> { 
+                    it.hardwareAccelerated 
+                }.thenBy { 
+                    if (it.mimeType == MimeTypes.VIDEO_H264) 0 else 1
+                })
+            }
+            CodecPolicy.AUTO -> {
                 candidates.sortedWith(compareByDescending<MediaCodecInfo> { 
                     it.hardwareAccelerated 
                 }.thenBy { 
@@ -53,16 +61,11 @@ class SmartMediaCodecSelector @Inject constructor() : MediaCodecSelector {
         }
         
         sorted.firstOrNull()?.let { 
-            logCodecInfo(it, mimeType)
+            val kind = if (mimeType.startsWith("video/", ignoreCase = true)) "Video" else "Audio"
+            Log.d("SmartCodecSelector", "Selected: ${it.name}, mime=$mimeType, hw=${it.hardwareAccelerated}, $kind, policy=$policy")
         }
         
         return sorted
     }
 
-    private fun logCodecInfo(info: MediaCodecInfo, mimeType: String) {
-        val name = info.name
-        val hw = if (info.hardwareAccelerated) "HW" else "SW"
-        val kind = if (mimeType.startsWith("video/", ignoreCase = true)) "Video" else "Audio"
-        Log.d("SmartCodecSelector", "Selected codec: name=$name, mime=$mimeType, hw=$hw, kind=$kind, policy=$policy")
-    }
 }

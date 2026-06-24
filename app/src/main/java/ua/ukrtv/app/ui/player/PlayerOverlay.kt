@@ -18,13 +18,17 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Dvr
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -34,6 +38,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -55,15 +61,25 @@ fun PlayerOverlay(
     isPlaying: Boolean,
     positionMs: Long,
     durationMs: Long,
+    bufferedPositionMs: Long = 0L,
     onPlayPauseToggle: () -> Unit,
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
+    onSeek: (Float) -> Unit,
     onShowAudioMenu: () -> Unit,
     onShowSubtitleMenu: () -> Unit,
     onShowQualityMenu: () -> Unit,
+    onPreviousEpisode: () -> Unit = {},
+    onNextEpisode: () -> Unit = {},
+    hasPreviousEpisode: Boolean = false,
+    hasNextEpisode: Boolean = false,
+    onToggleCodec: () -> Unit,
+    codecPolicy: ua.ukrtv.app.player.CodecPolicy = ua.ukrtv.app.player.CodecPolicy.AUTO,
     nextCountdown: Int? = null,
     season: Int? = null,
     episode: Int? = null,
+    voiceover: String? = null,
+    playFocusRequester: FocusRequester = FocusRequester(),
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -81,19 +97,28 @@ fun PlayerOverlay(
             .padding(horizontal = 64.dp, vertical = 48.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            TopSection(title, season, episode)
+            TopSection(title, season, episode, voiceover)
             Spacer(modifier = Modifier.weight(1f))
             BottomSection(
                 positionMs = positionMs,
                 durationMs = durationMs,
+                bufferedPositionMs = bufferedPositionMs,
                 isPlaying = isPlaying,
                 onPlayPauseToggle = onPlayPauseToggle,
                 onSeekBackward = onSeekBackward,
                 onSeekForward = onSeekForward,
+                onSeek = onSeek,
                 onShowAudioMenu = onShowAudioMenu,
                 onShowSubtitleMenu = onShowSubtitleMenu,
                 onShowQualityMenu = onShowQualityMenu,
-                nextCountdown = nextCountdown
+                onPreviousEpisode = onPreviousEpisode,
+                onNextEpisode = onNextEpisode,
+                hasPreviousEpisode = hasPreviousEpisode,
+                hasNextEpisode = hasNextEpisode,
+                onToggleCodec = onToggleCodec,
+                codecPolicy = codecPolicy,
+                nextCountdown = nextCountdown,
+                playFocusRequester = playFocusRequester
             )
         }
     }
@@ -101,7 +126,7 @@ fun PlayerOverlay(
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-private fun TopSection(title: String, season: Int?, episode: Int?) {
+private fun TopSection(title: String, season: Int?, episode: Int?, voiceover: String? = null) {
     Column {
         Text(
             text = title,
@@ -111,16 +136,38 @@ private fun TopSection(title: String, season: Int?, episode: Int?) {
             ),
             color = Color(0xFFE1E1E1)
         )
-        if (season != null && episode != null) {
-            Text(
-                text = "S${season} · E${episode}",
-                style = MaterialTheme.typography.bodyMedium.copy(
-                    fontWeight = FontWeight.Normal,
-                    letterSpacing = 1.sp
-                ),
-                color = Color(0xFF6E85B7).copy(alpha = 0.8f),
-                modifier = Modifier.padding(top = 8.dp)
-            )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.padding(top = 8.dp)
+        ) {
+            if (season != null && episode != null) {
+                Text(
+                    text = "S${season} · E${episode}",
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Normal,
+                        letterSpacing = 1.sp
+                    ),
+                    color = Color(0xFF6E85B7).copy(alpha = 0.8f)
+                )
+            }
+            
+            if (!voiceover.isNullOrEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFF6E85B7).copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = voiceover.uppercase(),
+                        style = MaterialTheme.typography.labelSmall.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        ),
+                        color = Color(0xFF6E85B7)
+                    )
+                }
+            }
         }
     }
 }
@@ -130,14 +177,23 @@ private fun TopSection(title: String, season: Int?, episode: Int?) {
 private fun BottomSection(
     positionMs: Long,
     durationMs: Long,
+    bufferedPositionMs: Long = 0L,
     isPlaying: Boolean,
     onPlayPauseToggle: () -> Unit,
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
+    onSeek: (Float) -> Unit,
     onShowAudioMenu: () -> Unit,
     onShowSubtitleMenu: () -> Unit,
     onShowQualityMenu: () -> Unit,
-    nextCountdown: Int?
+    onPreviousEpisode: () -> Unit = {},
+    onNextEpisode: () -> Unit = {},
+    hasPreviousEpisode: Boolean = false,
+    hasNextEpisode: Boolean = false,
+    onToggleCodec: () -> Unit,
+    codecPolicy: ua.ukrtv.app.player.CodecPolicy,
+    nextCountdown: Int?,
+    playFocusRequester: FocusRequester = FocusRequester()
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -168,8 +224,13 @@ private fun BottomSection(
             
             TvProgressBar(
                 progress = progress,
+                bufferedProgress = if (durationMs > 0) bufferedPositionMs.toFloat() / durationMs.toFloat() else 0f,
+                durationMs = durationMs,
+                onSeekRequested = { seekPosition ->
+                    onSeek(seekPosition.toFloat() / durationMs.toFloat())
+                },
                 onSeek = { ratio ->
-                    // Logic handled in parent or here
+                    onSeek(ratio)
                 },
                 modifier = Modifier
                     .weight(1f)
@@ -194,6 +255,7 @@ private fun BottomSection(
             PlayPauseButton(
                 isPlaying = isPlaying,
                 onClick = onPlayPauseToggle,
+                focusRequester = playFocusRequester,
                 modifier = Modifier.size(56.dp)
             )
 
@@ -208,6 +270,25 @@ private fun BottomSection(
                 contentDescription = "Вперед 10 секунд",
                 onClick = onSeekForward
             )
+
+            if (hasPreviousEpisode || hasNextEpisode) {
+                Spacer(modifier = Modifier.width(24.dp))
+
+                if (hasPreviousEpisode) {
+                    TvPlayerButton(
+                        icon = Icons.Default.SkipPrevious,
+                        contentDescription = "Попередня серія",
+                        onClick = onPreviousEpisode
+                    )
+                }
+                if (hasNextEpisode) {
+                    TvPlayerButton(
+                        icon = Icons.Default.SkipNext,
+                        contentDescription = "Наступна серія",
+                        onClick = onNextEpisode
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.width(24.dp))
 
@@ -225,6 +306,13 @@ private fun BottomSection(
                 icon = Icons.Default.Subtitles,
                 contentDescription = "Субтитри",
                 onClick = onShowSubtitleMenu
+            )
+
+            TvPlayerButton(
+                icon = Icons.Default.Dvr,
+                contentDescription = "Виправити чорний екран",
+                onClick = onToggleCodec,
+                tint = if (codecPolicy == ua.ukrtv.app.player.CodecPolicy.SOFTWARE_FIRST) Color(0xFF6E85B7) else null
             )
         }
     }
@@ -244,6 +332,7 @@ private fun formatTime(ms: Long): String {
 private fun PlayPauseButton(
     isPlaying: Boolean,
     onClick: () -> Unit,
+    focusRequester: FocusRequester = FocusRequester(),
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -256,7 +345,7 @@ private fun PlayPauseButton(
             focusedContentColor = Color(0xFF0C0C0D)
         ),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
-        modifier = modifier
+        modifier = modifier.focusRequester(focusRequester)
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Icon(
@@ -275,6 +364,7 @@ private fun TvPlayerButton(
     contentDescription: String,
     onClick: () -> Unit,
     size: androidx.compose.ui.unit.Dp = 48.dp,
+    tint: Color? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -282,7 +372,7 @@ private fun TvPlayerButton(
         shape = ClickableSurfaceDefaults.shape(CircleShape),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
-            contentColor = Color(0xFFE1E1E1).copy(alpha = 0.8f),
+            contentColor = tint ?: Color(0xFFE1E1E1).copy(alpha = 0.8f),
             focusedContainerColor = Color(0xFFE1E1E1),
             focusedContentColor = Color(0xFF0C0C0D)
         ),
@@ -305,14 +395,22 @@ private fun TvPlayerButton(
 @Composable
 private fun TvProgressBar(
     progress: Float,
+    bufferedProgress: Float = 0f,
     onSeek: (Float) -> Unit,
+    durationMs: Long = 0L,
+    onSeekRequested: ((Long) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val safeProgress = progress.coerceIn(0f, 1f)
+    val safeBuffered = bufferedProgress.coerceIn(0f, 1f)
     val dragModifier = Modifier.pointerInput(Unit) {
-        detectHorizontalDragGestures { change, _ ->
+        detectHorizontalDragGestures { change, dragAmount ->
+            change.consume()
             val ratio = (change.position.x / size.width).coerceIn(0f, 1f)
             onSeek(ratio)
+            if (dragAmount == 0f && onSeekRequested != null && durationMs > 0) {
+                onSeekRequested((ratio * durationMs).toLong())
+            }
         }
     }
 
@@ -322,12 +420,20 @@ private fun TvProgressBar(
         contentAlignment = Alignment.Center
     ) {
         LinearProgressIndicator(
+            progress = { safeBuffered },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp),
+            color = Color(0xFF6E85B7).copy(alpha = 0.35f),
+            trackColor = Color.Gray.copy(alpha = 0.2f)
+        )
+        LinearProgressIndicator(
             progress = { safeProgress },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(4.dp),
             color = BrandBlue,
-            trackColor = Color.Gray.copy(alpha = 0.5f)
+            trackColor = Color.Transparent
         )
     }
 }

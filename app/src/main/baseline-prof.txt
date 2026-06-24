@@ -1,0 +1,41 @@
+# App startup - all app classes AOT compiled
+HSPLua/ukrtv/app/**;
+
+# Compose runtime - critical for first frame
+HSPLandroidx/compose/runtime/**;
+HSPLandroidx/compose/ui/**;
+HSPLandroidx/compose/foundation/**;
+HSPLandroidx/compose/material3/**;
+HSPLandroidx/compose/material/**;
+HSPLandroidx/tv/material3/**;
+HSPLandroidx/tv/foundation/**;
+
+# Hilt / Dagger
+HSPLdagger/hilt/**;
+HSPLdagger/**;
+HSPLjavax/inject/**;
+HSPLhilt_aggregated_deps/**;
+
+# AndroidX core (startup path)
+HSPLandroidx/core/**;
+HSPLandroidx/lifecycle/**;
+HSPLandroidx/activity/**;
+HSPLandroidx/navigation/**;
+HSPLandroidx/savedstate/**;
+
+# Network
+WARMokhttp3/**;
+WARMorg/jsoup/**;
+WARMcom/google/gson/**;
+WARMcom/squareup/**;
+
+# Data layer
+WARMandroidx/room/**;
+WARMandroidx/datastore/**;
+WARMandroidx/sqlite/**;
+
+# Image loading
+WARMcoil/**;
+
+# Player (deferred - loaded on navigation to PlayerScreen)
+POSTandroidx/media3/**;

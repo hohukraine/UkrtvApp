@@ -14,10 +14,6 @@ class UnifiedStreamProvider @Inject constructor(
 ) {
     private val tag = "UnifiedStreamProvider"
 
-    /**
-     * Extracts HLS token and builds .m3u8 URL for ashdi.vip CDN.
-     * Pattern: https://ashdi.vip/video15/2/new/[SLUG]_[ID]/hls/[TOKEN]/index.m3u8
-     */
     suspend fun getStreamUrl(videoID: String, slug: String = "video"): String? = withContext(Dispatchers.IO) {
         try {
             val iframeUrl = "https://ashdi.vip/vod/$videoID"
@@ -26,13 +22,12 @@ class UnifiedStreamProvider @Inject constructor(
             val request = Request.Builder()
                 .url(iframeUrl)
                 .header("Referer", "https://uakino.best/")
+                .header("User-Agent", ua.ukrtv.app.Constants.USER_AGENT)
                 .build()
                 
             val response = client.newCall(request).execute()
             val html = response.body?.string() ?: return@withContext null
             
-            // Extract token using regex as requested (no Jsoup/DOM)
-            // Example token: BKiPlHaPmPtemhH+BIw=
             val tokenRegex = Regex("""["']?file["']?\s*:\s*["']([^"']+)["']""")
             val token = tokenRegex.find(html)?.groupValues?.get(1)
             

@@ -12,7 +12,10 @@ data class StreamResolutionResult(
     val fallbackStreams: List<String> = emptyList(),
     val providerName: String = "",
     val sourcePageUrl: String = "",
-    val source: MediaSource? = null
+    val source: MediaSource? = null,
+    val seasons: List<Season>? = null,
+    val subtitles: String? = null,
+    val voiceover: String? = null
 ) : Parcelable
 
 enum class StreamType {

@@ -3,19 +3,18 @@ package ua.ukrtv.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.media3.common.util.UnstableApi
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import dagger.hilt.android.AndroidEntryPoint
@@ -24,16 +23,9 @@ import ua.ukrtv.app.ui.detail.DetailScreen
 import ua.ukrtv.app.ui.home.HomeScreen
 import ua.ukrtv.app.ui.search.SearchScreen
 import ua.ukrtv.app.ui.player.PlayerScreen
-import ua.ukrtv.app.ui.player.PlayerActivity
-import ua.ukrtv.app.ui.theme.BrandBlue
 import ua.ukrtv.app.ui.theme.UkrtvTheme
-import kotlinx.coroutines.delay
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -42,60 +34,55 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             UkrtvTheme {
-                var showContent by remember { mutableStateOf(false) }
-                
-                LaunchedEffect(Unit) {
-                    delay(300)
-                    showContent = true
-                }
-                
-                Box(modifier = Modifier.fillMaxSize()) {
-                    if (!showContent) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = BrandBlue)
-                        }
-                    } else {
-                        UkrtvTVApp()
-                    }
-                }
+                UkrtvTVApp()
             }
         }
     }
+
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_MENU) {
+            // Global "Menu" button handling (Point 6)
+            ua.ukrtv.app.util.AppLogger.d("MainActivity", "Menu button pressed - Quick Settings trigger")
+            return true
+        }
+        return super.onKeyDown(keyCode, event)
+    }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, UnstableApi::class)
 @Composable
 fun UkrtvTVApp() {
     val navController = rememberNavController()
-    val context = LocalContext.current
+
+    val onMovieClick = remember(navController) {
+        { movie: ua.ukrtv.app.domain.model.Movie ->
+            navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.type.name))
+        }
+    }
+    val onSearchClick = remember(navController) {
+        { navController.navigate(AppNavigation.SEARCH) }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
         colors = SurfaceDefaults.colors(containerColor = Color(0xFF0C0C0D)) // backgroundMinimal
     ) {
         NavHost(
-            navController = navController, 
+            navController = navController,
             startDestination = AppNavigation.HOME,
-            enterTransition = { fadeIn(animationSpec = tween(400)) },
-            exitTransition = { fadeOut(animationSpec = tween(400)) }
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None }
         ) {
             composable(AppNavigation.HOME) {
                 HomeScreen(
-                    onMovieClick = { movie ->
-                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
-                    },
-                    onSearchClick = {
-                        navController.navigate(AppNavigation.SEARCH)
-                    }
+                    onMovieClick = onMovieClick,
+                    onSearchClick = onSearchClick
                 )
             }
             composable(AppNavigation.SEARCH) {
                 SearchScreen(
                     onMovieClick = { movie ->
-                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
+                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.type.name))
                     }
                 )
             }
@@ -103,15 +90,26 @@ fun UkrtvTVApp() {
                 route = AppNavigation.DETAIL,
                 arguments = listOf(
                     navArgument("id") { type = NavType.StringType },
-                    navArgument("url") { type = NavType.StringType }
+                    navArgument("url") { type = NavType.StringType },
+                    navArgument("type") { type = NavType.StringType; nullable = true }
                 )
-            ) { backStackEntry ->
-                val url = backStackEntry.arguments?.getString("url") ?: ""
+            ) {
                 DetailScreen(
-                    onPlayClick = { playbackResult, title, season, episode, id, seasons ->
-                        navController.navigate(
-                            AppNavigation.playerRoute(id, title ?: "", url = url, season = season, episode = episode)
-                        )
+                    onPlayClick = { launchState ->
+                        if (launchState is ua.ukrtv.app.domain.model.MediaLaunchState.Ready) {
+                            navController.navigate(
+                                AppNavigation.playerRoute(
+                                    launchState.contentId,
+                                    launchState.title,
+                                    url = launchState.streamResult.sourcePageUrl,
+                                    poster = launchState.posterUrl,
+                                    season = launchState.season,
+                                    episode = launchState.episode
+                                )
+                            )
+                            // Pass the full result for instant playback
+                            navController.currentBackStackEntry?.savedStateHandle?.set("launch_state", launchState)
+                        }
                     },
                     onBackClick = { navController.popBackStack() }
                 )
@@ -123,19 +121,22 @@ fun UkrtvTVApp() {
                     navArgument("title") { type = NavType.StringType },
                     navArgument("url") { type = NavType.StringType },
                     navArgument("season") { type = NavType.IntType; defaultValue = -1 },
-                    navArgument("episode") { type = NavType.IntType; defaultValue = -1 }
+                    navArgument("episode") { type = NavType.IntType; defaultValue = -1 },
+                    navArgument("poster") { type = NavType.StringType; defaultValue = "" }
                 )
             ) { backStackEntry ->
                 val id = backStackEntry.arguments?.getString("id") ?: ""
                 val title = backStackEntry.arguments?.getString("title") ?: ""
                 val url = backStackEntry.arguments?.getString("url") ?: ""
+                val poster = backStackEntry.arguments?.getString("poster") ?: ""
                 val season = backStackEntry.arguments?.getInt("season")?.takeIf { it != -1 }
                 val episode = backStackEntry.arguments?.getInt("episode")?.takeIf { it != -1 }
 
                 PlayerScreen(
-                    uakinoUrl = url,
+                    url = url,
                     contentId = id,
                     title = title,
+                    poster = poster,
                     season = season,
                     episode = episode,
                     onBack = { navController.popBackStack() }

@@ -13,6 +13,10 @@ import javax.inject.Inject
 
 @HiltAndroidApp
 class UkrtvApplication : Application(), ImageLoaderFactory {
+    companion object {
+        val appStartTime = System.nanoTime()
+    }
+
     @Inject
     lateinit var okHttpClient: OkHttpClient
 
@@ -37,7 +41,7 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
             .crossfade(true)
-            .respectCacheHeaders(true) // Respect server headers to avoid stale images
+            .respectCacheHeaders(false) // Optimize startup: skip conditional GET
             .build()
     }
 }

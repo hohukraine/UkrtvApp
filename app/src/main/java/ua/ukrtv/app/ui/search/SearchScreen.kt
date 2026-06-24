@@ -10,6 +10,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -18,9 +20,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.data.repository.ContentRepository
 import ua.ukrtv.app.ui.home.MovieCard
@@ -33,20 +36,28 @@ sealed class SearchState {
     data class Error(val message: String) : SearchState()
 }
 
-@OptIn(FlowPreview::class)
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val repository: ContentRepository
+    private val repository: ContentRepository,
+    private val historyDao: ua.ukrtv.app.data.local.dao.SearchHistoryDao
 ) : ViewModel() {
     private val _state = MutableStateFlow<SearchState>(SearchState.Idle)
     val state: StateFlow<SearchState> = _state
 
     private val _query = MutableStateFlow("")
 
+    private val _history = MutableStateFlow<List<String>>(emptyList())
+    val history: StateFlow<List<String>> = _history
+
+    val trendingMovies = flow {
+        emit(repository.getPopularByCategory(ua.ukrtv.app.data.providers.ContentCategory.MOVIES).firstOrNull() ?: emptyList())
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     init {
+        loadHistory()
         viewModelScope.launch {
             _query
-                .debounce(500)
+                .debounce(300)
                 .distinctUntilChanged()
                 .collectLatest { query ->
                     if (query.isBlank()) {
@@ -55,6 +66,7 @@ class SearchViewModel @Inject constructor(
                     }
                     
                     _state.value = SearchState.Loading
+                    
                     repository.search(query).collect { result ->
                         result.onSuccess { movies ->
                             _state.value = SearchState.Success(movies)
@@ -63,6 +75,20 @@ class SearchViewModel @Inject constructor(
                         }
                     }
                 }
+        }
+    }
+
+    private fun loadHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _history.value = historyDao.getRecent().map { it.query }
+        }
+    }
+
+    fun saveToHistory(query: String) {
+        if (query.length < 3) return
+        viewModelScope.launch(Dispatchers.IO) {
+            historyDao.insert(ua.ukrtv.app.data.local.entity.SearchHistoryEntity(query.lowercase().trim()))
+            loadHistory()
         }
     }
 
@@ -78,32 +104,28 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsState()
     var query by remember { mutableStateOf("") }
-    val backgroundColor = remember { Color(0xFF0F0F0F) }
+    
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(backgroundColor)
-            .padding(58.dp)
+            .background(Color(0xFF0F0F0F))
+            .padding(32.dp)
     ) {
-        val titleColor = remember { Color.White }
         Text(
             "ПОШУК",
-            color = titleColor,
-            fontSize = 32.sp,
+            color = Color.White,
+            fontSize = 24.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 4.sp
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
-
-        val textFieldColors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
-            focusedBorderColor = Color(0xFF1E3A8A),
-            unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
-        )
-        val textFieldShape = remember { RoundedCornerShape(8.dp) }
+        Spacer(modifier = Modifier.height(24.dp))
 
         OutlinedTextField(
             value = query,
@@ -111,11 +133,18 @@ fun SearchScreen(
                 query = it
                 viewModel.search(it)
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focusRequester),
             placeholder = { Text("Введіть назву фільму або серіалу...", color = Color.Gray) },
-            colors = textFieldColors,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedTextColor = Color.White,
+                unfocusedTextColor = Color.White,
+                focusedBorderColor = Color(0xFF1E3A8A),
+                unfocusedBorderColor = Color.White.copy(alpha = 0.2f)
+            ),
             singleLine = true,
-            shape = textFieldShape
+            shape = RoundedCornerShape(8.dp)
         )
 
         Spacer(modifier = Modifier.height(48.dp))
@@ -123,41 +152,103 @@ fun SearchScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             when (val s = state) {
                 is SearchState.Idle -> {
-                    val idleTextColor = remember { Color.White.copy(alpha = 0.5f) }
-                    Text(
-                        "Почніть вводити назву для пошуку",
-                        modifier = Modifier.align(Alignment.Center),
-                        color = idleTextColor
-                    )
+                    val trending by viewModel.trendingMovies.collectAsState()
+                    val history by viewModel.history.collectAsState()
+                    
+                    Column {
+                        if (history.isNotEmpty()) {
+                            Text(
+                                "ОСТАННІ ЗАПИТИ",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 2.sp,
+                                modifier = Modifier.padding(bottom = 12.dp)
+                            )
+                            Row(
+                                modifier = Modifier.padding(bottom = 32.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                history.forEach { item ->
+                                    androidx.tv.material3.Surface(
+                                        onClick = { 
+                                            query = item
+                                            viewModel.search(item)
+                                        },
+                                        shape = androidx.tv.material3.ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
+                                        colors = androidx.tv.material3.ClickableSurfaceDefaults.colors(
+                                            containerColor = Color.White.copy(alpha = 0.1f),
+                                            contentColor = Color.White
+                                        )
+                                    ) {
+                                        Text(
+                                            item,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (trending.isNotEmpty()) {
+                            Text(
+                                "ПОПУЛЯРНЕ ЗАРАЗ",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 2.sp,
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            )
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(3),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(trending, key = { "trending_" + it.id }) { movie ->
+                                    MovieCard(
+                                        movie = movie,
+                                        onClick = { 
+                                            viewModel.saveToHistory(query)
+                                            onMovieClick(movie) 
+                                        }
+                                    )
+                                }
+                            }
+                        } else if (history.isEmpty()) {
+                            Text(
+                                "Почніть вводити назву для пошуку",
+                                color = Color.White.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
                 }
                 is SearchState.Loading -> {
-                    val loadingColor = remember { Color(0xFF1E3A8A) }
                     CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.Center),
-                        color = loadingColor
+                        color = Color(0xFF1E3A8A)
                     )
                 }
                 is SearchState.Success -> {
                     if (s.results.isEmpty()) {
-                        val emptyTextColor = remember { Color.White.copy(alpha = 0.5f) }
                         Text(
                             "Нічого не знайдено",
                             modifier = Modifier.align(Alignment.Center),
-                            color = emptyTextColor
+                            color = Color.White.copy(alpha = 0.5f)
                         )
                     } else {
-                        val horizontalSpacing = remember { Arrangement.spacedBy(16.dp) }
-                        val verticalSpacing = remember { Arrangement.spacedBy(24.dp) }
-                        
                         LazyVerticalGrid(
-                            columns = GridCells.Adaptive(180.dp),
-                            horizontalArrangement = horizontalSpacing,
-                            verticalArrangement = verticalSpacing
+                            columns = GridCells.Fixed(3),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
                             items(s.results, key = { it.id + it.pageUrl }) { movie ->
                                 MovieCard(
                                     movie = movie,
-                                    onClick = { onMovieClick(movie) }
+                                    onClick = { 
+                                        viewModel.saveToHistory(query)
+                                        onMovieClick(movie) 
+                                    }
                                 )
                             }
                         }
