@@ -14,6 +14,13 @@
 # Android compiled classes
 androidx/tvprovider/
 
+# AI / IDE
+.opencode/
+
+# Dev scripts (Python tools, audit, enrichment)
+scripts/
+pyton/
+
 # Generated temp files
 *.log
 benchmark_output.txt
