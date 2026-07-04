@@ -17,6 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import ua.ukrtv.app.domain.model.Provider
+import ua.ukrtv.app.ui.theme.GridDefaults
+import ua.ukrtv.app.ui.theme.Shapes
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -35,7 +37,7 @@ fun TopBar(
         contentColor = Color.White,
         focusedContentColor = Color.Black
     )
-    val searchSurfaceShape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50))
+    val searchSurfaceShape = ClickableSurfaceDefaults.shape(Shapes.circular)
 
     val providerSurfaceScale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f)
     val providerSurfaceShape = ClickableSurfaceDefaults.shape(RoundedCornerShape(4.dp))
@@ -44,7 +46,8 @@ fun TopBar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 58.dp, vertical = 24.dp),
+            .padding(horizontal = GridDefaults.horizontalPadding)
+            .padding(top = 16.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -72,27 +75,28 @@ fun TopBar(
 
             // Provider Switcher
             providers.forEach { provider ->
-                val isSelected = provider.id == currentProviderId
+                val isSelected = provider.name == currentProviderId
                 
                 Surface(
-                    onClick = { onProviderClick(provider.id) },
+                    onClick = { onProviderClick(provider.name) },
                     scale = providerSurfaceScale,
                     colors = ClickableSurfaceDefaults.colors(
-                        containerColor = if (isSelected) brandColor else providerUnselectedColor,
-                        focusedContainerColor = Color.White,
-                        contentColor = Color.White,
-                        focusedContentColor = Color.Black
+                        containerColor = Color.Transparent,
+                        focusedContainerColor = Color.Transparent,
+                        contentColor = if (isSelected) brandColor else Color.White.copy(alpha = 0.5f),
+                        focusedContentColor = brandColor
                     ),
                     shape = providerSurfaceShape,
                     modifier = Modifier
                         .height(32.dp)
-                        .padding(horizontal = 4.dp)
+                        .padding(horizontal = 12.dp)
                 ) {
-                    Box(modifier = Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.Center) {
+                    Box(contentAlignment = Alignment.Center) {
                         Text(
                             text = provider.name.uppercase(),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 16.sp,
+                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                            letterSpacing = 1.sp
                         )
                     }
                 }

@@ -1,0 +1,45 @@
+[
+  {
+    "name": "Uakino",
+    "baseUrl": "https://uakino.best/",
+    "brandColor": "#E50914",
+    "logoUrl": "https://uakino.best/templates/uakino/images/logo.png",
+    "selectors": {
+      "item": ".movie-item, .short-item",
+      "title": ".movie-title, .short-title",
+      "poster": "img[data-src], img[src]",
+      "description": ".full-text, .full-description",
+      "year": ".movie-desk-item:contains(Рік:) .deck-value, .fi-year"
+    },
+    "seriesMarkers": ["/seriesss/", "/seriali/", "/animeukr/", "/cartoon/", "/cartoons/", "/tv-shows/"],
+    "categoryPaths": {
+      "MOVIES": "filmy/online/",
+      "SERIES": "seriesss/online/",
+      "ANIME": "animeukr/online/",
+      "CARTOONS": "cartoon/online/",
+      "CARTOON_SERIES": "cartoon/cartoonseries/"
+    },
+    "playlistEndpoints": ["engine/ajax/playlists.php", "engine/ajax/video.php", "engine/ajax/get_playlist.php"]
+  },
+  {
+    "name": "Eneyida",
+    "baseUrl": "https://eneyida.tv/",
+    "brandColor": "#FF9800",
+    "logoUrl": "https://eneyida.tv/templates/Eneyida/images/logo.png",
+    "selectors": {
+      "item": "article.short",
+      "title": "a.short_title",
+      "poster": "a.short_img img",
+      "description": ".full-text",
+      "year": ".short_subtitle"
+    },
+    "seriesMarkers": ["/series/", "/cartoon-series/", "/anime-series/", "/serialy/"],
+    "categoryPaths": {
+      "MOVIES": "films/",
+      "SERIES": "series/",
+      "ANIME": "anime/",
+      "CARTOONS": "cartoon/",
+      "CARTOON_SERIES": "cartoon-series/"
+    }
+  }
+]

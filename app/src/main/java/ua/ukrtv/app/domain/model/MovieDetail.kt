@@ -1,24 +1,42 @@
 package ua.ukrtv.app.domain.model
 
 import android.os.Parcelable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import kotlinx.parcelize.Parcelize
 
+@Immutable
+@Stable
 @Parcelize
-data class Season(
-    val number: Int,
+data class Voiceover(
+    val name: String,
     val episodes: List<Episode>
 ) : Parcelable
 
+@Immutable
+@Stable
+@Parcelize
+data class Season(
+    val number: Int,
+    val voiceovers: List<Voiceover>
+) : Parcelable {
+    val episodes: List<Episode> get() = voiceovers.firstOrNull()?.episodes ?: emptyList()
+    val voiceoverOptions: List<String> get() = voiceovers.map { it.name }
+}
+
+@Immutable
+@Stable
 @Parcelize
 data class Episode(
-    val id: String,
     val number: Int,
     val title: String,
-    val pageUrl: String,
-    val voiceover: String? = null,
-    val subtitles: String? = null
+    val url: String,
+    val subtitles: String? = null,
+    val poster: String = ""
 ) : Parcelable
 
+@Stable
+@Immutable
 data class MovieDetail(
     val id: String,
     val title: String,
@@ -30,20 +48,12 @@ data class MovieDetail(
     val providerName: String,
     val seasons: List<Season>?,
     val streamUrl: String?,
-    val contentType: ContentType = ContentType.MOVIE,
-    val posterAlt: String? = null,
-    val backdrop: String? = null,
-    val originalTitle: String? = null,
     val rating: String? = null,
     val country: List<String> = emptyList(),
     val duration: String? = null,
     val actors: List<String> = emptyList(),
     val director: List<String> = emptyList(),
-    val episodeCount: Int? = null,
     val seasonCount: Int? = null,
-    val tmdbId: Int? = null,
     val comments: List<Comment> = emptyList(),
     val brandColor: String? = null
-) {
-    val isSeries: Boolean get() = contentType == ContentType.SERIES || !seasons.isNullOrEmpty()
-}
+)

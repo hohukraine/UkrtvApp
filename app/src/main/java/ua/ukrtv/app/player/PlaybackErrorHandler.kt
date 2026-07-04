@@ -18,57 +18,38 @@ object PlaybackErrorHandler {
             code == PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED
     }
 
+    fun isParsingError(error: PlaybackException): Boolean {
+        val msg = (error.message ?: "").lowercase()
+        return isUnsupportedFormat(error) ||
+            msg.contains("start code") ||
+            msg.contains("malformed") ||
+            msg.contains("unexpected") ||
+            msg.contains("discarded an unknown buffer") ||
+            msg.contains("ts parser") ||
+            msg.contains("pes packet")
+    }
+
     fun isTimeout(error: PlaybackException): Boolean {
         val code = error.errorCode
         return code == PlaybackException.ERROR_CODE_TIMEOUT ||
             code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
     }
 
-fun isDecodingError(error: PlaybackException): Boolean {
+    fun isDecodingError(error: PlaybackException): Boolean {
         val code = error.errorCode
-        val msg = error.message ?: ""
-        
-        // 🚀 CRITICAL FIX: Treat "Unexpected start code prefix" as a DECODER error.
-        // This is usually a parsing error (ERROR_CODE_PARSING_CONTAINER_FAILED which is generic)
-        // or a hardware decoder failing to handle a malformed bitstream.
-        // Marking it as DECODER error will trigger the SOFTWARE fallback in PlayerViewModel.
-        val isBitstreamError = msg.contains("Unexpected start code prefix", ignoreCase = true) || 
-                               msg.contains("Format exceeds selected codec's capabilities", ignoreCase = true) ||
-                               code == PlaybackException.ERROR_CODE_DECODING_FAILED
-                                
-        return isBitstreamError ||
+        val msg = (error.message ?: "").lowercase()
+        return code == PlaybackException.ERROR_CODE_DECODING_FAILED ||
             code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
             code == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
             code == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ||
-            msg.contains("OMX.", ignoreCase = true) ||
-            msg.contains("ACodec", ignoreCase = true) ||
-            msg.contains("0xfffffff4", ignoreCase = true) ||
-            error.cause is java.lang.IllegalStateException
+            // Mediatek-specific: black screen but no error code
+            (code == PlaybackException.ERROR_CODE_REMOTE_ERROR && msg.contains("codec")) ||
+            msg.contains("c2.mtk.hevc") && msg.contains("init")
     }
 
-    fun isCodecCriticalError(error: PlaybackException): Boolean {
-        val msg = error.message ?: ""
-        if (msg.contains("0xfffffff4") || msg.contains("setPortMode failed") || msg.contains("Unexpected start code prefix")) {
-            return true
-        }
-
-        var cause: Throwable? = error.cause
-        while (cause != null) {
-            val causeMsg = cause.message ?: ""
-            if (causeMsg.contains("OMX.") || causeMsg.contains("ACodec") || causeMsg.contains("0xfffffff4")) {
-                return true
-            }
-            if (cause is java.lang.IllegalStateException) {
-                val stackTrace = cause.stackTrace
-                if (stackTrace.any { it.className.contains("MediaCodec") || it.className.contains("ACodec") }) {
-                    return true
-                }
-            }
-            if (cause.javaClass.name.contains("MediaCodec") && cause.javaClass.name.contains("Exception")) {
-                return true
-            }
-            cause = cause.cause
-        }
+    fun isMediatekBlackScreen(error: PlaybackException): Boolean {
+        // Mediatek HEVC decoders sometimes freeze without throwing explicit errors.
+        // Detect via frame-drop pattern in CodecHealthMonitor instead.
         return false
     }
 
@@ -86,7 +67,7 @@ fun isDecodingError(error: PlaybackException): Boolean {
     }
 
     fun shouldFallbackStream(error: PlaybackException): Boolean {
-        return isUnsupportedFormat(error) || isDecodingError(error)
+        return isUnsupportedFormat(error) || isDecodingError(error) || isParsingError(error)
     }
 
     fun shouldRetry(error: PlaybackException): Boolean {
@@ -96,7 +77,7 @@ fun isDecodingError(error: PlaybackException): Boolean {
     fun getErrorCategory(error: PlaybackException): ErrorCategory {
         return when {
             isNetworkError(error) -> ErrorCategory.NETWORK
-            isUnsupportedFormat(error) -> ErrorCategory.UNSUPPORTED_FORMAT
+            isParsingError(error) -> ErrorCategory.UNSUPPORTED_FORMAT
             isDecodingError(error) -> ErrorCategory.DECODER
             isTimeout(error) -> ErrorCategory.TIMEOUT
             isBlockedStream(error) -> ErrorCategory.BLOCKED
@@ -107,11 +88,11 @@ fun isDecodingError(error: PlaybackException): Boolean {
     fun getUserMessage(error: PlaybackException): String {
         return when (getErrorCategory(error)) {
             ErrorCategory.NETWORK -> "Помилка мережі. Перевірте з'єднання."
-            ErrorCategory.UNSUPPORTED_FORMAT -> "Непідтримуваний формат відео."
+            ErrorCategory.UNSUPPORTED_FORMAT -> "Пошкоджений потік. Перемикаю на резервний..."
             ErrorCategory.DECODER -> "Помилка декодування. Спробуйте іншу якість."
             ErrorCategory.TIMEOUT -> "Час очікування вичерпано. Спробуйте ще раз."
             ErrorCategory.BLOCKED -> "Доступ до відео обмежено."
-            ErrorCategory.UNKNOWN -> "Помилка відтворення: ${error.errorCodeName}"
+             ErrorCategory.UNKNOWN -> "Помилка відтворення: ${error.errorCodeName}"
         }
     }
 

@@ -1,28 +1,40 @@
 package ua.ukrtv.app.data.network
 
-import android.util.Log
+import ua.ukrtv.app.util.AppLogger
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import ua.ukrtv.app.Constants
-import ua.ukrtv.app.data.api.CloudflareResolver
-import ua.ukrtv.app.data.api.CloudflareState
-import ua.ukrtv.app.util.AppLogger
-
 import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Semaphore
 
 class HtmlHttpClient(
     private val okHttpClient: OkHttpClient,
-    private val cfState: CloudflareState?,
-    private val cfResolver: CloudflareResolver?,
     private val htmlCacheDao: ua.ukrtv.app.data.local.dao.HtmlCacheDao,
     private val tag: String = "HtmlHttpClient",
 ) {
     private val userAgent: String = Constants.USER_AGENT
+    private val refreshJob = SupervisorJob()
+    private val refreshScope = CoroutineScope(Dispatchers.IO + refreshJob)
+    private val hostSemaphores = ConcurrentHashMap<String, Semaphore>()
+    private val inflightRefreshes = ConcurrentHashMap<String, Boolean>()
+
+    private fun getHostSemaphore(host: String): Semaphore {
+        return hostSemaphores.computeIfAbsent(host) { Semaphore(2) }
+    }
+
+    fun shutdown() {
+        refreshJob.cancel()
+    }
 
     private val htmlCache = Collections.synchronizedMap(
         object : LinkedHashMap<String, Pair<Long, String>>(60, 0.75f, true) {
@@ -36,8 +48,6 @@ class HtmlHttpClient(
         builder.header("User-Agent", userAgent)
         builder.header("Accept-Language", "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7")
         builder.header("Connection", "keep-alive")
-        builder.header("Cache-Control", "no-cache")
-        builder.header("Pragma", "no-cache")
 
         builder.header("sec-ch-ua", "\"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"")
         builder.header("sec-ch-ua-mobile", "?0")
@@ -63,7 +73,9 @@ class HtmlHttpClient(
             try {
                 val uri = java.net.URI(it)
                 builder.header("Origin", "${uri.scheme}://${uri.host}")
-            } catch (_: Exception) {}
+            } catch (e: Exception) {
+                AppLogger.w("HtmlHttpClient", "Failed to parse referer URI: ${e.message}")
+            }
         }
     }
 
@@ -84,22 +96,26 @@ class HtmlHttpClient(
                 if (attempt >= maxRetries - 1) return null
 
                 if (e.message?.contains("404") == true) {
-                    Log.w(tag, "HTTP 404 is permanent, skipping retries")
+                    AppLogger.w(tag, "HTTP 404 is permanent, skipping retries")
                     return null
                 }
 
                 val delayTime = when {
-                    e.message?.contains("429") == true -> 3000L * (attempt + 1)
-                    e.message?.contains("403") == true || e.message?.contains("503") == true -> 500L
+                    e.message?.contains("429") == true -> 5000L * (attempt + 1)
+                    e.message?.contains("403") == true || e.message?.contains("503") == true -> 1000L * (attempt + 1)
                     else -> Constants.RETRY_DELAY_MS
                 }
 
-                Log.w(tag, "Retry ${attempt + 1}/$maxRetries (Error: ${e.message}) in ${delayTime}ms")
+                if (e.message?.contains("403") == true) {
+                    delay(300 + (Math.random() * 500).toLong()) // Anti-bot jitter
+                }
+
+                AppLogger.w(tag, "Retry ${attempt + 1}/$maxRetries (Error: ${e.message}) in ${delayTime}ms")
                 onRetryDelay(delayTime, attempt)
             }
         }
 
-        Log.e(tag, "Error after $maxRetries attempts: ${lastError?.message}")
+        AppLogger.e(tag, "Error after $maxRetries attempts: ${lastError?.message}")
         return null
     }
 
@@ -110,68 +126,97 @@ class HtmlHttpClient(
     ): String? = withContext(Dispatchers.IO) {
         val cacheKey = url
         if (!isAjax) {
-            val cached = htmlCache[cacheKey]
-            if (cached != null && System.currentTimeMillis() - cached.first < Constants.HTML_CACHE_TTL_MS) {
-                return@withContext cached.second
+            synchronized(htmlCache) {
+                val cached = htmlCache[cacheKey]
+                if (cached != null) {
+                    val age = System.currentTimeMillis() - cached.first
+                    if (age < Constants.HTML_CACHE_TTL_MS) {
+                        return@withContext cached.second
+                    }
+                    if (age < Constants.HTML_CACHE_STALE_TTL_MS) {
+                        if (inflightRefreshes.putIfAbsent(cacheKey, true) == null) {
+                            refreshScope.launch {
+                                try { fetchAndCacheHtml(url, referer, isAjax, cacheKey) }
+                                finally { inflightRefreshes.remove(cacheKey) }
+                            }
+                        }
+                        return@withContext cached.second
+                    }
+                }
             }
 
             try {
                 val dbCached = htmlCacheDao.getHtml(url)
                 if (dbCached != null) {
                     val age = System.currentTimeMillis() - dbCached.timestamp
-                    if (age < 3600_000) {
-                        htmlCache[cacheKey] = dbCached.timestamp to dbCached.content
+                    if (age < Constants.HTML_CACHE_TTL_MS) {
+                        synchronized(htmlCache) { htmlCache[cacheKey] = dbCached.timestamp to dbCached.content }
                         return@withContext dbCached.content
-                    } else {
-                        htmlCacheDao.delete(url)
                     }
+                    if (age < Constants.HTML_CACHE_STALE_TTL_MS) {
+                        synchronized(htmlCache) { htmlCache[cacheKey] = dbCached.timestamp to dbCached.content }
+                        if (inflightRefreshes.putIfAbsent(cacheKey, true) == null) {
+                            refreshScope.launch {
+                                try { fetchAndCacheHtml(url, referer, isAjax, cacheKey) }
+                                finally { inflightRefreshes.remove(cacheKey) }
+                            }
+                        }
+                        return@withContext dbCached.content
+                    }
+                    htmlCacheDao.delete(url)
                 }
             } catch (e: Exception) {
                 AppLogger.e(tag, "HTML DB cache read failed", e)
             }
         }
 
-        withTimeoutOrNull(20_000L) {
-            runWithRetries(tag, block = { attempt ->
+        fetchAndCacheHtml(url, referer, isAjax, cacheKey)
+    }
 
-                val cloudflare = CloudflareHandler(cfState, cfResolver, tag)
-                cloudflare.maybeResolve(url)
+    private suspend fun fetchAndCacheHtml(
+        url: String,
+        referer: String?,
+        isAjax: Boolean,
+        cacheKey: String
+    ): String? {
+        val host = try { java.net.URI(url).host } catch (e: Exception) {
+            AppLogger.w("HtmlHttpClient", "Failed to parse URL host: ${e.message}")
+            null
+        }
+        val semaphore = host?.let { getHostSemaphore(it) }
+        semaphore?.acquire()
+        try {
+            return withTimeoutOrNull(20_000L) {
+                runWithRetries(tag, block = { attempt ->
+                    val builder = Request.Builder().url(url)
+                    applyHeaders(builder, referer, isAjax)
+                    val request = builder.get().build()
 
-                val builder = Request.Builder().url(url)
-                applyHeaders(builder, referer, isAjax)
+                    okHttpClient.newCall(request).execute().use { response ->
+                        val responseCode = response.code
 
-                val request = builder.get().build()
-
-                okHttpClient.newCall(request).execute().use { response ->
-                    val responseCode = response.code
-                    val body = response.body?.string()
-
-                    if (response.isSuccessful) {
-                        if (body != null && cloudflare.isCloudflareChallenge(body)) {
-                            val host = try { java.net.URI(url).host } catch (_: Exception) { null }
-                            if (host != null) cloudflare.markBlocked(host)
-                            throw Exception("Cloudflare challenge")
-                        }
-
-                        if (!isAjax && body != null) {
-                            htmlCache[cacheKey] = System.currentTimeMillis() to body
-                            try {
-                                htmlCacheDao.insert(ua.ukrtv.app.data.local.entity.HtmlCacheEntity(url, body))
-                            } catch (e: Exception) {
-                                AppLogger.e(tag, "HTML DB cache write failed", e)
+                        if (response.isSuccessful) {
+                            val body = response.body?.string()
+                            if (!isAjax && body != null) {
+                                synchronized(htmlCache) {
+                                    htmlCache[cacheKey] = System.currentTimeMillis() to body
+                                }
+                                try {
+                                    htmlCacheDao.insert(ua.ukrtv.app.data.local.entity.HtmlCacheEntity(url, body))
+                                } catch (e: Exception) {
+                                    AppLogger.e(tag, "HTML DB cache write failed", e)
+                                }
                             }
+                            return@runWithRetries body
+                        } else {
+                            AppLogger.w(tag, "Failed GET $url: $responseCode ${response.message}")
+                            throw Exception("HTTP $responseCode")
                         }
-                        return@runWithRetries body
-                    } else {
-                        if (responseCode == 403 || responseCode == 503 || responseCode == 429) {
-                            val host = try { java.net.URI(url).host } catch (_: Exception) { null }
-                            if (host != null) cloudflare.markBlocked(host)
-                        }
-                        AppLogger.w(tag, "Failed GET $url: $responseCode ${response.message}")
-                        throw Exception("HTTP $responseCode")
                     }
-                }
-            })
+                })
+            }
+        } finally {
+            semaphore?.release()
         }
     }
 
@@ -183,9 +228,6 @@ class HtmlHttpClient(
     ): String? = withContext(Dispatchers.IO) {
         withTimeoutOrNull(20_000L) {
             runWithRetries(tag, block = { attempt ->
-                val cloudflare = CloudflareHandler(cfState, cfResolver, tag)
-                cloudflare.maybeResolve(url)
-
                 val builder = Request.Builder().url(url)
                 applyHeaders(builder, referer, isAjax)
                 val request = builder.post(body).build()
@@ -204,18 +246,9 @@ class HtmlHttpClient(
                     }
 
                     if (response.isSuccessful) {
-                        if (responseBody != null && cloudflare.isCloudflareChallenge(responseBody)) {
-                            val host = try { java.net.URI(url).host } catch (_: Exception) { null }
-                            if (host != null) cloudflare.markBlocked(host)
-                            throw Exception("Cloudflare challenge")
-                        }
                         return@runWithRetries responseBody
                     } else {
-                        if (responseCode == 403 || responseCode == 503 || responseCode == 429) {
-                            val host = try { java.net.URI(url).host } catch (_: Exception) { null }
-                            if (host != null) cloudflare.markBlocked(host)
-                        }
-                        Log.w(tag, "Failed POST $url: $responseCode ${response.message}")
+                        AppLogger.w(tag, "Failed POST $url: $responseCode ${response.message}")
                         throw Exception("HTTP $responseCode")
                     }
                 }

@@ -1,3 +1,22 @@
+# CRITICAL PROJECT KNOWLEDGE (DO NOT DELETE)
+
+## Uakino Trends
+- **URL**: `https://uakino.best/find/year/2026/f/sort=rating;desc/`
+- **Path in Profile**: `find/year/2026/f/sort=rating;desc/`
+- **Note**: This URL is specifically for 2026 trends sorted by rating. Do not change the year or the format (using `;` for Uakino filters).
+
+## Eneyida Trends
+- **URL**: `https://eneyida.tv/f/sort=rating/order=desc/`
+- **Path in Profile**: `f/sort=rating/order=desc/`
+- **Note**: Eneyida uses `/` for filter parameters.
+
+## Pro Max Optimizations
+- **DNS**: System DNS with high timeouts (15s connect, 20s read).
+- **Buffer**: 60s min / 150s max for unstable CDNs.
+- **Hardware**: Always prioritize hardware decoders (OMX/C2 non-google).
+- **WebP**: Intercept and convert WebP to JPEG for old TV Skia compatibility.
+- **Warm-up**: Start resolution on focus or detail load to minimize wait time.
+
 # Build Commands
 
 ## Android Build
@@ -12,6 +31,8 @@
 - Buffer durations optimized for HLS streaming (m3u8): minBuffer=30s, maxBuffer=120s, bufferForPlayback=2.5s
 - Codec exception handling disabled to prevent crashes on malformed streams
 - Audio attributes configured for media playback
+- **SurfaceView (raw) instead of PlayerView**: PlayerScreen uses `AndroidView(SurfaceView)` directly (not `PlayerView` wrapper). This avoids `PlayerView.setPlayer()` overhead on Compose recomposition when overlays appear/disappear. Inspired by UAKino app decompile.
+- **NO 720p cap**: Stuttering was caused by overlay recomposition, not 1080p decode. 720p cap removed.
 
 ## Lessons from Lift App Analysis
 
@@ -150,3 +171,103 @@
 | initialize() guard | Немає (не suspend) | Було Ready, тепер Ready \|\| Loading |
 | Плеєр в `DisposableEffect.onDispose` | `player.release()` | `viewModel.releasePlayer(player)` (з instance check) |
 | `toggleCodecPolicy()` | Немає | Є — вимикає/вмикає апаратне декодування |
+
+# Session 4: Deep Resolution + WebP Image Decoder Fix
+
+## Проблема 1: Неправильний серіал (замість Spider-Man Noir — Fallout)
+
+**Корінь**: `resolveOtherSeasons()` в Phase B знаходив посилання з сайдбару "схожі серіали" і вважав їх іншими сезонами поточного серіалу. Фільтр `cls.contains("side")` був недостатній.
+
+**Фікс**: Додано фільтрацію за числовим ID серіалу з URL. Для `34229-pavuk-nuar-1-sezon.html` витягується ID=34229, і додаються ТІЛЬКИ посилання, що містять `/<id>-`:
+- `UakinoProvider.kt` — `resolveOtherSeasons()` line 254
+- `EneyidaProvider.kt` — `resolveOtherSeasons()` line 479
+
+## Проблема 2: `Failed to create image decoder with message 'unimplemented'` (WebP на Mediatek TV)
+
+**Корінь**: Стара збірка використовувала **Coil 1.x** з глобальними налаштуваннями:
+- `.bitmapConfig(Bitmap.Config.RGB_565)` — примусово RGB_565 для всіх зображень
+- `.allowRgb565(true)`
+- `ImageDecoderDecoder` в decoder chain (Coil 1.x feature)
+
+Нова збірка використовує **Coil 2.7.0** де:
+- `ImageDecoderDecoder` було видалено (Coil 2.x feature removal)
+- `.bitmapConfig()` та `.allowRgb565()` deprecated але все ще працюють
+- За замовчуванням `ARGB_8888`, що ламається на Mediatek TV через відсутність WebP кодека в Skia
+
+**Фікс**: Відновлено конфігурацію зі старої збірки в `UkrtvApplication.kt:40-58`:
+- `.bitmapConfig(Bitmap.Config.RGB_565)` — глобальний RGB_565
+- `.allowRgb565(true)`
+- `.memoryCache { maxSizePercent(0.15) }` — зменшено до 15%
+- `.diskCache { 64MB }`
+- `.crossfade(true)`
+- `.respectCacheHeaders(true)`
+
+Також замінено голий `AsyncImage(model = poster)` в `EpisodePickerOverlay.kt:268` на `ImageRequest.Builder` з `RGB_565`.
+
+## Важливі висновки
+- Провайдери (Uakino) віддають постери у форматі WebP (`*.webp`)
+- Mediatek TV (Android TV) не має Skia кодеку WebP, що викликає `Failed to create image decoder`
+- Coil 2.7.0 НЕ має `ImageDecoderDecoder` (був у Coil 1.x)
+- Для TV з stripped-down Skia потрібно примусово `RGB_565` та можливо перетворення WebP→JPEG через OkHttp interceptor (якщо поточний фікс не допоможе)
+
+# Session 5: Rating Fix + Performance Optimizations
+
+## Проблема 1: `Rating: 16` замість `6.4` на Uakino movie
+**Корінь**: У HTML Uakino movie `.fi-item` з `Вік. рейтинг: 16` з'являється **перед** `.fi-item` з `imdb рейтинг: 6.4`. Старий `extractRating()` брав перший збіг по "рейтинг".
+
+**Корінь `Rating: null` на Uakino series**: Серіал використовує **`.fi-item-s`** замість `.fi-item` для блоку IMDB. Старий код шукав тільки `.fi-item`.
+
+**Фікс** (`DleParser.kt:extractRating`):
+- Пошук і `.fi-item`, і `.fi-item-s` через `doc.select(".fi-item, .fi-item-s")`
+- IMDB блок (з `labelText.contains("imdb")`) повертається **одразу** (пріоритет)
+- `рейтинг` без `imdb` зберігається як fallback, але виключається `вік. рейтинг`
+- `.r_imdb span` обмежено тільки Eneyida
+
+**Результат**:
+| Тест | До | Після |
+|------|-----|-------|
+| Uakino movie (Смерть Робіна Гуда) | `16` | `6.4` |
+| Uakino series (Павук-Нуар) | `null` | `8.3` |
+| Eneyida movie (Поганий хлопець і я 2) | `6.5` | `6.5` |
+| Eneyida series (Дім Дракона) | `8.4` | `8.4` |
+
+## Проблема 2: `findMediaUrlsInText` 17ms на detail pages (0 URL)
+**Корінь**: 4 regex запускалися на повному HTML сторінки, навіть якщо там немає `.m3u8`.
+
+**Фікс** (`DleResolutionUtils.kt:51-54`):
+```kotlin
+if (!text.contains(".m3u8") && !text.contains(".mp4") &&
+    !text.contains(".webm") && !text.contains("dleid://") &&
+    !text.contains("data-file")) return emptyList()
+```
+**Результат**: ~3ms замість ~17ms на Uakino movie (146KB).
+
+## Проблема 3: `extractInfo` 6× повтор `el.text()`
+**Корінь**: `extractInfo()` викликалась 6 разів (genres, country, actors, director, duration), кожен раз викликаючи `el.text()` на всіх елементах.
+
+**Фікс**: `infoElementTexts = infoElements.associateWith { it.text() }` — один прохід замість 6.
+
+## Проблема 4: `extractDescription` — 3× виклик `text()` на кандидата
+**Корінь**: `el.text()` викликався в `filter`, `maxByOrNull`, і фінальному `?.text()`.
+
+**Фікс**: `map { text -> ... }` — `text()` викликається раз, результат перевіряється в одному блоці.
+
+## Priority 5 (Eneyida season links = 0) — **by design**
+- Eneyida не зберігає сезони як HTML-посилання на сторінці
+- Сезони знаходяться всередині JSON-плейлиста в iframe (HDVB embed)
+- `IframeResolutionStrategy` → `extractBalancedJson()` → `parseJsonPlaylist()` — основний шлях
+- `resolveOtherSeasons()` в Phase B використовується ТІЛЬКИ як fallback для `isDeep=true`
+- 0 links — очікувана поведінка
+
+## Priority 6 (select → getElementsByClass) — **skipped**
+- `selectFirst(".class")` зупиняється на першому збігу (CSS selector evaluator, depth-first)
+- `getElementsByClass("class").first()` збирає ВСІ елементи, потім бере перший
+- Заміна була б регресією продуктивності; `selectFirst` для простих класів — оптимально
+
+## Build
+- `./gradlew assembleDebug` — BUILD SUCCESSFUL
+- 12 pre-existing test failures (10 DleParserDetailTest + 1 EneyidaParserTest + 1 StreamResolverTest) — не пов'язані зі змінами
+
+## Relevant Files Updated
+- `DleParser.kt`: `extractRating()`, `parseDetail(doc)`, `extractDescription()`, `extractInfo()`
+- `DleResolutionUtils.kt`: `findMediaUrlsInText()` early exit

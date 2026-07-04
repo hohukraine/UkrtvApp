@@ -2,13 +2,9 @@ package ua.ukrtv.app.data.providers
 
 import android.os.Parcelable
 import kotlinx.parcelize.Parcelize
-import okhttp3.RequestBody
-import ua.ukrtv.app.domain.model.ContentType
 import ua.ukrtv.app.domain.model.Episode
-import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.Season
-import ua.ukrtv.app.domain.model.StreamResolutionResult
-import ua.ukrtv.app.domain.model.StreamType
+import ua.ukrtv.app.domain.model.Voiceover
 
 @Parcelize
 data class SearchItem(
@@ -16,10 +12,8 @@ data class SearchItem(
     val url: String,
     val imageUrl: String,
     val provider: String,
-    val type: ContentType = ContentType.MOVIE,
-    val year: String? = null,
-    val genres: List<String> = emptyList(),
-    val shortDescription: String? = null
+    val type: String? = null,
+    val year: String? = null
 ) : Parcelable
 
 sealed class MediaSource : Parcelable {
@@ -33,9 +27,7 @@ sealed class MediaSource : Parcelable {
         val url: String,
         val fallbackUrls: List<String> = emptyList(),
         override val referer: String = "",
-        override val providerName: String = "",
-        val voiceover: String? = null,
-        val subtitles: String? = null
+        override val providerName: String = ""
     ) : MediaSource(), Parcelable {
         override val primaryUrl: String get() = url
         override val allUrls: List<String> get() = listOf(url) + fallbackUrls
@@ -52,11 +44,27 @@ sealed class MediaSource : Parcelable {
     }
 }
 
+data class ProviderVoiceover(
+    val name: String,
+    val episodes: List<ProviderEpisode>
+)
+
 @Parcelize
 data class ProviderSeason(
     val number: Int,
-    val episodes: List<ProviderEpisode>
-) : Parcelable
+    val episodes: List<ProviderEpisode>,
+    val voiceoverOptions: List<String> = emptyList()
+) : Parcelable {
+    val voiceovers: List<ProviderVoiceover> get() {
+        val grouped = episodes.filter { it.voiceover != null }.groupBy { it.voiceover ?: "Default" }
+        if (grouped.isNotEmpty()) {
+            return grouped.map { (name, eps) ->
+                ProviderVoiceover(name, eps.sortedBy { it.number })
+            }
+        }
+        return listOf(ProviderVoiceover("Default", episodes.sortedBy { it.number }))
+    }
+}
 
 @Parcelize
 data class ProviderEpisode(
@@ -64,75 +72,22 @@ data class ProviderEpisode(
     val title: String,
     val url: String,
     val voiceover: String? = null,
-    val subtitles: String? = null
+    val poster: String = ""
 ) : Parcelable
 
-@Parcelize
-data class StreamResult(
-    val url: String,
-    val source: MediaSource?,
-    val providerName: String,
-    val hostSource: String,
-    val referer: String = "",
-    val providerBaseUrl: String = ""
-) : Parcelable
-
-fun MediaSource.toStreamResolutionResult(
-    providerName: String,
-    sourcePageUrl: String
-): StreamResolutionResult {
-    val primary = when (this) {
-        is MediaSource.Movie -> this.primaryUrl ?: ""
-        is MediaSource.Series -> this.primaryUrl ?: ""
-    }
-
-    val streamType = when {
-        primary.contains(".m3u8", ignoreCase = true) -> StreamType.HLS
-        primary.contains(".mpd", ignoreCase = true) -> StreamType.MPD
-        primary.contains(".mp4", ignoreCase = true) -> StreamType.MP4
-        else -> StreamType.UNKNOWN
-    }
-
-    val fallback = when (this) {
-        is MediaSource.Movie -> this.fallbackUrls
-        is MediaSource.Series -> emptyList()
-    }
-
-    return StreamResolutionResult(
-        streamUrl = primary,
-        streamType = streamType,
-        referer = referer,
-        fallbackStreams = fallback,
-        providerName = providerName,
-        sourcePageUrl = sourcePageUrl,
-        seasons = if (this is MediaSource.Series) this.seasons.map { it.toDomainSeason() } else null
-    )
-
-}
-
-fun ProviderSeason.toDomainSeason(): Season = Season(
+fun ProviderSeason.toDomainSeason(poster: String = ""): Season = Season(
     number = this.number,
-    episodes = this.episodes.map { ep ->
-        Episode(
-            id = ep.url,
-            number = ep.number,
-            title = ep.title,
-            pageUrl = ep.url,
-            voiceover = ep.voiceover,
-            subtitles = ep.subtitles
+    voiceovers = this.voiceovers.map { v ->
+        Voiceover(
+            name = v.name,
+            episodes = v.episodes.map { ep ->
+                Episode(
+                    number = ep.number,
+                    title = ep.title,
+                    url = ep.url,
+                    poster = ep.poster.ifEmpty { poster }
+                )
+            }
         )
     }
 )
-
-fun SearchItem.toMovie(): Movie {
-    return Movie(
-        id = url.hashCode().toString(),
-        title = title,
-        poster = imageUrl,
-        year = year,
-        type = type,
-        pageUrl = url,
-        genres = genres,
-        shortDescription = shortDescription
-    )
-}

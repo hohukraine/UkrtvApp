@@ -22,6 +22,8 @@
 -dontwarn androidx.media3.datasource.**
 -keep class androidx.media3.ui.** { *; }
 -dontwarn androidx.media3.ui.**
+-keep class androidx.media3.session.** { *; }
+-dontwarn androidx.media3.session.**
 
 
 -keepclassmembers,allowobfuscation class * {
@@ -41,11 +43,13 @@
 
 
 
-# Gson
--keep class com.google.gson.** { *; }
--dontwarn com.google.gson.**
--keepclassmembers,allowobfuscation class * {
-    @com.google.gson.annotations.SerializedName <fields>;
+# kotlinx.serialization
+-keep,includedescriptorclasses class ua.ukrtv.app.domain.model.**$$serializer { *; }
+-keepclassmembers class ua.ukrtv.app.domain.model.** {
+    *** Companion;
+}
+-keepclasseswithmembers class ua.ukrtv.app.domain.model.** {
+    kotlinx.serialization.KSerializer serializer(...);
 }
 -keep class ua.ukrtv.app.domain.model.** { *; }
 -keep class * implements android.os.Parcelable { *; }

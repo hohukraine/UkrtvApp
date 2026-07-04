@@ -1,10 +1,9 @@
 package ua.ukrtv.app.data.streaming
 
 import android.util.Log
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.mockkStatic
+import io.mockk.*
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -16,6 +15,8 @@ import ua.ukrtv.app.data.providers.ProviderSeason
 import ua.ukrtv.app.data.providers.MediaProvider
 import ua.ukrtv.app.data.providers.SearchItem
 import ua.ukrtv.app.data.providers.ProviderManager
+import ua.ukrtv.app.data.streaming.strategies.*
+import ua.ukrtv.app.util.AppLogger
 
 class StreamResolverTest {
 
@@ -25,16 +26,47 @@ class StreamResolverTest {
     @Before
     fun setup() {
         mockkStatic(Log::class)
+        every { Log.v(any<String>(), any<String>()) } returns 0
         every { Log.d(any<String>(), any<String>()) } returns 0
         every { Log.i(any<String>(), any<String>()) } returns 0
         every { Log.w(any<String>(), any<String>()) } returns 0
+        every { Log.w(any<String>(), any<String>(), any<Throwable>()) } returns 0
         every { Log.e(any<String>(), any<String>()) } returns 0
         every { Log.e(any<String>(), any<String>(), any<Throwable>()) } returns 0
+
+        mockkObject(AppLogger)
+        every { AppLogger.d(any<String>(), any<String>()) } just Runs
+        every { AppLogger.i(any<String>(), any<String>()) } just Runs
+        every { AppLogger.w(any<String>(), any<String>(), any<Throwable>()) } just Runs
+        every { AppLogger.e(any<String>(), any<String>(), any<Throwable>()) } just Runs
 
         fakeProvider = FakeProvider()
         val providerManager = mockk<ProviderManager>(relaxed = true)
         val unifiedStreamProvider = mockk<ua.ukrtv.app.data.streaming.UnifiedStreamProvider>(relaxed = true)
-        resolver = StreamResolver(FakeStreamManager(fakeProvider, providerManager), unifiedStreamProvider)
+        val htmlHttpClient = mockk<ua.ukrtv.app.data.network.HtmlHttpClient>(relaxed = true)
+        val resolutionLogger = mockk<ua.ukrtv.app.util.ResolutionLogger>(relaxed = true)
+        val hlsExtractor = mockk<ua.ukrtv.app.data.streaming.HlsExtractor>(relaxed = true)
+        
+        val streamManager = FakeStreamManager(fakeProvider, providerManager)
+        
+        val directLinkStrategy = DirectLinkStrategy()
+        val vodIdStrategy = VodIdStrategy(unifiedStreamProvider)
+        val providerStrategy = ProviderResolutionStrategy(streamManager)
+        val iframeStrategy = IframeResolutionStrategy(htmlHttpClient, hlsExtractor, unifiedStreamProvider, resolutionLogger)
+        
+        resolver = StreamResolver(
+            streamManager,
+            resolutionLogger,
+            directLinkStrategy,
+            vodIdStrategy,
+            providerStrategy,
+            iframeStrategy
+        )
+    }
+
+    @After
+    fun tearDown() {
+        unmockkAll()
     }
 
     @Test
@@ -75,7 +107,7 @@ class StreamResolverTest {
             "https://referer.test/",
             "Test"
         )
-        val result = resolver.resolve("https://uakino.best/series-page.html")
+        val result = resolver.resolve("https://uakino.best/series-page.html", season = 1, episode = 1)
         assertNotNull(result)
         val fallbacks = result!!.fallbackStreams
         assertEquals(fallbacks.distinct(), fallbacks)
@@ -99,12 +131,12 @@ class StreamResolverTest {
         private val provider: FakeProvider,
         providerManager: ProviderManager
     ) : ua.ukrtv.app.data.providers.StreamManager(providerManager) {
-        override suspend fun getStream(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean): ProviderMediaSource? {
-            return provider.getMediaSource(pageUrl, season, episode, isDeep)
+        override suspend fun getStream(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean, prefetchedHtml: String?): ProviderMediaSource? {
+            return provider.getMediaSource(pageUrl, season, episode, isDeep, prefetchedHtml)
         }
 
-        override suspend fun tryProviders(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean): ProviderMediaSource? {
-            return provider.getMediaSource(pageUrl, season, episode, isDeep)
+        override suspend fun tryProviders(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean, prefetchedHtml: String?): ProviderMediaSource? {
+            return provider.getMediaSource(pageUrl, season, episode, isDeep, prefetchedHtml)
         }
     }
 
@@ -112,11 +144,9 @@ class StreamResolverTest {
         var stubMovie: ProviderMediaSource.Movie? = null
         var stubSeries: ProviderMediaSource.Series? = null
 
-        override val id = "fake"
         override val name = "Fake"
         override val baseUrl = "https://fake.test/"
         override val brandColor = "#000000"
-        override val logoUrl = ""
 
         override fun getHomeCategories(): List<ua.ukrtv.app.data.providers.ContentCategory> = emptyList()
         override suspend fun initializeSession(): Boolean = true
@@ -124,7 +154,7 @@ class StreamResolverTest {
         override suspend fun getMoviesByCategory(category: ua.ukrtv.app.data.providers.ContentCategory, page: Int): List<ua.ukrtv.app.domain.model.Movie> = emptyList()
         override suspend fun search(query: String, limit: Int): List<SearchItem> = emptyList()
         override suspend fun getMovieDetails(url: String): MovieDetail = MovieDetail(url.hashCode().toString(), "", "", "", null, emptyList(), url, name, null, null)
-        override suspend fun getMediaSource(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean): ProviderMediaSource? {
+        override suspend fun getMediaSource(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean, prefetchedHtml: String?): ProviderMediaSource? {
             return if (pageUrl.contains("series")) stubSeries else stubMovie
         }
         override fun supportsUrl(url: String): Boolean = true

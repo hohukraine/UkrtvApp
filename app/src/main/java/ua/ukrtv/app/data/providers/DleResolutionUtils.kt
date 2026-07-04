@@ -1,11 +1,41 @@
 package ua.ukrtv.app.data.providers
 
-import com.google.gson.Gson
-import org.jsoup.Jsoup
 import ua.ukrtv.app.util.AppLogger
 
 object DleResolutionUtils {
-    
+
+    data class Variant(val url: String, val height: Int, val bandwidth: Long)
+
+    private val HLS_RESOLUTION_REGEX = Regex("""RESOLUTION=\d+x(\d+)""", RegexOption.IGNORE_CASE)
+    private val HLS_BANDWIDTH_REGEX = Regex("""BANDWIDTH=(\d+)""", RegexOption.IGNORE_CASE)
+    private val MEDIA_URL_REGEX = Regex("""https?://[^\s"'>]+(?:\.m3u8|\.mp4|\.webm)(?:\?[^\s"'>]*)?""", RegexOption.IGNORE_CASE)
+    private val MEDIA_PLAYLIST_REGEX = Regex("""https?://[^\s"'>]+/(?:master\.m3u8|index\.m3u8|playlist\.m3u8)""", RegexOption.IGNORE_CASE)
+    private val DLEID_REGEX = Regex("""dleid://(\d+)""")
+    private val DATA_FILE_REGEX = Regex("""data-file=["'](//[^"']+)["']""", RegexOption.IGNORE_CASE)
+    private val YEAR_CLEANUP_REGEX = Regex("""\b(19|20)\d{2}\b""")
+
+    fun parseMasterPlaylist(playlist: String): List<Variant> {
+        val variants = mutableListOf<Variant>()
+        val lines = playlist.split("\n")
+        var i = 0
+        while (i < lines.size) {
+            val line = lines[i].trim()
+            if (line.startsWith("#EXT-X-STREAM-INF:")) {
+                val attrs = line.removePrefix("#EXT-X-STREAM-INF:")
+                val height = HLS_RESOLUTION_REGEX.find(attrs)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                val bandwidth = HLS_BANDWIDTH_REGEX.find(attrs)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+                if (i + 1 < lines.size) {
+                    val url = lines[i + 1].trim()
+                    if (url.isNotEmpty() && !url.startsWith("#")) {
+                        variants.add(Variant(url, height, bandwidth))
+                    }
+                }
+            }
+            i++
+        }
+        return variants
+    }
+
     private val SEASON_REGEXES = listOf(
         Regex("""(?:сезон|season|sezon)[\s\-_]*([0-9]{1,2})""", RegexOption.IGNORE_CASE),
         Regex("""([0-9]{1,2})[\s\-_]*(?:сезон|season|sezon)""", RegexOption.IGNORE_CASE),
@@ -16,184 +46,26 @@ object DleResolutionUtils {
 
     fun findMediaUrlsInText(text: String): List<String> {
         if (text.isEmpty()) return emptyList()
-        
-        val candidates = mutableSetOf<String>()
-        
-        // Common media URL patterns (m3u8/mp4/webm)
-        Regex(
-            """https?://[^\s"'>]+(?:\.m3u8|\.mp4|\.webm)(?:\?[^\s"'>]*)?""",
-            RegexOption.IGNORE_CASE
-        ).findAll(text).forEach { m -> candidates.add(m.value) }
-        
-        // Playlist patterns without extension
-        Regex(
-            """https?://[^\s"'>]+/(?:master\.m3u8|index\.m3u8|playlist\.m3u8)""",
-            RegexOption.IGNORE_CASE
-        ).findAll(text).forEach { m -> candidates.add(m.value) }
+        val cleanText = if (text.contains("\\/")) text.replace("\\/", "/") else text
+        if (!cleanText.contains(".m3u8") && !cleanText.contains(".mp4") &&
+            !cleanText.contains(".webm") && !cleanText.contains("dleid://") &&
+            !cleanText.contains("data-file")) return emptyList()
 
-        // dleid pattern
-        Regex("""dleid://(\d+)""").findAll(text).forEach { m -> candidates.add(m.value) }
-        
+        val candidates = mutableSetOf<String>()
+
+        MEDIA_URL_REGEX.findAll(cleanText).forEach { m -> candidates.add(m.value) }
+        MEDIA_PLAYLIST_REGEX.findAll(cleanText).forEach { m -> candidates.add(m.value) }
+        DLEID_REGEX.findAll(cleanText).forEach { m -> candidates.add(m.value) }
+        DATA_FILE_REGEX.findAll(cleanText).forEach { m ->
+            candidates.add("https:${m.groupValues[1]}")
+        }
+
         return candidates.sorted()
     }
 
     fun extractSeasonNum(text: String): Int? {
-        val clean = text.lowercase().replace(Regex("""\b(19|20)\d{2}\b"""), "")
+        val clean = text.lowercase().replace(YEAR_CLEANUP_REGEX, "")
         return SEASON_REGEXES.firstNotNullOfOrNull { it.find(clean)?.groupValues?.get(1)?.toIntOrNull() }
-    }
-
-    fun parseDleLinks(input: String): String {
-        val trimmed = input.trim()
-        if (trimmed.isEmpty() || trimmed.contains("<html", true)) return ""
-        // Handle encoded formats like [720p]https://...
-        if (trimmed.contains("]")) return trimmed.substringAfterLast("]").trim()
-        return trimmed
-    }
-
-    fun parsePlaylist(input: String, referer: String, providerName: String, defaultSeason: Int? = null): MediaSource? {
-        val trimmed = input.trim()
-        if (trimmed.isEmpty() || trimmed == "0" || trimmed == "null" || trimmed.startsWith("<!")) return null
-
-        // 1. Handle JSON
-        if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-            try {
-                val gson = Gson()
-                val map = if (trimmed.startsWith("{")) gson.fromJson(trimmed, Map::class.java) else null
-                
-                val innerHtml = map?.get("response") as? String
-                if (innerHtml != null && (innerHtml.contains("<li") || innerHtml.contains("data-file"))) {
-                    return parsePlaylist(innerHtml, referer, providerName, defaultSeason)
-                }
-
-                val list = (map?.get("playlist") ?: map?.get("folder") ?: map?.get("video") ?: if (trimmed.startsWith("[")) gson.fromJson(trimmed, List::class.java) else null) as? List<*>
-                
-                if (list != null) {
-                    val episodes = mutableListOf<ProviderEpisode>()
-                    val seasonsList = mutableListOf<ProviderSeason>()
-
-                    list.forEach { item ->
-                        val m = item as? Map<*, *> ?: return@forEach
-                        val folder = m["folder"] as? List<*>
-                        
-                        if (folder != null) {
-                            val sTitle = (m["title"] as? String) ?: "Сезон"
-                            val sNum = extractSeasonNum(sTitle) ?: (seasonsList.size + 1)
-                            val sEpisodes = folder.mapIndexedNotNull { eIdx, eItem ->
-                                val em = eItem as? Map<*, *> ?: return@mapIndexedNotNull null
-                                val eTitle = (em["title"] as? String) ?: "Серія ${eIdx + 1}"
-                                val eFile = parseDleLinks((em["file"] as? String) ?: (em["url"] as? String) ?: "")
-                                if (eFile.isEmpty()) return@mapIndexedNotNull null
-                                val eNum = Regex("""(\d+)""").find(eTitle)?.groupValues?.get(1)?.toIntOrNull() ?: (eIdx + 1)
-                                
-                                val eVoice = (em["voice"] as? String) ?: (em["voiceover"] as? String) ?: ""
-                                val eSubs = (em["subtitle"] as? String) ?: (em["subtitles"] as? String) ?: (em["vtt"] as? String) ?: ""
-                                
-                                ProviderEpisode(
-                                    eNum, 
-                                    eTitle, 
-                                    ensureAbsoluteUrl(eFile, referer), 
-                                    eVoice.takeIf { it.isNotEmpty() },
-                                    eSubs.takeIf { it.isNotEmpty() }
-                                )
-                            }
-                            if (sEpisodes.isNotEmpty()) seasonsList.add(ProviderSeason(sNum, sEpisodes))
-                        } else {
-                            val title = (m["title"] as? String) ?: "Епізод"
-                            val file = parseDleLinks((m["file"] as? String) ?: (m["url"] as? String) ?: "")
-                            if (file.isNotEmpty()) {
-                                val epNum = Regex("""(\d+)""").find(title)?.groupValues?.get(1)?.toIntOrNull() ?: (episodes.size + 1)
-                                val voice = (m["voice"] as? String) ?: (m["voiceover"] as? String) ?: ""
-                                val subs = (m["subtitle"] as? String) ?: (m["subtitles"] as? String) ?: (m["vtt"] as? String) ?: ""
-                                episodes.add(
-                                    ProviderEpisode(
-                                        epNum, 
-                                        title, 
-                                        ensureAbsoluteUrl(file, referer),
-                                        voice.takeIf { it.isNotEmpty() },
-                                        subs.takeIf { it.isNotEmpty() }
-                                    )
-                                )
-                            }
-                        }
-                    }
-                    
-                    if (seasonsList.isNotEmpty()) {
-                        return MediaSource.Series(seasonsList.sortedBy { it.number }, referer, providerName)
-                    } else if (episodes.isNotEmpty()) {
-                        val sNum = defaultSeason ?: extractSeasonNum(referer) ?: 1
-                        return MediaSource.Series(listOf(ProviderSeason(sNum, episodes)), referer, providerName)
-                    }
-                }
-            } catch (_: Exception) {}
-        }
-
-        // 2. HTML List
-        if (trimmed.contains("<li") && (trimmed.contains("data-file") || trimmed.contains("data-url") || trimmed.contains("data-id"))) {
-            val doc = Jsoup.parse(trimmed)
-            val items = doc.select("li[data-file], li[data-url], li[data-id]")
-            if (items.isEmpty()) return null
-            
-            val episodes = items.mapIndexedNotNull { idx, li ->
-                val el = li
-                val rawFile = el.attr("data-file").ifEmpty { el.attr("data-url") }.ifEmpty { el.attr("data-id") }
-                val url = parseDleLinks(rawFile)
-                if (url.isEmpty() || url == "0" || url.length < 5 || url.contains("<")) return@mapIndexedNotNull null
-                
-                val title = li.text().trim().ifEmpty { "Серія ${idx + 1}" }
-                val epNum = Regex("""(\d+)""").find(title)?.groupValues?.get(1)?.toIntOrNull() ?: (idx + 1)
-                
-                val voice = li.attr("data-voice").ifEmpty {
-                    li.attr("data-voiceover").ifEmpty {
-                        val p = li.parent()
-                        if (p != null && (p.hasClass("video-tabs") || p.hasClass("player-tabs") || p.hasClass("voice-tabs"))) li.text().trim() else ""
-                    }
-                }
-                
-                val subs = li.attr("data-subtitle").ifEmpty {
-                    li.attr("data-subtitles").ifEmpty {
-                        li.attr("data-vtt").ifEmpty { "" }
-                    }
-                }
-                
-                ProviderEpisode(
-                    epNum, 
-                    title, 
-                    ensureAbsoluteUrl(url, referer), 
-                    voice.takeIf { it.isNotEmpty() },
-                    subs.takeIf { it.isNotEmpty() }
-                )
-            }
-            
-            if (episodes.isNotEmpty()) {
-                val sNum = defaultSeason ?: extractSeasonNum(referer) ?: 1
-                val seasons = episodes.groupBy { extractSeasonNum(it.title) ?: extractSeasonNum(it.url) ?: sNum }
-                    .map { (num, eps) -> ProviderSeason(num, eps.sortedBy { it.number }) }.sortedBy { it.number }
-                return MediaSource.Series(seasons, referer, providerName)
-            }
-        }
-
-        // 3. Direct Link
-        if (isMediaUrl(trimmed)) {
-            val finalUrl = parseDleLinks(trimmed)
-            if (finalUrl.isNotEmpty()) {
-                return MediaSource.Movie(
-                    url = ensureAbsoluteUrl(finalUrl, referer), 
-                    fallbackUrls = emptyList(), 
-                    referer = referer, 
-                    providerName = providerName
-                )
-            }
-        }
-
-        return null
-    }
-
-    fun isMediaUrl(url: String): Boolean {
-        if (url.length > 500 || url.contains("<") || url.contains(">") || url.contains("html", true)) return false
-        val l = url.lowercase()
-        if (l.startsWith("dleid://") || l.startsWith("[") || l.startsWith("{")) return true
-        val markers = listOf(".m3u8", ".mp4", ".mpd", "/hls/", "/video/", "/vod/", "/embed/", "token=", "hdvb", "ashdi", "vidmoly", "mcloud")
-        return markers.any { l.contains(it) }
     }
 
     fun ensureAbsoluteUrl(url: String, baseUrl: String): String {
@@ -205,6 +77,91 @@ object DleResolutionUtils {
             val uri = java.net.URI(baseUrl)
             if (url.startsWith("/")) "${uri.scheme}://${uri.host}$url"
             else baseUrl.substringBeforeLast("/") + "/" + url
-        } catch (_: Exception) { url }
+        } catch (e: Exception) {
+            AppLogger.w("DleResolutionUtils", "Failed to resolve URL: ${e.message}")
+            url
+        }
+    }
+
+    private val QUALITY_4K_REGEX = Regex("""[/_\-](?:4k|2160p?|3840x2160)[/_\-.]""", RegexOption.IGNORE_CASE)
+    private val QUALITY_1080_REGEX = Regex("""[/_\-](?:1080p?|1920x1080)[/_\-.]""", RegexOption.IGNORE_CASE)
+    private val QUALITY_720_REGEX = Regex("""[/_\-](?:720p?|1280x720)[/_\-.]""", RegexOption.IGNORE_CASE)
+    private val QUALITY_480_REGEX = Regex("""[/_\-](?:480p?|854x480)[/_\-.]""", RegexOption.IGNORE_CASE)
+    private val QUALITY_360_REGEX = Regex("""[/_\-](?:360p?|640x360)[/_\-.]""", RegexOption.IGNORE_CASE)
+
+    fun pickBestQuality(urls: List<String>, preferMaster: Boolean = true): String? {
+        if (urls.isEmpty()) return null
+        if (urls.size == 1) return urls.first()
+
+        // 1. Prioritize Master Playlist if requested (let player decide)
+        if (preferMaster) {
+            val master = urls.firstOrNull { 
+                it.contains("master.m3u8", ignoreCase = true) || 
+                it.contains("playlist.m3u8", ignoreCase = true) 
+            }
+            if (master != null) return master
+        }
+
+        // 2. Score by resolution
+        val qualityPatterns = listOf(
+            QUALITY_4K_REGEX,
+            QUALITY_1080_REGEX,
+            QUALITY_720_REGEX,
+            QUALITY_480_REGEX,
+            QUALITY_360_REGEX,
+        )
+
+        val scored = urls.map { url ->
+            val qualityIdx = qualityPatterns.indexOfFirst { it.containsMatchIn(url) }
+            url to if (qualityIdx >= 0) qualityPatterns.size - qualityIdx else 0
+        }
+
+        val best = scored.maxByOrNull { it.second }
+        if (best != null && best.second > 0) return best.first
+
+        // 3. Fallback to first URL (likely original/default)
+        return urls.first()
+    }
+
+    fun promoteToSeriesIfNeeded(source: MediaSource?, pageUrl: String, providerName: String): MediaSource? {
+        if (source !is MediaSource.Movie || source.fallbackUrls.size <= 2) return source
+        val allLinks = listOf(source.url) + source.fallbackUrls
+        return SeriesPlaylistParser.parseUrlBasedSeries(allLinks, pageUrl, providerName) ?: source
+    }
+
+    fun resolveOtherSeasons(doc: org.jsoup.nodes.Document, pageUrl: String, logTag: String): List<Pair<Int, String>> {
+        try {
+            val currentId = pageUrl.substringAfterLast("/").substringBefore("-").toIntOrNull()
+            val titleSlug = pageUrl.substringAfterLast("/").substringAfter("-").substringBefore("-sezon").takeIf { it.length > 3 }
+
+            val source = doc.select(".seasons, .franchise-list, .serial-series, .related-ids, .video-tabs, .player-tabs, .tabs-sel")
+            if (source.isNotEmpty()) {
+                val links = source.select("a[href]").mapNotNull { a ->
+                    val sNum = extractSeasonNum(a.text()) ?: return@mapNotNull null
+                    if (sNum > 50) return@mapNotNull null
+                    sNum to a.attr("abs:href")
+                }
+                if (links.isNotEmpty()) return links.distinctBy { it.second }.sortedBy { it.first }
+            }
+
+            return doc.select("a[href*='-sezon']").filter { a ->
+                val href = a.attr("abs:href")
+                val matchesId = currentId != null && href.contains("/$currentId-")
+                val matchesSlug = titleSlug != null && href.contains(titleSlug)
+
+                (matchesId || matchesSlug) &&
+                a.parents().none { p ->
+                    val cls = (p.className() + " " + p.id()).lowercase()
+                    cls.contains("side") || cls.contains("sidebar") || cls.contains("related")
+                }
+            }.mapNotNull { a ->
+                val sNum = extractSeasonNum(a.text()) ?: return@mapNotNull null
+                if (sNum > 50) return@mapNotNull null
+                sNum to a.attr("abs:href")
+            }.distinctBy { it.second }.sortedBy { it.first }
+        } catch (e: Exception) {
+            AppLogger.w(logTag, "resolveOtherSeasons failed: ${e.message}")
+            return emptyList()
+        }
     }
 }

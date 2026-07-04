@@ -43,6 +43,5 @@ class EneyidaParserTest {
          val parser = DleParser(EneyidaProfile)
          val movies = parser.parseList(html)
          assertEquals(1, movies.size)
-         assertEquals(ua.ukrtv.app.domain.model.ContentType.SERIES, movies[0].type)
     }
 }

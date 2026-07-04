@@ -5,26 +5,23 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStoreFile
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.room.Room
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import okhttp3.Cookie
-import okhttp3.CookieJar
-import okhttp3.HttpUrl
-import okhttp3.OkHttpClient
+import kotlinx.serialization.json.Json
+import okhttp3.*
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.local.AppDatabase
 import ua.ukrtv.app.data.local.dao.HtmlCacheDao
-import ua.ukrtv.app.data.local.dao.SearchCacheDao
 import ua.ukrtv.app.data.local.dao.SearchHistoryDao
+import ua.ukrtv.app.data.local.dao.WatchlistDao
 import ua.ukrtv.app.data.network.HtmlHttpClient
+import ua.ukrtv.app.data.network.WebpToJpegInterceptor
+import ua.ukrtv.app.util.getDeviceClass
+import ua.ukrtv.app.util.hasMediatekChipset
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
@@ -51,30 +48,16 @@ object Modules {
     }
 
     @Provides @Singleton
-    fun provideSearchCacheDao(database: AppDatabase): SearchCacheDao = database.searchCacheDao()
-
-    @Provides @Singleton
     fun provideSearchHistoryDao(database: AppDatabase): SearchHistoryDao = database.searchHistoryDao()
 
     @Provides @Singleton
     fun provideHtmlCacheDao(database: AppDatabase): HtmlCacheDao = database.htmlCacheDao()
 
     @Provides @Singleton
-    fun provideHtmlHttpClient(
-        okHttpClient: OkHttpClient,
-        cloudflareState: ua.ukrtv.app.data.api.CloudflareState,
-        cloudflareResolver: ua.ukrtv.app.data.api.CloudflareResolver,
-        htmlCacheDao: HtmlCacheDao
-    ): HtmlHttpClient = HtmlHttpClient(
-        okHttpClient = okHttpClient,
-        cfState = cloudflareState,
-        cfResolver = cloudflareResolver,
-        htmlCacheDao = htmlCacheDao,
-        tag = "HtmlHttpClient"
-    )
+    fun provideWatchlistDao(database: AppDatabase): WatchlistDao = database.watchlistDao()
 
     @Provides @Singleton
-    fun provideGson(): Gson = GsonBuilder().setLenient().create()
+    fun provideJson(): Json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     @Provides @Singleton
     fun provideCookieJar(): CookieJar = SimpleCookieJar()
@@ -83,7 +66,7 @@ object Modules {
         private val cookieStore = java.util.concurrent.ConcurrentHashMap<String, MutableMap<String, Cookie>>()
 
         override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-            val hostCookies = cookieStore.getOrPut(url.host) { java.util.concurrent.ConcurrentHashMap() }
+            val hostCookies = cookieStore.computeIfAbsent(url.host) { java.util.concurrent.ConcurrentHashMap() }
             cookies.forEach { cookie ->
                 if (cookie.expiresAt > System.currentTimeMillis()) {
                     hostCookies[cookie.name] = cookie
@@ -94,75 +77,78 @@ object Modules {
         }
 
         override fun loadForRequest(url: HttpUrl): List<Cookie> {
-            val hostCookies = cookieStore[url.host] ?: return emptyList()
-            val now = System.currentTimeMillis()
-            val validCookies = hostCookies.values.filter { it.expiresAt > now }
-            if (validCookies.size != hostCookies.size) {
-                val iterator = hostCookies.entries.iterator()
-                while (iterator.hasNext()) {
-                    if (iterator.next().value.expiresAt <= now) iterator.remove()
-                }
-            }
-            return validCookies
+            return cookieStore[url.host]?.values?.toList() ?: emptyList()
         }
     }
 
     @Provides @Singleton
     fun provideOkHttpClient(
         @ApplicationContext context: Context,
-        cookieJar: CookieJar,
-        cloudflareInterceptor: ua.ukrtv.app.data.api.CloudflareInterceptor
+        cookieJar: CookieJar
     ): OkHttpClient {
+        val isLowDevice = getDeviceClass(context) == ua.ukrtv.app.util.DeviceClass.LOW
+        val isMediatek = hasMediatekChipset()
+
         val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
-            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
+            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
             override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
         })
 
         val sslContext = SSLContext.getInstance("SSL")
         sslContext.init(null, trustAllCerts, SecureRandom())
-        val sslSocketFactory = sslContext.socketFactory
-
-        val cacheSize = 10L * 1024 * 1024
-        val cache = okhttp3.Cache(context.cacheDir.resolve("http_cache"), cacheSize)
-        val dispatcher = okhttp3.Dispatcher().apply {
-            maxRequests = 64
-            maxRequestsPerHost = 15
-        }
+        
+        val cacheSize = 50L * 1024 * 1024
+        val cache = Cache(context.cacheDir.resolve("http_cache"), cacheSize)
 
         return OkHttpClient.Builder()
-            .sslSocketFactory(sslSocketFactory, trustAllCerts[0] as X509TrustManager)
+            .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
             .hostnameVerifier { _, _ -> true }
             .cookieJar(cookieJar)
             .cache(cache)
-            .dispatcher(dispatcher)
-            .addInterceptor(cloudflareInterceptor)
+            .dispatcher(Dispatcher().apply { maxRequests = 32; maxRequestsPerHost = 5 })
+            .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
+            .connectionSpecs(listOf(
+                ConnectionSpec.COMPATIBLE_TLS,
+                ConnectionSpec.CLEARTEXT
+            ))
             .addInterceptor { chain ->
                 val request = chain.request()
+                val url = request.url.toString()
                 val builder = request.newBuilder()
+
                 if (request.header("User-Agent") == null) {
                     builder.header("User-Agent", Constants.USER_AGENT)
                 }
-                if (request.url.host.contains("uakino")) {
-                    if (request.header("Accept") == null) {
-                        builder.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-                    }
+
+                // WebP → JPEG for old TV Skia compatibility
+                if (isLowDevice || isMediatek || url.contains(".webp") || url.contains("format=webp")) {
+                    builder.header("Accept", "image/avif,image/jpeg,image/png,*/*;q=0.5")
                 }
+
                 chain.proceed(builder.build())
             }
+            .addInterceptor(WebpToJpegInterceptor())
             .connectTimeout(Constants.CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(Constants.READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .writeTimeout(Constants.READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .retryOnConnectionFailure(true)
             .followRedirects(true)
             .followSslRedirects(true)
-            .retryOnConnectionFailure(true)
             .build()
     }
 
-    @OptIn(UnstableApi::class)
     @Provides @Singleton
-    fun provideDataSourceFactory(okHttpClient: OkHttpClient): OkHttpDataSource.Factory {
-        return OkHttpDataSource.Factory(okHttpClient)
-    }
+    fun provideTvRecommendationManager(@ApplicationContext context: Context): ua.ukrtv.app.tv.TvRecommendationManager =
+        ua.ukrtv.app.tv.TvRecommendationManager(context)
 
+    @Provides @Singleton
+    fun provideHtmlHttpClient(
+        okHttpClient: OkHttpClient,
+        htmlCacheDao: HtmlCacheDao
+    ): HtmlHttpClient = HtmlHttpClient(
+        okHttpClient = okHttpClient,
+        htmlCacheDao = htmlCacheDao,
+        tag = "HtmlHttpClient"
+    )
 }

@@ -7,9 +7,7 @@ import ua.ukrtv.app.domain.model.MovieDetail
 interface MediaProvider {
     val name: String
     val baseUrl: String
-    val id: String
     val brandColor: String
-    val logoUrl: String
 
     fun getHomeCategories(): List<ContentCategory>
     suspend fun initializeSession(): Boolean
@@ -17,7 +15,7 @@ interface MediaProvider {
     suspend fun getMoviesByCategory(category: ContentCategory, page: Int = 1): List<Movie>
     suspend fun search(query: String, limit: Int = 10): List<SearchItem>
     suspend fun getMovieDetails(url: String): MovieDetail
-    suspend fun getMediaSource(pageUrl: String, season: Int? = null, episode: Int? = null, isDeep: Boolean = true): MediaSource?
+    suspend fun getMediaSource(pageUrl: String, season: Int? = null, episode: Int? = null, isDeep: Boolean = true, prefetchedHtml: String? = null): MediaSource?
     fun supportsUrl(url: String): Boolean
     fun clearCache(url: String? = null)
 }

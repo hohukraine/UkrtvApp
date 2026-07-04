@@ -4,10 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,14 +29,18 @@ import ua.ukrtv.app.ui.detail.DetailScreen
 import ua.ukrtv.app.ui.home.HomeScreen
 import ua.ukrtv.app.ui.search.SearchScreen
 import ua.ukrtv.app.ui.player.PlayerScreen
+import ua.ukrtv.app.ui.player.SeasonSelectorScreen
+import ua.ukrtv.app.ui.player.SeasonSelectionResult
+import ua.ukrtv.app.ui.top200.Top200Screen
 import ua.ukrtv.app.ui.theme.UkrtvTheme
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
+import ua.ukrtv.app.domain.model.Top200Movie
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         window.decorView.keepScreenOn = true
+        window.setBackgroundDrawable(null)
         super.onCreate(savedInstanceState)
         setContent {
             UkrtvTheme {
@@ -41,7 +51,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
         if (keyCode == android.view.KeyEvent.KEYCODE_MENU) {
-            // Global "Menu" button handling (Point 6)
             ua.ukrtv.app.util.AppLogger.d("MainActivity", "Menu button pressed - Quick Settings trigger")
             return true
         }
@@ -56,33 +65,73 @@ fun UkrtvTVApp() {
 
     val onMovieClick = remember(navController) {
         { movie: ua.ukrtv.app.domain.model.Movie ->
-            navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.type.name))
+            ua.ukrtv.app.util.Perf.start("nav:home2detail")
+            ua.ukrtv.app.util.AppLogger.d("Navigation", "home→detail: movie=${movie.title} url=${movie.pageUrl?.take(40)}")
+            navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
         }
     }
     val onSearchClick = remember(navController) {
-        { navController.navigate(AppNavigation.SEARCH) }
+        { navController.navigate(AppNavigation.searchRoute()) }
     }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        colors = SurfaceDefaults.colors(containerColor = Color(0xFF0C0C0D)) // backgroundMinimal
+        colors = SurfaceDefaults.colors(containerColor = Color.Transparent)
     ) {
         NavHost(
             navController = navController,
             startDestination = AppNavigation.HOME,
-            enterTransition = { EnterTransition.None },
-            exitTransition = { ExitTransition.None }
+            enterTransition = { fadeIn(animationSpec = tween(300)) },
+            exitTransition = { fadeOut(animationSpec = tween(300)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            popExitTransition = { fadeOut(animationSpec = tween(200)) }
         ) {
+            composable(
+                route = AppNavigation.SEASONS,
+                arguments = listOf(
+                    navArgument("id") { type = NavType.StringType },
+                    navArgument("url") { type = NavType.StringType },
+                    navArgument("title") { type = NavType.StringType },
+                    navArgument("season") { type = NavType.IntType; defaultValue = -1 },
+                    navArgument("episode") { type = NavType.IntType; defaultValue = -1 },
+                    navArgument("voiceover") { type = NavType.StringType; defaultValue = "" }
+                )
+            ) {
+                SeasonSelectorScreen(
+                    onBack = { navController.popBackStack() },
+                    onEpisodeSelected = { result ->
+                        val prevEntry = navController.previousBackStackEntry
+                        prevEntry?.savedStateHandle?.set("episode_result", result)
+                        navController.popBackStack()
+                    }
+                )
+            }
+
             composable(AppNavigation.HOME) {
                 HomeScreen(
                     onMovieClick = onMovieClick,
-                    onSearchClick = onSearchClick
+                    onSearchClick = onSearchClick,
+                    onTop200Click = { navController.navigate(AppNavigation.TOP_200) },
+                    onTop200ItemClick = { movie ->
+                        navController.navigate(AppNavigation.searchRoute(movie.title))
+                    }
                 )
             }
-            composable(AppNavigation.SEARCH) {
+            composable(AppNavigation.TOP_200) {
+                Top200Screen(
+                    onMovieClick = { movie ->
+                        navController.navigate(AppNavigation.searchRoute(movie.title))
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = AppNavigation.SEARCH,
+                arguments = listOf(navArgument("q") { type = NavType.StringType; defaultValue = "" })
+            ) {
                 SearchScreen(
                     onMovieClick = { movie ->
-                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.type.name))
+                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
                     }
                 )
             }
@@ -90,8 +139,7 @@ fun UkrtvTVApp() {
                 route = AppNavigation.DETAIL,
                 arguments = listOf(
                     navArgument("id") { type = NavType.StringType },
-                    navArgument("url") { type = NavType.StringType },
-                    navArgument("type") { type = NavType.StringType; nullable = true }
+                    navArgument("url") { type = NavType.StringType }
                 )
             ) {
                 DetailScreen(
@@ -107,7 +155,6 @@ fun UkrtvTVApp() {
                                     episode = launchState.episode
                                 )
                             )
-                            // Pass the full result for instant playback
                             navController.currentBackStackEntry?.savedStateHandle?.set("launch_state", launchState)
                         }
                     },
@@ -139,7 +186,18 @@ fun UkrtvTVApp() {
                     poster = poster,
                     season = season,
                     episode = episode,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onNavigateToSeasons = {
+                        navController.navigate(
+                            AppNavigation.seasonsRoute(
+                                id = id,
+                                url = url,
+                                title = title,
+                                season = season,
+                                episode = episode
+                            )
+                        )
+                    }
                 )
             }
         }

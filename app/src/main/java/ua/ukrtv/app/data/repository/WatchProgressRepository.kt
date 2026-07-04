@@ -5,11 +5,11 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
-import com.google.gson.Gson
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import ua.ukrtv.app.domain.model.PlaybackStats
+import kotlinx.serialization.json.Json
 import ua.ukrtv.app.domain.model.WatchProgress
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,10 +18,9 @@ import javax.inject.Singleton
 class WatchProgressRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dataStore: DataStore<Preferences>,
-    private val gson: Gson
+    private val json: Json
 ) {
     private val PROGRESS_PREFIX = "p_"
-    private val STATS_PREFIX = "s_"
 
     fun getDeviceId(): String {
         return android.provider.Settings.Secure.getString(
@@ -41,13 +40,13 @@ class WatchProgressRepository @Inject constructor(
     ) {
         val keyString = if (episodeId != null) "${contentId}_$episodeId" else contentId
         val prefKey = stringPreferencesKey("$PROGRESS_PREFIX$keyString")
-        
+
         dataStore.edit { preferences ->
             val existingJson = preferences[prefKey]
-            val existing = existingJson?.let { 
-                try { gson.fromJson(it, WatchProgress::class.java) } catch (_: Exception) { null }
+            val existing = existingJson?.let {
+                try { json.decodeFromString<WatchProgress>(it) } catch (_: Exception) { null }
             }
-            
+
             val updated = WatchProgress(
                 contentId = contentId,
                 episodeId = episodeId,
@@ -58,25 +57,22 @@ class WatchProgressRepository @Inject constructor(
                 pageUrl = pageUrl.ifEmpty { existing?.pageUrl ?: "" },
                 timestamp = System.currentTimeMillis()
             )
-            preferences[prefKey] = gson.toJson(updated)
+            preferences[prefKey] = json.encodeToString(updated)
         }
     }
 
     suspend fun getProgress(contentId: String, episodeId: String? = null): WatchProgress? {
         val keyString = if (episodeId != null) "${contentId}_$episodeId" else contentId
         val prefKey = stringPreferencesKey("$PROGRESS_PREFIX$keyString")
-        
-        val json = dataStore.data.map { it[prefKey] }.first()
-        return json?.let { 
-            try { gson.fromJson(it, WatchProgress::class.java) } catch (_: Exception) { null }
+
+        val stored = dataStore.data.map { it[prefKey] }.first()
+        return stored?.let {
+            try { json.decodeFromString<WatchProgress>(it) } catch (_: Exception) { null }
         }
     }
 
-    /**
-     * Placeholder for cloud sync. Currently returns null as remote progress is not implemented.
-     */
     suspend fun getProgressWithDeviceInfo(contentId: String, episodeId: String? = null): WatchProgress? {
-        return null 
+        return null
     }
 
     suspend fun deleteProgress(contentId: String) {
@@ -87,38 +83,16 @@ class WatchProgressRepository @Inject constructor(
         }
     }
 
-    suspend fun getAllProgress(): List<WatchProgress> {
+    fun getAllProgress(): Flow<List<WatchProgress>> {
         return dataStore.data.map { preferences ->
             preferences.asMap()
                 .filterKeys { it.name.startsWith(PROGRESS_PREFIX) }
                 .values
                 .mapNotNull { it as? String }
-                .mapNotNull { 
-                    try { gson.fromJson(it, WatchProgress::class.java) } catch (_: Exception) { null }
+                .mapNotNull {
+                    try { json.decodeFromString<WatchProgress>(it) } catch (_: Exception) { null }
                 }
                 .sortedByDescending { it.timestamp }
-        }.first()
-    }
-
-    suspend fun savePlaybackStats(stats: PlaybackStats) {
-        val key = "${stats.contentId}_${stats.episodeId ?: "movie"}_${stats.timestamp}"
-        val prefKey = stringPreferencesKey("$STATS_PREFIX$key")
-        
-        dataStore.edit { preferences ->
-            preferences[prefKey] = gson.toJson(stats)
         }
-    }
-
-    suspend fun getAllStats(): List<PlaybackStats> {
-        return dataStore.data.map { preferences ->
-            preferences.asMap()
-                .filterKeys { it.name.startsWith(STATS_PREFIX) }
-                .values
-                .mapNotNull { it as? String }
-                .mapNotNull { 
-                    try { gson.fromJson(it, PlaybackStats::class.java) } catch (_: Exception) { null }
-                }
-                .sortedByDescending { it.timestamp }
-        }.first()
     }
 }

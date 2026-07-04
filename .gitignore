@@ -3,3 +3,22 @@
 /app/build/
 /app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
 /build/
+
+# IDE
+.idea/caches/
+.idea/planningMode.xml
+
+# OS
+.DS_Store
+
+# Android compiled classes
+androidx/tvprovider/
+
+# Generated temp files
+*.log
+benchmark_output.txt
+**/__pycache__/
+*.tmp
+*.new
+*.v2
+*.final
