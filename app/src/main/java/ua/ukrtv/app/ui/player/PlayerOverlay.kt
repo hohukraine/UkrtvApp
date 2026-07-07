@@ -3,6 +3,8 @@ package ua.ukrtv.app.ui.player
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -23,7 +25,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -44,18 +45,13 @@ import ua.ukrtv.app.ui.theme.OnSurface
 import ua.ukrtv.app.ui.theme.OnSurfaceVariant
 import ua.ukrtv.app.ui.theme.Scrim
 import ua.ukrtv.app.ui.theme.Shapes
-import ua.ukrtv.app.ui.theme.Surface as ThemeSurface
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
+
+
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 
@@ -66,7 +62,6 @@ fun PlayerOverlay(
     visible: Boolean,
     title: String,
     isPlaying: Boolean,
-    isMuted: Boolean = false,
     positionMs: Long,
     durationMs: Long,
     bufferedPositionMs: Long = 0L,
@@ -76,26 +71,18 @@ fun PlayerOverlay(
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
     onSeek: (Float) -> Unit,
-    onShowAudioMenu: () -> Unit,
-    onShowSubtitleMenu: () -> Unit,
-    onShowQualityMenu: () -> Unit,
-    onShowScaleMenu: () -> Unit = {},
-    onPreviousEpisode: () -> Unit = {},
-    onNextEpisode: () -> Unit = {},
-    onToggleMute: () -> Unit = {},
-    onShowStats: () -> Unit = {},
-    isChildMode: Boolean = false,
-    onToggleChildMode: () -> Unit = {},
-    hasPreviousEpisode: Boolean = false,
-    hasNextEpisode: Boolean = false,
     hasEpisodes: Boolean = false,
-    onShowEpisodes: () -> Unit = {},
     nextCountdown: Int? = null,
     countdownEpisode: Episode? = null,
     countdownSeason: Int? = null,
     season: Int? = null,
     episode: Int? = null,
     voiceover: String? = null,
+    pickerColumns: List<PickerColumn> = emptyList(),
+    pickerFocusedIndex: Int = 0,
+    onPickerColumnFocused: (Int) -> Unit = {},
+    onPickerValueChange: (Int) -> Unit = {},
+    onPickerCommit: () -> Unit = {},
     brandColor: Color = BrandBlue,
     playFocusRequester: FocusRequester = FocusRequester(),
     modifier: Modifier = Modifier
@@ -125,12 +112,7 @@ fun PlayerOverlay(
         if (forward) onSeekForward() else onSeekBackward()
     }
 
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(300, easing = LinearEasing)),
-        exit = fadeOut(tween(300, easing = LinearEasing))
-    ) {
-        Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -146,7 +128,7 @@ fun PlayerOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(160.dp)
+                    .height(120.dp)
                     .align(Alignment.BottomCenter)
                     .background(
                         Brush.verticalGradient(
@@ -155,57 +137,78 @@ fun PlayerOverlay(
                     )
             )
 
-            SeekIndicator(
-                brandColor = brandColor,
-                direction = seekDirection,
-                modifier = Modifier.align(Alignment.Center)
-            )
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(300, easing = LinearEasing)),
+                exit = fadeOut(tween(300, easing = LinearEasing))
+            ) {
+                SeekIndicator(
+                    brandColor = brandColor,
+                    direction = seekDirection,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
 
-            PlayerOverlayTitle(
-                brandColor = brandColor,
-                title = title,
-                season = season,
-                episode = episode,
-                voiceover = voiceover,
-                modifier = Modifier.align(Alignment.TopStart)
-            )
-
-            BottomControls(
-                brandColor = brandColor,
-                isPlaying = isPlaying,
-                positionMs = positionMs,
-                durationMs = durationMs,
-                progress = progress,
-                bufferedProgress = bufferedProgress,
-                nextCountdown = nextCountdown,
-                countdownEpisode = countdownEpisode,
-                hasEpisodes = hasEpisodes,
-                isMuted = isMuted,
-                isChildMode = isChildMode,
-                playFocusRequester = playFocusRequester,
-                onPlayPauseToggle = onPlayPauseToggle,
-                onSeekBackward = { onSeekWithIndicator(false) },
-                onSeekForward = { onSeekWithIndicator(true) },
-                onToggleMute = onToggleMute,
-                onShowStats = onShowStats,
-                onShowQualityMenu = onShowQualityMenu,
-                onShowScaleMenu = onShowScaleMenu,
-                onShowEpisodes = onShowEpisodes,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { -it }),
+                exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { -it })
+            ) {
+                PlayerOverlayTitle(
+                    brandColor = brandColor,
+                    title = title,
+                    season = season,
+                    episode = episode,
+                    voiceover = voiceover,
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
+            }
 
             if (showSkipIntro) {
-                SkipIntroButton(
+                AnimatedVisibility(
+                    visible = visible,
+                    enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { -it }),
+                    exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { -it })
+                ) {
+                    SkipIntroButton(
+                        brandColor = brandColor,
+                        onClick = onSkipIntro,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 28.dp, end = 64.dp)
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { it }),
+                exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { it }),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                BottomControls(
                     brandColor = brandColor,
-                    onClick = onSkipIntro,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 28.dp, end = 64.dp)
+                    isPlaying = isPlaying,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    progress = progress,
+                    bufferedProgress = bufferedProgress,
+                    nextCountdown = nextCountdown,
+                    countdownEpisode = countdownEpisode,
+                    hasEpisodes = hasEpisodes,
+                    playFocusRequester = playFocusRequester,
+                    onPlayPauseToggle = onPlayPauseToggle,
+                    onSeekBackward = { onSeekWithIndicator(false) },
+                    onSeekForward = { onSeekWithIndicator(true) },
+                    pickerColumns = pickerColumns,
+                    pickerFocusedIndex = pickerFocusedIndex,
+                    onPickerColumnFocused = onPickerColumnFocused,
+                    onPickerValueChange = onPickerValueChange,
+                    onPickerCommit = onPickerCommit
                 )
             }
         }
     }
-}
 
 private enum class SeekDirection { Forward, Backward }
 
@@ -286,17 +289,15 @@ private fun BottomControls(
     nextCountdown: Int?,
     countdownEpisode: Episode?,
     hasEpisodes: Boolean,
-    isMuted: Boolean,
-    isChildMode: Boolean,
     playFocusRequester: FocusRequester,
     onPlayPauseToggle: () -> Unit,
     onSeekBackward: () -> Unit,
     onSeekForward: () -> Unit,
-    onToggleMute: () -> Unit,
-    onShowStats: () -> Unit,
-    onShowQualityMenu: () -> Unit,
-    onShowScaleMenu: () -> Unit,
-    onShowEpisodes: () -> Unit,
+    pickerColumns: List<PickerColumn> = emptyList(),
+    pickerFocusedIndex: Int = 0,
+    onPickerColumnFocused: (Int) -> Unit = {},
+    onPickerValueChange: (Int) -> Unit = {},
+    onPickerCommit: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -313,36 +314,59 @@ private fun BottomControls(
             )
         }
 
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PlayPauseButton(
+                brandColor = brandColor,
+                isPlaying = isPlaying,
+                onClick = onPlayPauseToggle,
+                focusRequester = playFocusRequester,
+                modifier = Modifier.size(56.dp)
+            )
+
+            NetflixButton(
+                brandColor = brandColor,
+                icon = Icons.Default.Replay10,
+                contentDescription = "Назад 10 секунд",
+                onClick = onSeekBackward
+            )
+
+            NetflixButton(
+                brandColor = brandColor,
+                icon = Icons.Default.Forward10,
+                contentDescription = "Вперед 10 секунд",
+                onClick = onSeekForward
+            )
+
+            if (pickerColumns.isNotEmpty()) {
+                PlayerPickerRow(
+                    columns = pickerColumns,
+                    focusedIndex = pickerFocusedIndex,
+                    brandColor = brandColor,
+                    onColumnFocused = onPickerColumnFocused,
+                    onValueChange = onPickerValueChange,
+                    onCommit = onPickerCommit
+                )
+            }
+
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
         NetflixProgressBar(
             brandColor = brandColor,
             progress = progress,
             bufferedProgress = bufferedProgress
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         TimeLabelsRow(
             positionMs = positionMs,
             durationMs = durationMs
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        ControlsButtonRow(
-            brandColor = brandColor,
-            isPlaying = isPlaying,
-            hasEpisodes = hasEpisodes,
-            isMuted = isMuted,
-            isChildMode = isChildMode,
-            playFocusRequester = playFocusRequester,
-            onPlayPauseToggle = onPlayPauseToggle,
-            onSeekBackward = onSeekBackward,
-            onSeekForward = onSeekForward,
-            onToggleMute = onToggleMute,
-            onShowStats = onShowStats,
-            onShowQualityMenu = onShowQualityMenu,
-            onShowScaleMenu = onShowScaleMenu,
-            onShowEpisodes = onShowEpisodes
         )
     }
 }
@@ -409,132 +433,6 @@ private fun EpisodePoster(poster: String, number: Int, title: String, brandColor
     }
 }
 
-@Composable
-private fun TimeLabelsRow(positionMs: Long, durationMs: Long) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = formatTime(positionMs),
-            color = OnSurfaceVariant,
-            fontSize = 12.sp
-        )
-        Text(
-            text = formatTime(durationMs),
-            color = OnSurfaceVariant,
-            fontSize = 12.sp
-        )
-    }
-}
-
-@Composable
-private fun ControlsButtonRow(
-    brandColor: Color,
-    isPlaying: Boolean,
-    hasEpisodes: Boolean,
-    isMuted: Boolean,
-    isChildMode: Boolean,
-    playFocusRequester: FocusRequester,
-    onPlayPauseToggle: () -> Unit,
-    onSeekBackward: () -> Unit,
-    onSeekForward: () -> Unit,
-    onToggleMute: () -> Unit,
-    onShowStats: () -> Unit,
-    onShowQualityMenu: () -> Unit,
-    onShowScaleMenu: () -> Unit,
-    onShowEpisodes: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        PlayPauseButton(
-            brandColor = brandColor,
-            isPlaying = isPlaying,
-            onClick = onPlayPauseToggle,
-            focusRequester = playFocusRequester,
-            modifier = Modifier.size(56.dp)
-        )
-
-        NetflixButton(
-            brandColor = brandColor,
-            icon = Icons.Default.Replay10,
-            contentDescription = "Назад 10 секунд",
-            onClick = onSeekBackward
-        )
-
-        NetflixButton(
-            brandColor = brandColor,
-            icon = Icons.Default.Forward10,
-            contentDescription = "Вперед 10 секунд",
-            onClick = onSeekForward
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        if (hasEpisodes) {
-            NetflixButton(
-                brandColor = brandColor,
-                icon = Icons.AutoMirrored.Filled.List,
-                contentDescription = "Список серій",
-                onClick = onShowEpisodes
-            )
-        }
-
-        NetflixButton(
-            brandColor = brandColor,
-            icon = if (isMuted) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
-            contentDescription = if (isMuted) "Увімкнути звук" else "Вимкнути звук",
-            onClick = onToggleMute
-        )
-
-        if (isChildMode) {
-            ChildModeBadge(brandColor = brandColor)
-        }
-
-        NetflixButton(
-            brandColor = brandColor,
-            icon = Icons.Default.Info,
-            contentDescription = "Статистика",
-            onClick = onShowStats
-        )
-
-        NetflixButton(
-            brandColor = brandColor,
-            icon = Icons.Default.Settings,
-            contentDescription = "Налаштування",
-            onClick = onShowQualityMenu
-        )
-
-        NetflixButton(
-            brandColor = brandColor,
-            icon = Icons.Default.AspectRatio,
-            contentDescription = "Масштаб",
-            onClick = onShowScaleMenu
-        )
-    }
-}
-
-@Composable
-private fun ChildModeBadge(brandColor: Color) {
-    Box(
-        modifier = Modifier
-            .size(width = 32.dp, height = 32.dp)
-            .background(brandColor.copy(alpha = 0.2f), CircleShape)
-            .padding(4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = "\uD83D\uDEE1\uFE0F",
-            fontSize = 14.sp
-        )
-    }
-}
-
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun SkipIntroButton(
     brandColor: Color,
@@ -607,6 +505,26 @@ private fun SeekIndicator(
 }
 
 @Composable
+private fun TimeLabelsRow(positionMs: Long, durationMs: Long) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = formatTime(positionMs),
+            color = OnSurfaceVariant,
+            fontSize = 12.sp
+        )
+        Text(
+            text = formatTime(durationMs),
+            color = OnSurfaceVariant,
+            fontSize = 12.sp
+        )
+    }
+}
+
+@Composable
 private fun NetflixProgressBar(
     brandColor: Color,
     progress: Float,
@@ -664,7 +582,6 @@ private fun NetflixProgressBar(
     }
 }
 
-@Composable
 private fun formatTime(ms: Long): String {
     if (ms <= 0) return "00:00"
     val totalSeconds = ms / 1000

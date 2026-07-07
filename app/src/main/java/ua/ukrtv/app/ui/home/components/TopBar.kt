@@ -1,12 +1,13 @@
 package ua.ukrtv.app.ui.home.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Icon
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -16,10 +17,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
+import kotlinx.coroutines.delay
 import ua.ukrtv.app.domain.model.Provider
 import ua.ukrtv.app.ui.theme.GridDefaults
-import ua.ukrtv.app.ui.theme.Shapes
 
+/**
+ * TopBar - Professional Navigation & Branding
+ */
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun TopBar(
@@ -30,86 +34,90 @@ fun TopBar(
     onProviderClick: (String) -> Unit,
     searchFocusRequester: FocusRequester = remember { FocusRequester() }
 ) {
-    val searchSurfaceScale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f)
-    val searchSurfaceColors = ClickableSurfaceDefaults.colors(
-        containerColor = Color(0xFF1E3A8A),
-        focusedContainerColor = Color.White,
-        contentColor = Color.White,
-        focusedContentColor = Color.Black
-    )
-    val searchSurfaceShape = ClickableSurfaceDefaults.shape(Shapes.circular)
-
-    val providerSurfaceScale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f)
-    val providerSurfaceShape = ClickableSurfaceDefaults.shape(RoundedCornerShape(4.dp))
-    val providerUnselectedColor = remember { Color.White.copy(alpha = 0.1f) }
-
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = GridDefaults.horizontalPadding)
-            .padding(top = 16.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+            .padding(top = 16.dp, bottom = 8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // Search Button
-            Surface(
-                onClick = onSearchClick,
-                scale = searchSurfaceScale,
-                colors = searchSurfaceColors,
-                shape = searchSurfaceShape,
-                modifier = Modifier
-                    .size(48.dp)
-                    .focusRequester(searchFocusRequester)
-            ) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = "Search",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(32.dp))
-
-            // Provider Switcher
-            providers.forEach { provider ->
-                val isSelected = provider.name == currentProviderId
-                
-                Surface(
-                    onClick = { onProviderClick(provider.name) },
-                    scale = providerSurfaceScale,
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = Color.Transparent,
-                        focusedContainerColor = Color.Transparent,
-                        contentColor = if (isSelected) brandColor else Color.White.copy(alpha = 0.5f),
-                        focusedContentColor = brandColor
-                    ),
-                    shape = providerSurfaceShape,
-                    modifier = Modifier
-                        .height(32.dp)
-                        .padding(horizontal = 12.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            text = provider.name.uppercase(),
-                            fontSize = 16.sp,
-                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
-                    }
-                }
-            }
+        // App Identity (Left)
+        Row(
+            modifier = Modifier.align(Alignment.CenterStart),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "UKR",
+                color = Color.White,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp
+            )
+            Text(
+                text = "TV",
+                color = brandColor,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 2.sp
+            )
         }
 
-        // App Logo
-        Text(
-            text = "UKR TV",
-            color = Color.White,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 4.sp
-        )
+        // Navigation (Center)
+        Row(
+            modifier = Modifier.align(Alignment.Center),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            NavButton(
+                text = "ПОШУК",
+                isSelected = false,
+                brandColor = brandColor,
+                onClick = onSearchClick,
+                modifier = Modifier.focusRequester(searchFocusRequester)
+            )
+
+            providers.forEach { provider ->
+                NavButton(
+                    text = provider.name.uppercase(),
+                    isSelected = provider.name == currentProviderId,
+                    brandColor = brandColor,
+                    onClick = { onProviderClick(provider.name) }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun NavButton(
+    text: String,
+    isSelected: Boolean,
+    brandColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent,
+            contentColor = if (isSelected) brandColor else Color.White.copy(alpha = 0.5f),
+            focusedContentColor = brandColor
+        ),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(4.dp)),
+        modifier = modifier.height(36.dp)
+    ) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.padding(horizontal = 12.dp)
+        ) {
+            Text(
+                text = text,
+                fontSize = 15.sp,
+                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                letterSpacing = 1.2.sp
+            )
+        }
     }
 }

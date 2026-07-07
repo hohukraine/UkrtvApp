@@ -1,30 +1,20 @@
 package ua.ukrtv.app.ui.player
 
 import android.view.SurfaceView
-import android.view.View
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
-import ua.ukrtv.app.ui.player.StatsOverlay
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import ua.ukrtv.app.ui.theme.BrandBlue
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.C
+import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -36,39 +26,21 @@ import ua.ukrtv.app.util.AppLogger
 @UnstableApi
 @Composable
 fun PlayerReadyContent(
-    state: PlayerStatus.Ready,
+    status: PlayerStatus,
     playerState: PlayerState,
     player: ExoPlayer,
     viewModel: PlayerViewModel,
     title: String,
-    videoResizeMode: Int,
-    isMuted: Boolean,
-    isChildMode: Boolean,
-    showStats: Boolean,
+    scaleMode: ScaleMode,
     hasEpisodes: Boolean,
     playFocusRequester: FocusRequester,
     playButtonFocusRequester: FocusRequester,
-    onNavigateToSeasons: (() -> Unit)? = null,
-    showControls: Boolean,
-    showQualityMenu: Boolean,
-    showAudioMenu: Boolean,
-    showSubtitleMenu: Boolean,
-    showScaleMenu: Boolean,
-    availableTracks: List<TrackInfo>,
-    selectedTrack: Int?,
-    availableAudioTracks: List<TrackInfo>,
-    selectedAudioTrack: Int?,
-    availableSubtitleTracks: List<TrackInfo>,
-    selectedSubtitleTrack: Int?,
+    isShowingControls: Boolean,
     brandColor: Color = BrandBlue,
-    showQualityMenuChange: (Boolean) -> Unit,
-    showAudioMenuChange: (Boolean) -> Unit,
-    showSubtitleMenuChange: (Boolean) -> Unit,
-    showScaleMenuChange: (Boolean) -> Unit,
     onSeek: (Long) -> Unit
 ) {
-    var endedCountdown by rememberSaveable { mutableStateOf<Int?>(null) }
-    var countdownEpisode by rememberSaveable { mutableStateOf<Episode?>(null) }
+    var endedCountdown by remember { mutableStateOf<Int?>(null) }
+    var countdownEpisode by remember { mutableStateOf<Episode?>(null) }
 
     fun resolveCountdownEpisode(): Episode? {
         val seasons = playerState.availableSeasons ?: return null
@@ -78,44 +50,36 @@ fun PlayerReadyContent(
             ?.episodes?.find { it.number == eNum }
     }
 
-    Box(Modifier.fillMaxSize()) {
+    var videoSize by remember { mutableStateOf(player.videoSize) }
+    val readyStatus = status as? PlayerStatus.Ready
+
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AndroidView<SurfaceView>(
             factory = { ctx ->
                 SurfaceView(ctx).also { surfaceView ->
                     surfaceView.keepScreenOn = true
-                    player.setVideoSurfaceView(surfaceView)
                 }
             },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        LaunchedEffect(videoResizeMode) {
-            player.setVideoScalingMode(
-                if (videoResizeMode == 0) C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-                else C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
-            )
-        }
-
-        LaunchedEffect(state.url, state.loadTrigger) {
-            if (state.url.isNotEmpty()) {
-                AppLogger.d("PlayerScreen", "Preparing: ${state.url.take(30)}")
-                val mediaItem = MediaItem.Builder()
-                    .setUri(state.url)
-                    .setMimeType(
-                        when (state.streamType) {
-                            StreamType.HLS -> MimeTypes.APPLICATION_M3U8
-                            StreamType.MPD -> MimeTypes.APPLICATION_MPD
-                            StreamType.MP4 -> MimeTypes.VIDEO_MP4
-                            else -> null
-                        }
-                    )
-                    .build()
-                player.setMediaItem(mediaItem)
-                player.prepare()
-                if (state.positionMs > 0) player.seekTo(state.positionMs)
-                player.playWhenReady = true
+            update = { surfaceView ->
+                if (readyStatus != null) {
+                    player.setVideoSurfaceView(surfaceView)
+                }
+                player.setVideoScalingMode(
+                    when (scaleMode) {
+                        ScaleMode.FIT -> C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+                        ScaleMode.ZOOM -> C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+                    }
+                )
+            },
+            modifier = if (scaleMode == ScaleMode.FIT) {
+                val ratio = if (videoSize.width > 0 && videoSize.height > 0) {
+                    (videoSize.width.toFloat() / videoSize.height.toFloat()) * videoSize.pixelWidthHeightRatio
+                } else 16f / 9f
+                Modifier.aspectRatio(ratio)
+            } else {
+                Modifier.fillMaxSize()
             }
-        }
+        )
 
         val isPlaying = player.isPlaying
 
@@ -125,7 +89,38 @@ fun PlayerReadyContent(
 
         DisposableEffect(player) {
             val playbackListener = object : Player.Listener {
+                override fun onVideoSizeChanged(newVideoSize: VideoSize) {
+                    videoSize = newVideoSize
+                    val fmt = player.videoFormat
+                    val codecName = fmt?.codecs?.substringBefore(".")?.takeIf { it.isNotBlank() }
+                        ?: fmt?.codecs?.takeIf { it.isNotBlank() }
+                    val display = buildString {
+                        codecName?.let { append(it) }
+                        if (newVideoSize.width > 0 && newVideoSize.height > 0) {
+                            if (isNotEmpty()) append(" • ")
+                            append("${newVideoSize.width}×${newVideoSize.height}")
+                        }
+                    }
+                    viewModel.updateCodecInfo(display, emptyList())
+                }
+
                 override fun onPlaybackStateChanged(playbackState: Int) {
+                    viewModel.updatePlaybackState(playbackState)
+                    if (playbackState == Player.STATE_READY) {
+                        viewModel.trackManager.updateAvailableTracks(player.currentTracks)
+                        val fmt = player.videoFormat
+                        val vs = player.videoSize
+                        val codecName = fmt?.codecs?.substringBefore(".")?.takeIf { it.isNotBlank() }
+                            ?: fmt?.codecs?.takeIf { it.isNotBlank() }
+                        val display = buildString {
+                            codecName?.let { append(it) }
+                            if (vs.width > 0 && vs.height > 0) {
+                                if (isNotEmpty()) append(" • ")
+                                append("${vs.width}×${vs.height}")
+                            }
+                        }
+                        viewModel.updateCodecInfo(display, extractCodecs(player.currentTracks))
+                    }
                     if (playbackState == Player.STATE_ENDED) {
                         if (viewModel.prepareNextEpisode()) {
                             endedCountdown = NEXT_EPISODE_COUNTDOWN_SEC
@@ -136,6 +131,7 @@ fun PlayerReadyContent(
                     viewModel.onPlayerError(error)
                 }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    viewModel.updateIsPlaying(isPlaying)
                     if (isPlaying) {
                         currentPosition = player.currentPosition
                         duration = player.duration
@@ -146,7 +142,6 @@ fun PlayerReadyContent(
             player.addListener(playbackListener)
             onDispose {
                 player.removeListener(playbackListener)
-                endedCountdown = null
             }
         }
 
@@ -157,139 +152,106 @@ fun PlayerReadyContent(
                     currentPosition = player.currentPosition
                     duration = player.duration
                     bufferedPosition = player.bufferedPosition
-                    viewModel.onIntent(PlayerIntent.UpdateProgress(currentPosition, duration))
+                    viewModel.updateProgress(currentPosition, duration)
                 }
             }
         }
 
-        val showSkipIntro by remember {
-            derivedStateOf { isPlaying && currentPosition in 0..SKIP_INTRO_WINDOW_MS }
-        }
-
-        PlayerOverlay(
-            visible = showControls,
-            brandColor = brandColor,
-            title = title,
-            isPlaying = isPlaying,
-            isMuted = isMuted,
-            positionMs = currentPosition,
-            durationMs = duration,
-            bufferedPositionMs = bufferedPosition,
-            showSkipIntro = showSkipIntro,
-            onSkipIntro = { player.seekTo(player.currentPosition + SKIP_INTRO_STEP_MS) },
-            onToggleMute = { viewModel.onIntent(PlayerIntent.ToggleMute) },
-            isChildMode = isChildMode,
-            onToggleChildMode = { viewModel.onIntent(PlayerIntent.ToggleChildMode) },
-            nextCountdown = endedCountdown,
-            countdownEpisode = countdownEpisode,
-            countdownSeason = playerState.currentSeason,
-            onPlayPauseToggle = { viewModel.onIntent(PlayerIntent.TogglePlay) },
-            onSeekBackward = { player.seekTo(maxOf(0L, player.currentPosition - SEEK_STEP_MS)) },
-            onSeekForward = { player.seekTo(player.currentPosition + SEEK_STEP_MS) },
-            onSeek = { ratio -> player.seekTo((ratio * player.duration).toLong()) },
-            onShowAudioMenu = { showAudioMenuChange(!showAudioMenu) },
-            onShowSubtitleMenu = { showSubtitleMenuChange(!showSubtitleMenu) },
-            onShowQualityMenu = { showQualityMenuChange(!showQualityMenu) },
-            onShowScaleMenu = { showScaleMenuChange(!showScaleMenu) },
-            onShowStats = { viewModel.onIntent(PlayerIntent.ToggleStats) },
-            onPreviousEpisode = { viewModel.onIntent(PlayerIntent.NavigatePrevious) },
-            onNextEpisode = { viewModel.onIntent(PlayerIntent.NavigateNext) },
-            hasPreviousEpisode = viewModel.hasPreviousEpisode(),
-            hasNextEpisode = viewModel.hasNextEpisode(),
-            hasEpisodes = hasEpisodes,
-            onShowEpisodes = { onNavigateToSeasons?.invoke() },
-            season = playerState.currentSeason,
-            episode = playerState.currentEpisode,
-            playFocusRequester = playButtonFocusRequester,
-            modifier = Modifier.fillMaxSize()
-        )
-
-        AnimatedVisibility(
-            visible = showControls,
-            enter = fadeIn(tween(300, easing = LinearEasing)),
-            exit = fadeOut(tween(300, easing = LinearEasing))
-        ) {
-            Box {
-                if (showQualityMenu && availableTracks.isNotEmpty()) {
-                    TrackSelectorMenu(
-                        title = stringResource(ua.ukrtv.app.R.string.quality_video),
-                        tracks = availableTracks,
-                        selectedTrackIndex = selectedTrack,
-                        onTrackSelected = { track ->
-                            viewModel.trackManager.selectTrack(track, player)
-                            showQualityMenuChange(false)
-                        },
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    )
-                }
-
-                if (showAudioMenu && availableAudioTracks.isNotEmpty()) {
-                    TrackSelectorMenu(
-                        title = "Аудіо",
-                        tracks = availableAudioTracks,
-                        selectedTrackIndex = selectedAudioTrack,
-                        onTrackSelected = { track ->
-                            viewModel.trackManager.selectTrack(track, player)
-                            showAudioMenuChange(false)
-                        },
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    )
-                }
-
-                if (showSubtitleMenu && availableSubtitleTracks.isNotEmpty()) {
-                    TrackSelectorMenu(
-                        title = "Субтитри",
-                        tracks = availableSubtitleTracks,
-                        selectedTrackIndex = selectedSubtitleTrack,
-                        onTrackSelected = { track ->
-                            viewModel.trackManager.selectTrack(track, player)
-                            showSubtitleMenuChange(false)
-                        },
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    )
-                }
-
-                if (showScaleMenu) {
-                    val scaleOptions = listOf(
-                        TrackInfo(0, 0, "Вписати (з чорними смугами)"),   // FIT
-                        TrackInfo(0, 1, "Весь екран (обрізати краї)"),   // ZOOM
-                        TrackInfo(0, 2, "Розтягнути (без пропорцій)")    // FILL
-                    )
-                    TrackSelectorMenu(
-                        title = "Масштаб відео",
-                        tracks = scaleOptions,
-                        selectedTrackIndex = videoResizeMode,
-                        onTrackSelected = { track ->
-                            viewModel.onIntent(PlayerIntent.ChangeResizeMode(track.trackIndex))
-                            showScaleMenuChange(false)
-                        },
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    )
-                }
-
-            }
-        }
-
-        if (showStats) {
-            StatsOverlay(
-                player = player,
-                modifier = Modifier.align(Alignment.TopEnd)
-            )
-        }
-
-        LaunchedEffect(endedCountdown) {
-            endedCountdown?.let { countdown ->
-                if (countdown > 0) {
-                    delay(1000)
-                    endedCountdown = countdown - 1
-                } else {
-                    val ep = resolveCountdownEpisode()
-                    countdownEpisode = ep
+        if (readyStatus != null) {
+            DisposableEffect(readyStatus.loadTrigger) {
+                onDispose {
                     endedCountdown = null
-                    viewModel.executePreparedNavigation()
+                }
+            }
+
+            LaunchedEffect(readyStatus.url, readyStatus.loadTrigger) {
+                if (readyStatus.url.isNotEmpty()) {
+                    AppLogger.d("PlayerScreen", "Preparing: ${readyStatus.url.take(30)}")
+                    val mediaItem = MediaItem.Builder()
+                        .setUri(readyStatus.url)
+                        .setMimeType(
+                            when (readyStatus.streamType) {
+                                StreamType.HLS -> MimeTypes.APPLICATION_M3U8
+                                StreamType.MPD -> MimeTypes.APPLICATION_MPD
+                                StreamType.MP4 -> MimeTypes.VIDEO_MP4
+                                else -> null
+                            }
+                        )
+                        .build()
+                    player.setMediaItem(mediaItem)
+                    player.prepare()
+                    if (readyStatus.positionMs > 0) player.seekTo(readyStatus.positionMs)
+                    player.playWhenReady = true
+                }
+            }
+
+            val showSkipIntro by remember {
+                derivedStateOf { isPlaying && currentPosition in 0..SKIP_INTRO_WINDOW_MS }
+            }
+
+            PlayerOverlay(
+                visible = isShowingControls,
+                brandColor = brandColor,
+                title = title,
+                isPlaying = isPlaying,
+                positionMs = currentPosition,
+                durationMs = duration,
+                bufferedPositionMs = bufferedPosition,
+                showSkipIntro = showSkipIntro,
+                onSkipIntro = { player.seekTo(player.currentPosition + SKIP_INTRO_STEP_MS) },
+                nextCountdown = endedCountdown,
+                countdownEpisode = countdownEpisode,
+                countdownSeason = playerState.currentSeason,
+                onPlayPauseToggle = { viewModel.togglePlay() },
+                onSeekBackward = { player.seekTo(maxOf(0L, player.currentPosition - SEEK_STEP_MS)) },
+                onSeekForward = { player.seekTo(player.currentPosition + SEEK_STEP_MS) },
+                onSeek = { ratio -> player.seekTo((ratio * player.duration).toLong()) },
+                hasEpisodes = hasEpisodes,
+                season = playerState.currentSeason,
+                episode = playerState.currentEpisode,
+                playFocusRequester = playButtonFocusRequester,
+                pickerColumns = playerState.pickerColumns,
+                pickerFocusedIndex = playerState.pickerFocusedIndex,
+                onPickerColumnFocused = { viewModel.onPickerColumnFocused(it) },
+                onPickerValueChange = { viewModel.onPickerValueChange(it) },
+                onPickerCommit = { viewModel.onPickerCommit() },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            LaunchedEffect(endedCountdown) {
+                endedCountdown?.let { countdown ->
+                    if (countdown > 0) {
+                        delay(1000)
+                        endedCountdown = countdown - 1
+                    } else {
+                        val ep = resolveCountdownEpisode()
+                        countdownEpisode = ep
+                        endedCountdown = null
+                        viewModel.executePreparedNavigation()
+                    }
                 }
             }
         }
     }
 }
 
+private fun extractCodecs(tracks: Tracks): List<CodecInfo> {
+    val mimeTypes = mutableSetOf<String>()
+    for (group in tracks.groups) {
+        if (group.type != C.TRACK_TYPE_VIDEO) continue
+        for (i in 0 until group.length) {
+            val mime = group.getTrackFormat(i).sampleMimeType ?: continue
+            if (mime.startsWith("video/")) mimeTypes.add(mime)
+        }
+    }
+    return mimeTypes.mapNotNull { mime ->
+        val name = when {
+            mime.contains("avc") || mime.contains("h264") -> "AVC"
+            mime.contains("hevc") || mime.contains("h265") -> "HEVC"
+            mime.contains("vp9") -> "VP9"
+            mime.contains("av01") || mime.contains("av1") -> "AV1"
+            else -> return@mapNotNull null
+        }
+        CodecInfo(mime, name)
+    }
+}

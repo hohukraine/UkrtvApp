@@ -2,6 +2,8 @@ package ua.ukrtv.app.ui.search
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -22,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -41,6 +44,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -181,6 +185,11 @@ fun SearchScreen(
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
+    LaunchedEffect(Unit) {
+        delay(300)
+        focusRequester.requestFocus()
+    }
+
     val voiceSearchLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -213,26 +222,33 @@ fun SearchScreen(
             )
             Spacer(Modifier.width(12.dp))
 
-            Box(
+            androidx.tv.material3.Surface(
+                onClick = { keyboardController?.show() },
                 modifier = Modifier
                     .weight(1f)
-                    .background(
-                        if (isFocused) SurfaceFocus else OverlayLight,
-                        RoundedCornerShape(8.dp)
-                    )
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
+                    .onFocusChanged {
+                        if (it.isFocused) {
+                            focusRequester.requestFocus()
+                        }
+                    },
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = OverlayLight,
+                    focusedContainerColor = SurfaceFocus,
+                    contentColor = OnSurface,
+                    focusedContentColor = OnSurface
+                )
             ) {
                 BasicTextField(
                     value = query,
                     onValueChange = { viewModel.updateQuery(it) },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 14.dp)
                         .focusRequester(focusRequester)
                         .onFocusChanged { state ->
                             isFocused = state.isFocused
-                            if (state.isFocused) {
-                                keyboardController?.show()
-                            }
                         },
                     textStyle = TextStyle(
                         color = OnSurface,
@@ -315,7 +331,7 @@ fun SearchScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             when (val s = state) {
                 is SearchState.Idle -> {
-                    if (isFocused && suggestions.isNotEmpty()) {
+                    if (query.isNotEmpty() && suggestions.isNotEmpty()) {
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 "ПІДКАЗКИ",
@@ -376,11 +392,18 @@ fun SearchScreen(
                                     letterSpacing = 2.sp,
                                     modifier = Modifier.padding(bottom = 12.dp)
                                 )
-                                Row(
-                                    modifier = Modifier.padding(bottom = 32.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                LazyRow(
+                                    modifier = Modifier
+                                        .padding(bottom = 32.dp)
+                                        .fillMaxWidth()
+                                        .focusProperties {
+                                            @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+                                            exit = { FocusRequester.Default }
+                                        },
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    contentPadding = PaddingValues(horizontal = 2.dp)
                                 ) {
-                                    history.forEach { item ->
+                                    items(history) { item ->
                                         Surface(
                                             onClick = {
                                                 viewModel.search(item)

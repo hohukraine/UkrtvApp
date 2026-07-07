@@ -268,6 +268,20 @@ if (!text.contains(".m3u8") && !text.contains(".mp4") &&
 - `./gradlew assembleDebug` — BUILD SUCCESSFUL
 - 12 pre-existing test failures (10 DleParserDetailTest + 1 EneyidaParserTest + 1 StreamResolverTest) — не пов'язані зі змінами
 
-## Relevant Files Updated
+## Session 6: Movie AJAX Voiceover → Not Series Fix
+
+### Проблема
+Uakino фільми з кількома озвучками (дубляж + озвучка) мали `seasons != null` після enrichSeasons(), тому DetailScreen показував "SERIES" замість "MOVIE". Фільм не має серій 2, 3, 4..., але AJAX повертав voiceover-таби, кожен з "1 серія".
+
+### Фікс (Data-driven, не URL)
+- `DetailViewModel.kt:90-92`: після enrichSeasons, перевіряємо чи є хоч одна серія з номером > 1
+- Якщо всі серії №1 (фільм з озвучками) → `currentDetail = enriched` (для плеєра/voiceovers), але `_state` не оновлюється → лейбл лишається "MOVIE"
+- Якщо є серії 2, 3... (справжній серіал) → `_state` оновлюється → "SERIES"
+
+### Build
+- `./gradlew compileDebugKotlin` — BUILD SUCCESSFUL, 0 warnings
+
+### Relevant Files Updated
 - `DleParser.kt`: `extractRating()`, `parseDetail(doc)`, `extractDescription()`, `extractInfo()`
 - `DleResolutionUtils.kt`: `findMediaUrlsInText()` early exit
+- `DetailViewModel.kt`: `loadDetail()` — split `currentDetail` (for player) from `_state` (for UI label)

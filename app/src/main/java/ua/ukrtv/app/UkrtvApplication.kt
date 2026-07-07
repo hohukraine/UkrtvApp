@@ -2,19 +2,19 @@ package ua.ukrtv.app
 
 import android.app.ActivityManager
 import android.app.Application
-import android.app.NotificationManager
 import android.graphics.Bitmap
-import android.os.Build
+import android.os.Handler
 import android.os.StrictMode
+import coil.Coil
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.request.CachePolicy
+import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import ua.ukrtv.app.data.providers.ProviderManager
@@ -33,62 +33,51 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
     lateinit var okHttpClient: OkHttpClient
 
     @Inject
-    lateinit var providerManager: ProviderManager
+    lateinit var providerManager: Lazy<ProviderManager>
 
     @Inject
-    lateinit var contentRepository: ua.ukrtv.app.data.repository.ContentRepository
+    lateinit var contentRepository: Lazy<ua.ukrtv.app.data.repository.ContentRepository>
 
     @Inject
-    lateinit var htmlHttpClient: ua.ukrtv.app.data.network.HtmlHttpClient
+    lateinit var htmlHttpClient: Lazy<ua.ukrtv.app.data.network.HtmlHttpClient>
 
     @Inject
-    lateinit var networkMonitor: ua.ukrtv.app.util.NetworkMonitor
+    lateinit var networkMonitor: Lazy<ua.ukrtv.app.util.NetworkMonitor>
 
     private var imageLoader: ImageLoader? = null
-    private var initJob: kotlinx.coroutines.Job? = null
-
-    private var sessionInitialized = false
-    private val initLock = Any()
-
-    fun deferredInitIfNeeded() {
-        if (sessionInitialized) return
-        synchronized(initLock) {
-            if (sessionInitialized) return
-            initJob?.cancel()
-            initJob = CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
-                try {
-                    providerManager.activeProvider.value.initializeSession()
-                    AppLogger.d("AppInit", "Session initialized for ${providerManager.activeProvider.value.name}")
-                    sessionInitialized = true
-                } catch (e: Exception) {
-                    AppLogger.w("AppInit", "Session init failed: ${e.message}")
-                }
-            }
-        }
-    }
 
     override fun onCreate() {
         super.onCreate()
+        if (ua.ukrtv.app.BuildConfig.DEBUG) {
+            AppLogger.d("Startup", "Hilt init: ${(System.nanoTime() - appStartTime) / 1_000_000}ms")
+        }
         AppLogger.init(this)
         CrashReporter.init(this)
         if (ua.ukrtv.app.BuildConfig.DEBUG) {
-            StrictMode.setVmPolicy(
-                StrictMode.VmPolicy.Builder()
-                    .detectLeakedSqlLiteObjects()
-                    .detectLeakedClosableObjects()
-                    .detectActivityLeaks()
-                    .detectLeakedRegistrationObjects()
-                    .penaltyLog()
-                    .build()
-            )
+            AppLogger.d("Startup", "AppLogger+Crash init: ${(System.nanoTime() - appStartTime) / 1_000_000}ms")
         }
-        deferredInitIfNeeded()
+        if (ua.ukrtv.app.BuildConfig.DEBUG) {
+            Handler(mainLooper).postDelayed({
+                StrictMode.setVmPolicy(
+                    StrictMode.VmPolicy.Builder()
+                        .detectLeakedSqlLiteObjects()
+                        .detectLeakedClosableObjects()
+                        .detectActivityLeaks()
+                        .detectLeakedRegistrationObjects()
+                        .penaltyLog()
+                        .build()
+                )
+            }, 5000)
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            Coil.imageLoader(this@UkrtvApplication)
+        }
+
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             androidx.lifecycle.LifecycleEventObserver { _, event ->
                 when (event) {
                     androidx.lifecycle.Lifecycle.Event.ON_START -> {
-                        AppLogger.d("ProcessLifecycle", "App moved to foreground")
-                        deferredInitIfNeeded()
+                        AppLogger.d("ProcessLifecycle", "App moved to foreground (since class load: ${(System.nanoTime() - appStartTime) / 1_000_000}ms)")
                     }
                     androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
                         AppLogger.d("ProcessLifecycle", "App moved to background")
@@ -97,11 +86,14 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
                 }
             }
         )
+        if (ua.ukrtv.app.BuildConfig.DEBUG) {
+            AppLogger.d("Startup", "App.onCreate done: ${(System.nanoTime() - appStartTime) / 1_000_000}ms")
+        }
     }
 
     private fun clearCaches() {
         imageLoader?.memoryCache?.clear()
-        providerManager.clearCaches()
+        providerManager.get().clearCaches()
     }
 
     override fun newImageLoader(): ImageLoader {
@@ -149,7 +141,7 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
         super.onTrimMemory(level)
         if (level >= TRIM_MEMORY_RUNNING_LOW) {
             imageLoader?.memoryCache?.clear()
-            providerManager.clearCaches()
+            providerManager.get().clearCaches()
         }
         if (level >= TRIM_MEMORY_RUNNING_CRITICAL) {
             clearCaches()

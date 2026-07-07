@@ -1,26 +1,28 @@
 package ua.ukrtv.app.ui.player
 
+import ua.ukrtv.app.domain.model.Season
+
 object EpisodeNavigator {
 
     data class NavigationResult(val season: Int, val episode: Int)
 
-    fun nextEpisode(context: PlayerContext): NavigationResult? {
-        val seasons = context.seasons ?: return null
-        val currentSeason = context.season ?: return null
-        val currentEpisode = context.episode ?: return null
+    fun nextEpisode(seasons: List<Season>?, currentSeason: Int?, currentEpisode: Int?): NavigationResult? {
+        val allSeasons = seasons ?: return null
+        val cSeason = currentSeason ?: return null
+        val cEpisode = currentEpisode ?: return null
 
-        val seasonIdx = seasons.indexOfFirst { it.number == currentSeason }
+        val seasonIdx = allSeasons.indexOfFirst { it.number == cSeason }
         if (seasonIdx == -1) return null
 
-        val season = seasons[seasonIdx]
-        val epIdx = season.episodes.indexOfFirst { it.number == currentEpisode }
+        val season = allSeasons[seasonIdx]
+        val epIdx = season.episodes.indexOfFirst { it.number == cEpisode }
 
         if (epIdx >= 0 && epIdx < season.episodes.size - 1) {
-            return NavigationResult(currentSeason, season.episodes[epIdx + 1].number)
+            return NavigationResult(cSeason, season.episodes[epIdx + 1].number)
         }
 
-        if (seasonIdx < seasons.size - 1) {
-            val nextSeason = seasons[seasonIdx + 1]
+        if (seasonIdx < allSeasons.size - 1) {
+            val nextSeason = allSeasons[seasonIdx + 1]
             if (nextSeason.episodes.isNotEmpty()) {
                 return NavigationResult(nextSeason.number, nextSeason.episodes[0].number)
             }
@@ -29,23 +31,23 @@ object EpisodeNavigator {
         return null
     }
 
-    fun previousEpisode(context: PlayerContext): NavigationResult? {
-        val seasons = context.seasons ?: return null
-        val currentSeason = context.season ?: return null
-        val currentEpisode = context.episode ?: return null
+    fun previousEpisode(seasons: List<Season>?, currentSeason: Int?, currentEpisode: Int?): NavigationResult? {
+        val allSeasons = seasons ?: return null
+        val cSeason = currentSeason ?: return null
+        val cEpisode = currentEpisode ?: return null
 
-        val seasonIdx = seasons.indexOfFirst { it.number == currentSeason }
+        val seasonIdx = allSeasons.indexOfFirst { it.number == cSeason }
         if (seasonIdx == -1) return null
 
-        val season = seasons[seasonIdx]
-        val epIdx = season.episodes.indexOfFirst { it.number == currentEpisode }
+        val season = allSeasons[seasonIdx]
+        val epIdx = season.episodes.indexOfFirst { it.number == cEpisode }
 
         if (epIdx > 0) {
-            return NavigationResult(currentSeason, season.episodes[epIdx - 1].number)
+            return NavigationResult(cSeason, season.episodes[epIdx - 1].number)
         }
 
         if (seasonIdx > 0) {
-            val prevSeason = seasons[seasonIdx - 1]
+            val prevSeason = allSeasons[seasonIdx - 1]
             if (prevSeason.episodes.isNotEmpty()) {
                 return NavigationResult(prevSeason.number, prevSeason.episodes.last().number)
             }
@@ -54,7 +56,9 @@ object EpisodeNavigator {
         return null
     }
 
-    fun hasNextEpisode(context: PlayerContext): Boolean = nextEpisode(context) != null
+    fun hasNextEpisode(seasons: List<Season>?, currentSeason: Int?, currentEpisode: Int?): Boolean = 
+        nextEpisode(seasons, currentSeason, currentEpisode) != null
 
-    fun hasPreviousEpisode(context: PlayerContext): Boolean = previousEpisode(context) != null
+    fun hasPreviousEpisode(seasons: List<Season>?, currentSeason: Int?, currentEpisode: Int?): Boolean = 
+        previousEpisode(seasons, currentSeason, currentEpisode) != null
 }

@@ -17,17 +17,24 @@ import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.local.AppDatabase
 import ua.ukrtv.app.data.local.dao.HtmlCacheDao
 import ua.ukrtv.app.data.local.dao.SearchHistoryDao
+import ua.ukrtv.app.data.local.dao.WatchProgressDao
 import ua.ukrtv.app.data.local.dao.WatchlistDao
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.network.WebpToJpegInterceptor
+import ua.ukrtv.app.player.CodecPreferences
 import ua.ukrtv.app.util.getDeviceClass
 import ua.ukrtv.app.util.hasMediatekChipset
+import java.io.InputStream
+import java.security.KeyStore
 import java.security.SecureRandom
+import java.security.cert.CertificateException
+import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
+import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
 
 @Module
@@ -55,6 +62,9 @@ object Modules {
 
     @Provides @Singleton
     fun provideWatchlistDao(database: AppDatabase): WatchlistDao = database.watchlistDao()
+
+    @Provides @Singleton
+    fun provideWatchProgressDao(database: AppDatabase): WatchProgressDao = database.watchProgressDao()
 
     @Provides @Singleton
     fun provideJson(): Json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -89,26 +99,19 @@ object Modules {
         val isLowDevice = getDeviceClass(context) == ua.ukrtv.app.util.DeviceClass.LOW
         val isMediatek = hasMediatekChipset()
 
-        val trustAllCerts = arrayOf<TrustManager>(object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-            override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) {}
-            override fun getAcceptedIssuers(): Array<X509Certificate> = arrayOf()
-        })
-
-        val sslContext = SSLContext.getInstance("SSL")
-        sslContext.init(null, trustAllCerts, SecureRandom())
-        
         val cacheSize = 50L * 1024 * 1024
         val cache = Cache(context.cacheDir.resolve("http_cache"), cacheSize)
 
+        val (sslSocketFactory, trustManager) = createCompositeSslSocketFactory(context)
+
         return OkHttpClient.Builder()
-            .sslSocketFactory(sslContext.socketFactory, trustAllCerts[0] as X509TrustManager)
-            .hostnameVerifier { _, _ -> true }
             .cookieJar(cookieJar)
             .cache(cache)
             .dispatcher(Dispatcher().apply { maxRequests = 32; maxRequestsPerHost = 5 })
             .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
+            .sslSocketFactory(sslSocketFactory, trustManager)
             .connectionSpecs(listOf(
+                ConnectionSpec.MODERN_TLS,
                 ConnectionSpec.COMPATIBLE_TLS,
                 ConnectionSpec.CLEARTEXT
             ))
@@ -138,6 +141,64 @@ object Modules {
             .build()
     }
 
+    private data class SslConfig(val socketFactory: javax.net.ssl.SSLSocketFactory, val trustManager: X509TrustManager)
+
+    private fun createCompositeSslSocketFactory(context: Context): SslConfig {
+        val defaultTrustManager = run {
+            val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+            tmf.init(null as KeyStore?)
+            tmf.trustManagers.first() as X509TrustManager
+        }
+
+        data class CaCert(val alias: String, val rawId: Int)
+        val caCertificates = listOf(
+            CaCert("gts_root_r4", ua.ukrtv.app.R.raw.gts_root_r4),
+            CaCert("isrg_root_x1", ua.ukrtv.app.R.raw.isrg_root_x1),
+            CaCert("sectigo_r46", ua.ukrtv.app.R.raw.sectigo_r46)
+        )
+
+        val keyStore = KeyStore.getInstance(KeyStore.getDefaultType()).apply { load(null) }
+        val certFactory = CertificateFactory.getInstance("X.509")
+
+        for (ca in caCertificates) {
+            try {
+                context.resources.openRawResource(ca.rawId).use { stream ->
+                    val cert = certFactory.generateCertificate(stream)
+                    keyStore.setCertificateEntry(ca.alias, cert)
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("Modules", "Failed to load CA cert: ${ca.alias}", e)
+            }
+        }
+
+        val ourTrustManager = run {
+            val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+            tmf.init(keyStore)
+            tmf.trustManagers.first() as X509TrustManager
+        }
+
+        val compositeTrustManager = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
+                defaultTrustManager.checkClientTrusted(chain, authType)
+            }
+            override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
+                try {
+                    defaultTrustManager.checkServerTrusted(chain, authType)
+                } catch (e: CertificateException) {
+                    ourTrustManager.checkServerTrusted(chain, authType)
+                }
+            }
+            override fun getAcceptedIssuers(): Array<X509Certificate> {
+                return defaultTrustManager.acceptedIssuers + ourTrustManager.acceptedIssuers
+            }
+        }
+
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, arrayOf<TrustManager>(compositeTrustManager), SecureRandom())
+
+        return SslConfig(sslContext.socketFactory, compositeTrustManager)
+    }
+
     @Provides @Singleton
     fun provideTvRecommendationManager(@ApplicationContext context: Context): ua.ukrtv.app.tv.TvRecommendationManager =
         ua.ukrtv.app.tv.TvRecommendationManager(context)
@@ -151,4 +212,7 @@ object Modules {
         htmlCacheDao = htmlCacheDao,
         tag = "HtmlHttpClient"
     )
+
+    @Provides @Singleton
+    fun provideCodecPreferences(@ApplicationContext context: Context): CodecPreferences = CodecPreferences(context)
 }

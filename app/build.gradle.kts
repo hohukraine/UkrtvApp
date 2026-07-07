@@ -119,11 +119,6 @@ dependencies {
     // SplashScreen
     implementation(libs.splashscreen)
 
-    // Exclude ProfileInstaller transitive dep (bloat + startup blocking GC)
-    configurations.all {
-        exclude(group = "androidx.profileinstaller", module = "profileinstaller")
-    }
-
     // Test
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

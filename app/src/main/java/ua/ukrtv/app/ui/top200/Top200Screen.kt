@@ -15,6 +15,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.layout.ContentScale
@@ -27,6 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import kotlinx.coroutines.delay
 import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.Gold
 import ua.ukrtv.app.ui.theme.OnSurface
@@ -35,6 +38,7 @@ import ua.ukrtv.app.ui.theme.OnSurfaceVariant
 import ua.ukrtv.app.ui.theme.OverlayLight
 import ua.ukrtv.app.ui.theme.SurfaceFocus
 import ua.ukrtv.app.ui.theme.SurfaceVariant
+import ua.ukrtv.app.ui.components.RatingCircle
 import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.data.repository.Top200Repository
 import androidx.lifecycle.ViewModel
@@ -55,6 +59,15 @@ fun Top200Screen(
     onMovieClick: (Top200Movie) -> Unit,
     onBack: () -> Unit
 ) {
+    var isBackReady by remember { mutableStateOf(false) }
+    val listFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        delay(600)
+        isBackReady = true
+        listFocusRequester.requestFocus()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -66,7 +79,7 @@ fun Top200Screen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
-                onClick = onBack,
+                onClick = { if (isBackReady) onBack() },
                 shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,
@@ -112,7 +125,8 @@ fun Top200Screen(
         LazyVerticalGrid(
             columns = GridCells.Fixed(1),
             verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(bottom = 48.dp)
+            contentPadding = PaddingValues(bottom = 48.dp),
+            modifier = Modifier.focusRequester(listFocusRequester)
         ) {
             items(viewModel.movies, key = { it.rank }) { movie ->
                 Surface(
@@ -206,7 +220,7 @@ fun Top200Screen(
                         // Rating circle if available
                         if (movie.rating > 0) {
                             Spacer(modifier = Modifier.width(16.dp))
-                            ua.ukrtv.app.ui.home.components.RatingCircle(rating = movie.rating)
+                            RatingCircle(rating = movie.rating)
                             Spacer(modifier = Modifier.width(16.dp))
                         }
                     }

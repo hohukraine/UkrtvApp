@@ -14,4 +14,5 @@ object Constants {
     const val SEARCH_CACHE_TTL_MS = 7 * 60 * 1000L
     const val METADATA_CACHE_TTL_MS = 45 * 60 * 1000L
     const val STREAM_RESOLUTION_CACHE_TTL_MS = 2 * 60 * 1000L
+    const val HOME_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
 }

@@ -1,13 +1,19 @@
 package ua.ukrtv.app.ui.home
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -38,19 +44,31 @@ fun ContinueWatchingCard(
     brandColor: Color = Color(0xFF6E85B7),
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onDismiss: (() -> Unit)? = null
+    onDismiss: (() -> Unit)? = null,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
     val context = LocalContext.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.05f else 1f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f),
+        label = "continueCardScale"
+    )
 
     val imageRequest = remember(movie.poster) {
         ImageRequest.Builder(context)
             .data(movie.poster)
-            .size(400, 225)
+            .size(260, 390)
             .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
+            .crossfade(false)
+            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
             .build()
     }
 
-    val cardShape = remember { Shapes.cardWide }
+    val cardShape = remember { Shapes.cardCompact }
 
     val episodeLabel = remember(movie.season, movie.episode) {
         if (movie.season != null && movie.episode != null) {
@@ -58,27 +76,46 @@ fun ContinueWatchingCard(
         } else null
     }
 
+    var progressTarget by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(movie.watchProgress) {
+        progressTarget = if (movie.watchProgress != null && movie.watchProgress > 0) movie.watchProgress.toFloat() / 100f else 0f
+    }
+
+    val animatedProgress by animateFloatAsState(
+        targetValue = progressTarget,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 200f),
+        label = "continueProgress"
+    )
+
+
+
     Column(
-        modifier = modifier.width(CardDefaults.wideWidth)
+        modifier = modifier.width(CardDefaults.compactWidth)
     ) {
         Surface(
             onClick = onClick,
+            onLongClick = onDismiss,
+            interactionSource = interactionSource,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(CardDefaults.wideHeight)
+                .height(CardDefaults.compactHeight)
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .then(
+                    if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+                        with(sharedTransitionScope) {
+                            val sharedContentState = rememberSharedContentState(key = "poster_${movie.id}")
+                            Modifier.sharedElement(sharedContentState = sharedContentState, animatedVisibilityScope = animatedVisibilityScope)
+                        }
+                    } else Modifier
+                )
                 .onKeyEvent { event ->
                     if (onDismiss != null) {
-                        val isCenter = event.key == Key.DirectionCenter || event.key == Key.Enter
                         val isMenu = event.key == Key.Menu || event.key == Key.Settings
-                        val isDelete = event.key == Key.MediaSkipBackward // Use some other key as fallback
-
-                        if (isCenter) {
-                            val isLongPress = event.nativeKeyEvent.flags and android.view.KeyEvent.FLAG_LONG_PRESS != 0
-                            if (isLongPress && event.type == KeyEventType.KeyDown) {
-                                onDismiss()
-                                return@onKeyEvent true
-                            }
-                        } else if ((isMenu || isDelete) && event.type == KeyEventType.KeyUp) {
+                        val isDelete = event.key == Key.MediaSkipBackward
+                        if ((isMenu || isDelete) && event.type == KeyEventType.KeyUp) {
                             onDismiss()
                             return@onKeyEvent true
                         }
@@ -86,7 +123,7 @@ fun ContinueWatchingCard(
                     false
                 },
             shape = ClickableSurfaceDefaults.shape(cardShape),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+            scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
             border = ClickableSurfaceDefaults.border(
                 focusedBorder = Border(
                     border = androidx.compose.foundation.BorderStroke(2.dp, brandColor),
@@ -119,9 +156,9 @@ fun ContinueWatchingCard(
                     ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth(movie.watchProgress.toFloat() / 100f)
+                                .fillMaxWidth(animatedProgress)
                                 .fillMaxHeight()
-                                .background(Color.Red)
+                            .background(Color.Red)
                         )
                     }
                 }

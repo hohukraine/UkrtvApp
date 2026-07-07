@@ -13,9 +13,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import ua.ukrtv.app.Constants
+import java.security.cert.CertPathValidatorException
 import java.util.Collections
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
+import javax.net.ssl.SSLException
 
 class HtmlHttpClient(
     private val okHttpClient: OkHttpClient,
@@ -34,6 +36,14 @@ class HtmlHttpClient(
 
     fun shutdown() {
         refreshJob.cancel()
+    }
+
+    private fun isSslError(e: Exception): Boolean {
+        var cause: Throwable = e
+        while (cause != cause.cause && cause.cause != null) {
+            cause = cause.cause!!
+        }
+        return cause is SSLException || cause is CertPathValidatorException
     }
 
     private val htmlCache = Collections.synchronizedMap(
@@ -97,6 +107,11 @@ class HtmlHttpClient(
 
                 if (e.message?.contains("404") == true) {
                     AppLogger.w(tag, "HTTP 404 is permanent, skipping retries")
+                    return null
+                }
+
+                if (isSslError(e)) {
+                    AppLogger.w(tag, "SSL error is permanent, skipping retries: ${e.message}")
                     return null
                 }
 

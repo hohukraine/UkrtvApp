@@ -51,15 +51,9 @@
                 android:resource="@xml/searchable" />
         </provider>
 
-        <receiver
-            android:name="androidx.profileinstaller.ProfileInstallReceiver"
-            android:exported="false"
-            tools:node="remove" />
-
-        <service
-            android:name="androidx.profileinstaller.ProfileInstallService"
-            android:exported="false"
-            tools:node="remove" />
+        <profileable
+            android:shell="true"
+            tools:targetApi="29" />
 
     </application>
 

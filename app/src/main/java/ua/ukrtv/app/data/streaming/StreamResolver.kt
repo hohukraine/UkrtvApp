@@ -96,7 +96,8 @@ class StreamResolver @Inject constructor(
                             
                             currentResult = nextResult.copy(
                                 seasons = currentResult.seasons ?: nextResult.seasons,
-                                providerName = currentResult.providerName.ifEmpty { nextResult.providerName }
+                                providerName = currentResult.providerName.ifEmpty { nextResult.providerName },
+                                sourcePageUrl = currentResult.sourcePageUrl
                             )
                             attempts++
                         }

@@ -4,6 +4,7 @@
         <trust-anchors>
             <trust-anchor type="system" />
             <trust-anchor type="user" />
+            <certificates src="@raw/gts_root_r4" />
         </trust-anchors>
     </base-config>
 </network-security-config>

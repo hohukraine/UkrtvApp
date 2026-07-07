@@ -1,7 +1,6 @@
 package ua.ukrtv.app.player
 
 import android.content.Context
-import android.os.Build
 import android.os.PowerManager
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
@@ -25,7 +24,8 @@ import javax.inject.Singleton
 @UnstableApi
 @Singleton
 class PlayerFactory @Inject constructor(
-    private val codecHealthMonitor: CodecHealthMonitor
+    private val codecHealthMonitor: CodecHealthMonitor,
+    private val codecPreferences: CodecPreferences
 ) {
     private var deviceClass: DeviceClass = DeviceClass.MID
     private var isMediatek: Boolean = hasMediatekChipset()
@@ -51,17 +51,25 @@ class PlayerFactory @Inject constructor(
 
     private val hardwarePrioritySelector = MediaCodecSelector { mimeType, requiresSecureDecoder, tunneling ->
         val all = MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecureDecoder, tunneling)
+        val codecTier = codecPreferences.getCodecTier()
 
         if (mimeType.startsWith("video/")) {
-            val preferred = all.filter { info ->
+            val filtered = all.filter { info ->
                 val name = info.name.lowercase()
-                !name.contains("software") && !name.contains(".sw.") &&
-                !name.contains("-sw-") && !name.contains("_sw_") &&
-                !codecHealthMonitor.shouldExcludeDecoder(info.name)
+                val passesHealth = !codecHealthMonitor.shouldExcludeDecoder(info.name)
+                val passesTier = when (codecTier) {
+                    CodecTier.AUTO -> true
+                    CodecTier.H264 -> name.contains("avc") || name.contains("h264")
+                    CodecTier.HARDWARE_ONLY -> {
+                        !name.contains("software") && !name.contains(".sw.") &&
+                        !name.contains("-sw-") && !name.contains("_sw_")
+                    }
+                }
+                passesHealth && passesTier
             }
 
-            if (preferred.isNotEmpty()) {
-                preferred.sortedByDescending { info ->
+            if (filtered.isNotEmpty()) {
+                filtered.sortedByDescending { info ->
                     val name = info.name.lowercase()
                     val codecType = when {
                         name.contains("avc") || name.contains("h264") -> 10
@@ -93,7 +101,13 @@ class PlayerFactory @Inject constructor(
             .setEnableDecoderFallback(true)
 
         val bandwidthMeter = DefaultBandwidthMeter.Builder(context.applicationContext)
-            .setInitialBitrateEstimate(10_000_000) // 10 Mbps start for TV Ethernet/WiFi
+            .setInitialBitrateEstimate(
+                when (deviceClass) {
+                    DeviceClass.LOW -> 10_000_000L
+                    DeviceClass.MID -> 25_000_000L
+                    DeviceClass.HIGH -> 40_000_000L
+                }
+            )
             .build()
 
         val trackSelectionFactory = AdaptiveTrackSelection.Factory()
@@ -116,20 +130,6 @@ class PlayerFactory @Inject constructor(
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
-
-        if (Build.VERSION.SDK_INT >= 31) {
-            player.addListener(object : androidx.media3.common.Player.Listener {
-                override fun onAudioSessionIdChanged(audioSessionId: Int) {
-                    try {
-                        val enhancer = android.media.audiofx.LoudnessEnhancer(audioSessionId)
-                        enhancer.setTargetGain(1000)
-                        enhancer.enabled = true
-                    } catch (e: Exception) {
-                        AppLogger.w("PlayerFactory", "LoudnessEnhancer failed: ${e.message}")
-                    }
-                }
-            })
-        }
 
         player.addAnalyticsListener(object : AnalyticsListener {
             @Suppress("DEPRECATION", "OverridingDeprecatedMember")
@@ -171,7 +171,7 @@ class PlayerFactory @Inject constructor(
 
         trackSelector.setParameters(
             trackSelector.buildUponParameters()
-                .setMaxVideoSize(buffers.maxVideoSize, 1080)
+                .setMaxVideoSize(1920, 1080)
                 .setMaxVideoBitrate(buffers.maxVideoBitrate)
                 .setPreferredAudioLanguage("ukr")
                 .apply {

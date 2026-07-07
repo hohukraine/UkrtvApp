@@ -154,6 +154,7 @@ private fun HeroItemContent(
             .data(item.poster)
             .size(360, 480)
             .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
+            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
             .build()
     }
 
@@ -233,22 +234,6 @@ private fun HeroItemContent(
                     )
                 }
 
-                Surface(
-                    onClick = { /* Internal */ },
-                    shape = ClickableSurfaceDefaults.shape(Shapes.button),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = accentColor,
-                        contentColor = Color.White
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f)
-                ) {
-                    Text(
-                        text = "ДИВИТИСЯ ЗАРАЗ",
-                        modifier = Modifier.padding(horizontal = 22.dp, vertical = 9.dp),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
             }
         }
     }

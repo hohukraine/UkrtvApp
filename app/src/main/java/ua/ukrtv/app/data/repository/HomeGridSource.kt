@@ -19,67 +19,44 @@ internal class HomeGridSource(
     fun getHomeGrid(provider: ua.ukrtv.app.data.providers.MediaProvider): Flow<List<Movie>> = flow {
         PerformanceMonitor.begin("HomeGridSource.getHomeGrid")
         val providerName = provider.name
-        val cacheAge = homeCacheRepository.getCacheTimestamp(providerName)
-        val now = System.currentTimeMillis()
-        val cacheTTL = 24 * 60 * 60 * 1000L
 
         val cachedSections = homeCacheRepository.getHomeCache(providerName).orEmpty()
         val cached = cachedSections.firstOrNull()?.items
-        if (cacheAge > 0 && (now - cacheAge) < cacheTTL && cachedSections.isNotEmpty() && cached != null && cached.isNotEmpty()) {
-            val firstUrl = cached.firstOrNull()?.pageUrl ?: ""
-            val providerHost = provider.baseUrl.substringAfter("://").substringBefore("/")
-            if (firstUrl.isEmpty() || firstUrl.contains(providerHost, ignoreCase = true)) {
-                emit(cached)
-                AppLogger.d("ContentRepo", "Cache hit for ${providerName}, fetching fresh in background")
+        if (cached != null && cached.isNotEmpty()) {
+            emit(cached)
+            val cacheAge = System.currentTimeMillis() - homeCacheRepository.getCacheTimestamp(providerName)
+            if (cacheAge < Constants.HOME_CACHE_TTL_MS) {
+                AppLogger.d("ContentRepo", "Cache fresh (${cacheAge}ms old), skipping network fetch")
+                return@flow
             }
+            AppLogger.d("ContentRepo", "Cache stale (${cacheAge}ms old), refreshing from network")
         }
 
         try {
             val t = System.currentTimeMillis()
 
-            val page1 = fetchCategoryWithFallback(provider, ContentCategory.TRENDS, 1)
-                .distinctBy { it.pageUrl }
-
-            AppLogger.d("ContentRepo", "Page 1 fetched: ${page1.size} items")
-            emit(page1)
-
-            if (page1.isNotEmpty()) {
-                val seen = mutableSetOf<String>()
-                seen.addAll(page1.map { it.pageUrl })
-
-                var accumulated = page1
-
-                supervisorScope {
-                    (2..4).map { page ->
-                        async {
-                            try {
-                                withTimeout(10_000) {
-                                    val items = fetchCategoryWithFallback(provider, ContentCategory.TRENDS, page)
-                                    items to page
-                                }
-                            } catch (e: Exception) {
-                                if (e is CancellationException) throw e
-                                AppLogger.w("ContentRepo", "Page $page fetch failed: ${e.message}")
-                                emptyList<Movie>() to page
-                            }
-                        }
-                    }.forEach { deferred ->
-                        val (items, _) = deferred.await()
-                        val newItems = items.filter { seen.add(it.pageUrl) }
-                        if (newItems.isNotEmpty()) {
-                            accumulated = (accumulated + newItems).take(150)
-                            emit(accumulated)
-                        }
+            val allPages = coroutineScope {
+                (1..4).map { page ->
+                    async(Dispatchers.IO) {
+                        fetchCategoryWithFallback(provider, ContentCategory.TRENDS, page)
                     }
-                }
-
-                if (accumulated.size > page1.size || accumulated.size >= 150) {
-                    homeCacheRepository.saveHomeCache(providerName, listOf(HomeSection("Main", accumulated)))
-                }
-                AppLogger.perf("ContentRepo", "Home grid deep fetch (${provider.name}) total ${accumulated.size} items", t)
-            } else {
-                homeCacheRepository.saveEmptyCache(providerName)
+                }.awaitAll().flatten()
             }
+
+            if (allPages.isEmpty()) {
+                homeCacheRepository.saveEmptyCache(providerName)
+                return@flow
+            }
+
+            val merged = (allPages + cached.orEmpty())
+                .distinctBy { it.pageUrl }
+                .take(150)
+
+            AppLogger.d("ContentRepo", "Fetched ${allPages.size} items from 4 pages, merged = ${merged.size}")
+            emit(merged)
+            homeCacheRepository.saveHomeCache(providerName, listOf(HomeSection("Main", merged)))
+
+            AppLogger.perf("ContentRepo", "Home grid sync (${provider.name}) total", t)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             AppLogger.e("ContentRepo", "Failed to fetch home grid", e)

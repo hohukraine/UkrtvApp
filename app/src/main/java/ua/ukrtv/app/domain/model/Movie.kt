@@ -19,7 +19,8 @@ data class Movie(
     val contentType: String? = null,
     val season: Int? = null,
     val episode: Int? = null,
-    val brandColor: String? = null
+    val brandColor: String? = null,
+    val provider: String? = null
 )
 
 @Stable

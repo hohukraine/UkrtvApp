@@ -8,7 +8,7 @@ object AppNavigation {
     const val TOP_200 = "top_200"
     const val DETAIL = "detail/{id}?url={url}"
     const val PLAYER = "player/{id}/{title}?url={url}&season={season}&episode={episode}&poster={poster}"
-    const val SEASONS = "seasons/{id}?url={url}&title={title}&season={season}&episode={episode}&voiceover={voiceover}"
+    const val SETTINGS = "settings"
 
     fun searchRoute(query: String = ""): String {
         if (query.isEmpty()) return "search?q="
@@ -33,14 +33,4 @@ object AppNavigation {
         return sb.toString()
     }
 
-    fun seasonsRoute(id: String, url: String, title: String, season: Int? = null, episode: Int? = null, voiceover: String? = null): String {
-        val encodedId = URLEncoder.encode(id, "UTF-8")
-        val encodedUrl = URLEncoder.encode(url, "UTF-8")
-        val encodedTitle = URLEncoder.encode(title, "UTF-8")
-        val sb = StringBuilder("seasons/$encodedId?url=$encodedUrl&title=$encodedTitle")
-        season?.let { sb.append("&season=$it") }
-        episode?.let { sb.append("&episode=$it") }
-        voiceover?.let { sb.append("&voiceover=${URLEncoder.encode(it, "UTF-8")}") }
-        return sb.toString()
-    }
 }

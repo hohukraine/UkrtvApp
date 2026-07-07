@@ -4,7 +4,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withTimeout
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.TtlLruCache
 import ua.ukrtv.app.domain.model.Movie
@@ -42,13 +41,12 @@ internal class SearchSource(
 
     fun search(query: String): Flow<Result<List<Movie>>> = flow<Result<List<Movie>>> {
         val q = query.trim().lowercase()
-        val providerName = providerManager.activeProvider.value.name
         if (q.isEmpty()) {
             emit(Result.success(emptyList()))
             return@flow
         }
 
-        val cacheKey = "search|$providerName|$q"
+        val cacheKey = "search|all|$q"
         searchCache.get(cacheKey)?.let {
             emit(Result.success(it))
             return@flow
@@ -56,18 +54,31 @@ internal class SearchSource(
 
         try {
             PerformanceMonitor.begin("SearchSource.search")
-            val searchResults = searchSemaphore.withPermit {
-                withTimeout(10_000) { providerManager.activeProvider.value.search(q, limit = 40) }
+            val allMovies = mutableListOf<Movie>()
+
+            coroutineScope {
+                val deferred = providerManager.availableProviders.map { provider ->
+                    async {
+                        try {
+                            val items = searchSemaphore.withPermit {
+                                provider.search(q, limit = 40)
+                            }
+                            items.map { item ->
+                                Movie(
+                                    id = item.url,
+                                    title = item.title,
+                                    poster = item.imageUrl,
+                                    pageUrl = item.url,
+                                    provider = item.provider
+                                )
+                            }
+                        } catch (_: Exception) { emptyList() }
+                    }
+                }
+                deferred.awaitAll().forEach { allMovies.addAll(it) }
             }
 
-            val movies = searchResults.map { item ->
-                Movie(
-                    id = item.url,
-                    title = item.title,
-                    poster = item.imageUrl,
-                    pageUrl = item.url
-                )
-            }.distinctBy { it.title.lowercase().trim() }
+            val movies = allMovies.distinctBy { it.pageUrl }
 
             if (movies.isNotEmpty()) {
                 searchCache.put(cacheKey, movies)

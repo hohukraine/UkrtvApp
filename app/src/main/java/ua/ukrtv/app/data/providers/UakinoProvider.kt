@@ -256,6 +256,7 @@ class UakinoProvider(
         }
 
         val otherSeasons = resolveOtherSeasons(doc, pageUrl)
+        AppLogger.d("$name:AjaxSeasons", "Found ${otherSeasons.size} other seasons (current=$currentSeasonNum), total goal: ${otherSeasons.size + 1}")
         if (otherSeasons.isNotEmpty()) {
             val seasonSemaphore = Semaphore(3) // Increase parallel limit for speed
             coroutineScope {

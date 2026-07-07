@@ -5,6 +5,7 @@ import ua.ukrtv.app.data.providers.StreamManager
 import ua.ukrtv.app.data.providers.toDomainSeason
 import ua.ukrtv.app.data.streaming.*
 import ua.ukrtv.app.domain.model.StreamResolutionResult
+import ua.ukrtv.app.util.AppLogger
 import javax.inject.Inject
 
 class ProviderResolutionStrategy @Inject constructor(
@@ -28,7 +29,13 @@ class ProviderResolutionStrategy @Inject constructor(
 
         if (source is MediaSource.Series && context.season != null) {
             val s = source.seasons.find { it.number == context.season }
+            if (s == null) {
+                AppLogger.w("ProviderStrategy", "Season ${context.season} not found in ${source.seasons.size} seasons for $url")
+            }
             val ep = if (context.episode != null) s?.episodes?.find { it.number == context.episode } else s?.episodes?.firstOrNull()
+            if (ep == null) {
+                AppLogger.w("ProviderStrategy", "Episode ${context.episode} not found in season ${context.season} for $url")
+            }
             if (ep != null) {
                 streamUrl = if (context.voiceover != null) {
                     s?.voiceovers?.find { it.name == context.voiceover }

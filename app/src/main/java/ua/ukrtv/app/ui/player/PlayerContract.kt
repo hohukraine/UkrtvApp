@@ -3,15 +3,21 @@ package ua.ukrtv.app.ui.player
 import ua.ukrtv.app.domain.model.AppError
 import ua.ukrtv.app.domain.model.Season
 import ua.ukrtv.app.domain.model.StreamType
+import ua.ukrtv.app.player.AudioMode
+
+data class CodecInfo(val mimeType: String, val displayName: String)
+
+enum class ScaleMode(val label: String) {
+    FIT("Оригінал"),
+    ZOOM("Весь екран")
+}
 
 data class PlayerState(
     val status: PlayerStatus = PlayerStatus.Idle,
     val isPlaying: Boolean = false,
     val isMuted: Boolean = false,
-    val showControls: Boolean = true,
-    val showStats: Boolean = false,
-    val childMode: Boolean = false,
-    val videoResizeMode: Int = 1,
+    val isShowingControls: Boolean = true,
+    val scaleMode: ScaleMode = ScaleMode.FIT,
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
     val bufferedPosition: Long = 0L,
@@ -21,7 +27,12 @@ data class PlayerState(
     val currentSeason: Int? = null,
     val currentEpisode: Int? = null,
     val currentVoiceover: String? = null,
-    val thermalStatus: Int = 0 // PowerManager.THERMAL_STATUS_NONE = 0
+    val thermalStatus: Int = 0, // PowerManager.THERMAL_STATUS_NONE = 0
+    val audioMode: AudioMode = AudioMode.NORMAL,
+    val pickerColumns: List<PickerColumn> = emptyList(),
+    val pickerFocusedIndex: Int = 0,
+    val currentCodecDisplay: String = "",
+    val availableCodecs: List<CodecInfo> = emptyList()
 )
 
 sealed class PlayerStatus {
@@ -37,32 +48,4 @@ sealed class PlayerStatus {
         val loadTrigger: Long = System.currentTimeMillis()
     ) : PlayerStatus()
     data class Error(val message: String, val isRetryable: Boolean = true) : PlayerStatus()
-}
-
-sealed class PlayerIntent {
-    data class Initialize(
-        val contentId: String,
-        val title: String,
-        val pageUrl: String,
-        val season: Int? = null,
-        val episode: Int? = null,
-        val poster: String = ""
-    ) : PlayerIntent()
-    
-    object TogglePlay : PlayerIntent()
-    object ToggleMute : PlayerIntent()
-    object ToggleControls : PlayerIntent()
-    object ToggleStats : PlayerIntent()
-    object ToggleChildMode : PlayerIntent()
-    object Retry : PlayerIntent()
-    object NavigateNext : PlayerIntent()
-    object NavigatePrevious : PlayerIntent()
-    
-    data class SeekTo(val positionMs: Long) : PlayerIntent()
-    data class ChangeResizeMode(val mode: Int) : PlayerIntent()
-    data class SetShowControls(val show: Boolean) : PlayerIntent()
-    data class SelectEpisode(val season: Int, val episode: Int, val voiceover: String? = null) : PlayerIntent()
-    data class UpdateProgress(val positionMs: Long, val durationMs: Long) : PlayerIntent()
-    data class UpdatePlaybackState(val state: Int) : PlayerIntent()
-    data class UpdateIsPlaying(val isPlaying: Boolean) : PlayerIntent()
 }

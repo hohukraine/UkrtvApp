@@ -1,13 +1,24 @@
 package ua.ukrtv.app.ui.home
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -26,8 +37,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.theme.CardDefaults
-import ua.ukrtv.app.ui.theme.OnSurface
-import ua.ukrtv.app.ui.theme.Shapes
+
+private val cardShape = RoundedCornerShape(8.dp)
+private val focusBorderWidth = 3.dp
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -39,59 +51,77 @@ fun MovieCard(
     isExpanded: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
-    onDismiss: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    onDismiss: (() -> Unit)? = null,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
     val context = LocalContext.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    val actualLongClick = onLongClick ?: onDismiss
+
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.05f else 1f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = 300f),
+        label = "cardScale"
+    )
 
     val imageRequest = remember(movie.poster) {
         ImageRequest.Builder(context)
             .data(movie.poster)
-            .size(320, 480)
+            .size(180, 270)
+            .crossfade(false)
             .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
+            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
             .build()
     }
 
-    val cardShape = remember { Shapes.card }
+    val sharedMod = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            val sharedContentState = rememberSharedContentState(key = "poster_${movie.id}")
+            Modifier.sharedElement(sharedContentState = sharedContentState, animatedVisibilityScope = animatedVisibilityScope)
+        }
+    } else Modifier
 
-    Column(
-        modifier = modifier.width(width)
-    ) {
-        Surface(
-            onClick = onClick,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(height)
-                .onKeyEvent { event ->
-                    if (onDismiss != null) {
-                        val isCenter = event.key == Key.DirectionCenter || event.key == Key.Enter
-                        val isMenu = event.key == Key.Menu || event.key == Key.Settings
-                        
-                        if (isCenter) {
-                            val isLongPress = event.nativeKeyEvent.flags and android.view.KeyEvent.FLAG_LONG_PRESS != 0
-                            if (isLongPress && event.type == KeyEventType.KeyDown) {
-                                onDismiss()
-                                return@onKeyEvent true
-                            }
-                        } else if (isMenu && event.type == KeyEventType.KeyUp) {
-                            onDismiss()
-                            return@onKeyEvent true
-                        }
+    Surface(
+        onClick = onClick,
+        onLongClick = actualLongClick,
+        interactionSource = interactionSource,
+        modifier = modifier
+            .width(width)
+            .height(height)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .then(sharedMod)
+            .onKeyEvent { event ->
+                if (onDismiss != null) {
+                    val isMenu = event.key == Key.Menu || event.key == Key.Settings
+
+                    if (isMenu && event.type == KeyEventType.KeyUp) {
+                        onDismiss()
+                        return@onKeyEvent true
                     }
-                    false
-                },
-            shape = ClickableSurfaceDefaults.shape(cardShape),
-            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
-            border = ClickableSurfaceDefaults.border(
-                focusedBorder = Border(
-                    border = androidx.compose.foundation.BorderStroke(2.dp, Color.White.copy(alpha = 0.8f)),
-                    shape = cardShape
-                )
-            ),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color(0xFF141414),
-                focusedContainerColor = Color(0xFF141414)
+                }
+                false
+            },
+        shape = ClickableSurfaceDefaults.shape(cardShape),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
+        border = ClickableSurfaceDefaults.border(
+            focusedBorder = Border(
+                border = androidx.compose.foundation.BorderStroke(focusBorderWidth, Color.White),
+                shape = cardShape
             )
-        ) {
+        ),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color(0xFF141414),
+            focusedContainerColor = Color(0xFF141414)
+        )
+    ) {
+        Box(Modifier.fillMaxSize()) {
             AsyncImage(
                 model = imageRequest,
                 contentDescription = movie.title,
@@ -100,59 +130,94 @@ fun MovieCard(
                 placeholder = ColorPainter(Color(0xFF141414)),
                 error = ColorPainter(Color(0xFF141414))
             )
-        }
 
-        Spacer(Modifier.height(12.dp))
-
-        // Metadata Below Poster (Exact Streamverse Style)
-        Text(
-            text = movie.title.uppercase(),
-            color = OnSurface,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Black,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            letterSpacing = 0.5.sp
-        )
-        
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            if (movie.year != null) {
-                Text(
-                    text = movie.year.toString(),
-                    color = OnSurface.copy(alpha = 0.5f),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Medium
-                )
+            if (movie.provider != null) {
+                val providerColor = when (movie.provider) {
+                    "Uakino" -> Color(0xFFFF6B35)
+                    "Eneyida" -> Color(0xFF4ECDC4)
+                    else -> Color(0xFF888888)
+                }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .background(providerColor.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = movie.provider!!.uppercase(),
+                        color = Color.White,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontStyle = FontStyle.Normal,
+                        letterSpacing = 0.5.sp,
+                        maxLines = 1
+                    )
+                }
             }
-            
-            Text(
-                text = "Movie", // Placeholder for genre/type
-                color = OnSurface.copy(alpha = 0.5f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
+
+            // Semi-transparent bottom bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (isExpanded) 90.dp else 72.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(Color.Black.copy(alpha = 0.6f))
             )
 
-            Spacer(Modifier.weight(1f))
-            
-            if (!movie.rating.isNullOrEmpty()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "★",
-                        color = Color(0xFFDAA520),
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(bottom = 1.dp)
-                    )
-                    Spacer(Modifier.width(2.dp))
-                    Text(
-                        text = movie.rating,
-                        color = OnSurface.copy(alpha = 0.9f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 10.dp, end = 10.dp, bottom = if (isExpanded) 10.dp else 6.dp)
+            ) {
+                Text(
+                    text = movie.title.uppercase(),
+                    color = Color.White,
+                    fontSize = if (isExpanded) 13.sp else 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    letterSpacing = 0.3.sp,
+                    lineHeight = 14.sp
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 3.dp)
+                ) {
+                    if (movie.year != null) {
+                        Text(
+                            text = movie.year.toString(),
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    if (!movie.rating.isNullOrEmpty()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "★",
+                                color = Color(0xFFDAA520),
+                                fontSize = 9.sp
+                            )
+                            Spacer(Modifier.width(1.dp))
+                            Text(
+                                text = movie.rating,
+                                color = Color.White.copy(alpha = 0.9f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    if (!movie.quality.isNullOrEmpty()) {
+                        Text(
+                            text = movie.quality.uppercase(),
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }

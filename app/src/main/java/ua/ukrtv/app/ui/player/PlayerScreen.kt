@@ -4,25 +4,20 @@ import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import ua.ukrtv.app.ui.theme.BrandBlue
 import androidx.compose.ui.input.key.onKeyEvent
+import ua.ukrtv.app.ui.theme.BrandBlue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
@@ -35,6 +30,8 @@ internal const val SKIP_INTRO_WINDOW_MS = 120_000L
 internal const val SKIP_INTRO_STEP_MS = 90_000L
 internal const val NEXT_EPISODE_COUNTDOWN_SEC = 10
 
+private enum class HeldSeekDir { FORWARD, BACKWARD }
+
 @UnstableApi
 @Composable
 fun PlayerScreen(
@@ -46,7 +43,6 @@ fun PlayerScreen(
     episode: Int? = null,
     brandColor: Color = BrandBlue,
     onBack: () -> Unit,
-    onNavigateToSeasons: (() -> Unit)? = null,
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -57,30 +53,15 @@ fun PlayerScreen(
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     DisposableEffect(player, lifecycleOwner) {
-        val listener = object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                viewModel.onIntent(PlayerIntent.UpdateIsPlaying(isPlaying))
-            }
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                viewModel.onIntent(PlayerIntent.UpdatePlaybackState(playbackState))
-                if (playbackState == Player.STATE_READY) {
-                    viewModel.trackManager.updateAvailableTracks(player.currentTracks)
-                }
-            }
-        }
-
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_PAUSE) {
                 player.playWhenReady = false
                 player.pause()
             }
         }
-
-        player.addListener(listener)
         lifecycleOwner.lifecycle.addObserver(observer)
 
         onDispose {
-            player.removeListener(listener)
             lifecycleOwner.lifecycle.removeObserver(observer)
             viewModel.saveProgress(player.currentPosition, player.duration)
             viewModel.releasePlayer(player)
@@ -88,7 +69,7 @@ fun PlayerScreen(
     }
 
     LaunchedEffect(url, contentId, season, episode) {
-        viewModel.onIntent(PlayerIntent.Initialize(contentId, title, url, season, episode, poster))
+        viewModel.initialize(contentId, title, url, season, episode, poster)
     }
 
     PlayerContent(
@@ -97,7 +78,6 @@ fun PlayerScreen(
         viewModel = viewModel,
         brandColor = brandColor,
         onBack = onBack,
-        onNavigateToSeasons = onNavigateToSeasons,
         title = title
     )
 }
@@ -110,26 +90,16 @@ private fun PlayerContent(
     viewModel: PlayerViewModel,
     brandColor: Color = BrandBlue,
     onBack: () -> Unit,
-    onNavigateToSeasons: (() -> Unit)? = null,
     title: String
 ) {
     val playFocusRequester = remember { FocusRequester() }
     val playButtonFocusRequester = remember { FocusRequester() }
 
-    var showQualityMenu by rememberSaveable { mutableStateOf(false) }
-    var showAudioMenu by rememberSaveable { mutableStateOf(false) }
-    var showSubtitleMenu by rememberSaveable { mutableStateOf(false) }
-    var showScaleMenu by rememberSaveable { mutableStateOf(false) }
+    var lastInteractionTime by remember { mutableStateOf(System.currentTimeMillis()) }
 
-    val availableTracks by viewModel.trackManager.availableTracks.collectAsState()
-    val selectedTrack by viewModel.trackManager.selectedTrackIndex.collectAsState()
-    val availableAudioTracks by viewModel.trackManager.availableAudioTracks.collectAsState()
-    val selectedAudioTrack by viewModel.trackManager.selectedAudioTrackIndex.collectAsState()
-    val availableSubtitleTracks by viewModel.trackManager.availableSubtitleTracks.collectAsState()
-    val selectedSubtitleTrack by viewModel.trackManager.selectedSubtitleTrackIndex.collectAsState()
-
-    LaunchedEffect(state.showControls, state.status) {
-        if (state.showControls && state.status is PlayerStatus.Ready) {
+    LaunchedEffect(state.isShowingControls, state.status) {
+        if (state.isShowingControls && state.status is PlayerStatus.Ready) {
+            lastInteractionTime = System.currentTimeMillis()
             delay(150)
             try {
                 playButtonFocusRequester.requestFocus()
@@ -140,12 +110,30 @@ private fun PlayerContent(
         }
     }
 
-    LaunchedEffect(state.showControls, showQualityMenu, showAudioMenu, showSubtitleMenu, showScaleMenu) {
-        if (state.showControls) {
-            val anyMenuOpen = showQualityMenu || showAudioMenu || showSubtitleMenu || showScaleMenu
-            if (!anyMenuOpen) {
-                delay(CONTROLS_HIDE_DELAY_MS)
-                viewModel.onIntent(PlayerIntent.SetShowControls(false))
+    LaunchedEffect(state.isShowingControls) {
+        if (state.isShowingControls) {
+            while (true) {
+                delay(1000)
+                val elapsed = System.currentTimeMillis() - lastInteractionTime
+                if (elapsed >= CONTROLS_HIDE_DELAY_MS) {
+                    viewModel.setShowControls(false)
+                    break
+                }
+            }
+        }
+    }
+
+    var heldSeekDir by remember { mutableStateOf<HeldSeekDir?>(null) }
+
+    LaunchedEffect(heldSeekDir) {
+        val dir = heldSeekDir ?: return@LaunchedEffect
+        while (true) {
+            delay(250)
+            val pos = player.currentPosition
+            if (dir == HeldSeekDir.FORWARD) {
+                viewModel.seekTo(minOf(player.duration, pos + SEEK_STEP_MS))
+            } else {
+                viewModel.seekTo(maxOf(0L, pos - SEEK_STEP_MS))
             }
         }
     }
@@ -157,32 +145,53 @@ private fun PlayerContent(
             .focusable()
             .onKeyEvent { event ->
                 val ke = event.nativeKeyEvent
-                if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
                 
                 when (ke.keyCode) {
                     android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
-                        if (state.showControls) return@onKeyEvent false
-                        viewModel.onIntent(PlayerIntent.SeekTo(maxOf(0L, player.currentPosition - SEEK_STEP_MS)))
-                        return@onKeyEvent true
+                        if (state.isShowingControls) {
+                            lastInteractionTime = System.currentTimeMillis()
+                            return@onKeyEvent false
+                        }
+                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
+                            heldSeekDir = HeldSeekDir.BACKWARD
+                            viewModel.seekTo(maxOf(0L, player.currentPosition - SEEK_STEP_MS))
+                            return@onKeyEvent true
+                        } else if (ke.action == android.view.KeyEvent.ACTION_UP) {
+                            heldSeekDir = null
+                            return@onKeyEvent true
+                        }
+                        return@onKeyEvent false
                     }
                     android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        if (state.showControls) return@onKeyEvent false
-                        viewModel.onIntent(PlayerIntent.SeekTo(player.currentPosition + SEEK_STEP_MS))
-                        return@onKeyEvent true
+                        if (state.isShowingControls) {
+                            lastInteractionTime = System.currentTimeMillis()
+                            return@onKeyEvent false
+                        }
+                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
+                            heldSeekDir = HeldSeekDir.FORWARD
+                            viewModel.seekTo(player.currentPosition + SEEK_STEP_MS)
+                            return@onKeyEvent true
+                        } else if (ke.action == android.view.KeyEvent.ACTION_UP) {
+                            heldSeekDir = null
+                            return@onKeyEvent true
+                        }
+                        return@onKeyEvent false
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        if (state.isShowingControls) {
+                            lastInteractionTime = System.currentTimeMillis()
+                        }
+                        return@onKeyEvent false
                     }
                     android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER -> {
-                        if (state.showControls) return@onKeyEvent false
-                        viewModel.onIntent(PlayerIntent.SetShowControls(true))
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
+                        if (state.isShowingControls) return@onKeyEvent false
+                        lastInteractionTime = System.currentTimeMillis()
+                        viewModel.setShowControls(true)
                         return@onKeyEvent true
                     }
                     android.view.KeyEvent.KEYCODE_BACK -> {
-                        if (showQualityMenu || showAudioMenu || showSubtitleMenu || showScaleMenu) {
-                            showQualityMenu = false
-                            showAudioMenu = false
-                            showSubtitleMenu = false
-                            showScaleMenu = false
-                            return@onKeyEvent true
-                        }
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
                         onBack()
                         return@onKeyEvent true
                     }
@@ -191,57 +200,38 @@ private fun PlayerContent(
                 false
             }
     ) {
-        when (val status = state.status) {
-            is PlayerStatus.Loading -> {
-                Box(Modifier.fillMaxSize().background(Color.Black), Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF6E85B7))
-                }
+        PlayerReadyContent(
+            status = state.status,
+            playerState = state,
+            player = player,
+            viewModel = viewModel,
+            title = title,
+            brandColor = brandColor,
+            scaleMode = state.scaleMode,
+            hasEpisodes = state.availableSeasons?.isNotEmpty() == true,
+            playFocusRequester = playFocusRequester,
+            playButtonFocusRequester = playButtonFocusRequester,
+            isShowingControls = state.isShowingControls,
+            onSeek = { player.seekTo(it) }
+        )
+
+        val currentStatus = state.status
+        if (currentStatus is PlayerStatus.Loading) {
+            Box(Modifier.fillMaxSize().background(Color.Black), Alignment.Center) {
+                CircularProgressIndicator(color = Color(0xFF6E85B7))
             }
-            is PlayerStatus.Error -> {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f)), Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(status.message, color = Color.Red, fontSize = 18.sp)
-                        androidx.tv.material3.Button(onClick = { viewModel.onIntent(PlayerIntent.Retry) }) {
-                            Text("Retry")
-                        }
+        }
+
+        if (currentStatus is PlayerStatus.Error) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f)), Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(currentStatus.message, color = Color.Red, fontSize = 18.sp)
+                    androidx.tv.material3.Button(onClick = { viewModel.retry() }) {
+                        Text("Retry")
                     }
                 }
             }
-            is PlayerStatus.Ready -> {
-                PlayerReadyContent(
-                    state = status,
-                    playerState = state,
-                    player = player,
-                    viewModel = viewModel,
-                    title = title,
-                    brandColor = brandColor,
-                    videoResizeMode = state.videoResizeMode,
-                    isMuted = state.isMuted,
-                    isChildMode = state.childMode,
-                    showStats = state.showStats,
-                    hasEpisodes = state.availableSeasons?.isNotEmpty() == true,
-                    playFocusRequester = playFocusRequester,
-                    playButtonFocusRequester = playButtonFocusRequester,
-                    onNavigateToSeasons = onNavigateToSeasons,
-                    showControls = state.showControls,
-                    showQualityMenu = showQualityMenu,
-                    showAudioMenu = showAudioMenu,
-                    showSubtitleMenu = showSubtitleMenu,
-                    showScaleMenu = showScaleMenu,
-                    availableTracks = availableTracks,
-                    selectedTrack = selectedTrack,
-                    availableAudioTracks = availableAudioTracks,
-                    selectedAudioTrack = selectedAudioTrack,
-                    availableSubtitleTracks = availableSubtitleTracks,
-                    selectedSubtitleTrack = selectedSubtitleTrack,
-                    showQualityMenuChange = { showQualityMenu = it },
-                    showAudioMenuChange = { showAudioMenu = it },
-                    showSubtitleMenuChange = { showSubtitleMenu = it },
-                    showScaleMenuChange = { showScaleMenu = it },
-                    onSeek = { player.seekTo(it) }
-                )
-            }
-            else -> {}
         }
+
     }
 }

@@ -86,10 +86,17 @@ class DetailViewModel @Inject constructor(
                         val enriched = mediaRepository.enrichSeasons(url, detail)
                         if (enriched.seasons.isNullOrEmpty().not()) {
                             currentDetail = enriched
-                            _state.value = DetailState.Success(
-                                detail = enriched,
-                                watchProgress = progress?.positionMs ?: 0L
-                            )
+
+                            val hasRealEpisodes = enriched.seasons.any { season ->
+                                season.episodes.any { it.number > 1 }
+                            }
+
+                            if (hasRealEpisodes) {
+                                _state.value = DetailState.Success(
+                                    detail = enriched,
+                                    watchProgress = progress?.positionMs ?: 0L
+                                )
+                            }
                             preWarmStream(enriched, progress?.episodeId?.let { parseSeasonEpisode(it) })
                         }
                     }
@@ -116,9 +123,9 @@ class DetailViewModel @Inject constructor(
     private fun preWarmStream(detail: MovieDetail, fromProgress: Pair<Int, Int>? = null) {
         preWarmJob?.cancel()
         val isSeries = !detail.seasons.isNullOrEmpty()
-        val targetSeason = fromProgress?.first ?: if (isSeries) detail.seasons!!.firstOrNull()?.number ?: 1 else null
+        val targetSeason = fromProgress?.first ?: if (isSeries) detail.seasons.firstOrNull()?.number ?: 1 else null
         val targetEpisode = fromProgress?.second ?: if (isSeries && targetSeason != null) {
-            detail.seasons!!.find { it.number == targetSeason }?.episodes?.firstOrNull()?.number ?: 1
+            detail.seasons.find { it.number == targetSeason }?.episodes?.firstOrNull()?.number ?: 1
         } else null
 
         preWarmJob = viewModelScope.launch {
@@ -164,7 +171,7 @@ class DetailViewModel @Inject constructor(
                         season = season,
                         episode = episode,
                         voiceover = voiceover,
-                        seasons = res.seasons
+                        seasons = res.seasons ?: detail.seasons
                     )
                 } else {
                     _launchState.value = MediaLaunchState.Error("Стрім не знайдено")

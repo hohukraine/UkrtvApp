@@ -29,9 +29,4 @@ val Success = Color(0xFF4CAF50)
 val Scrim = Color(0xAA000000)
 val OverlayLight = Color(0xFF1A1A1D)
 
-// Provider Colors (real brand colors from Uakino and Eneyida websites)
-object ProviderColors {
-    val Uakino = Color(0xFFCA563F)
-    val Eneyida = Color(0xFF31C469)
-}
 
