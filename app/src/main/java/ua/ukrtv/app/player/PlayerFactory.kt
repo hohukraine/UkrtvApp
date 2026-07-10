@@ -166,7 +166,7 @@ class PlayerFactory @Inject constructor(
         })
 
         player.setWakeMode(PowerManager.PARTIAL_WAKE_LOCK)
-        player.setVideoScalingMode(androidx.media3.common.C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING)
+        player.setVideoScalingMode(androidx.media3.common.C.VIDEO_SCALING_MODE_SCALE_TO_FIT)
 
         trackSelector.setParameters(
             trackSelector.buildUponParameters()

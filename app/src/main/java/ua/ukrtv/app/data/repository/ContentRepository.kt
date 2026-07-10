@@ -66,7 +66,7 @@ class ContentRepository @Inject constructor(
         val cachedItems = cachedSections?.firstOrNull()?.items.orEmpty()
 
         val newItems = coroutineScope {
-            (1..2).map { page ->
+            (1..4).map { page ->
                 async(Dispatchers.IO) {
                     provider.getMoviesByCategory(ContentCategory.TRENDS, page)
                 }
@@ -76,7 +76,7 @@ class ContentRepository @Inject constructor(
         val merged = (newItems + cachedItems)
             .distinctBy { it.pageUrl }
             .shuffled()
-            .take(50)
+            .take(100)
 
         homeCacheRepository.saveHomeCache(provider.name, listOf(HomeSection("Main", merged)))
         return merged

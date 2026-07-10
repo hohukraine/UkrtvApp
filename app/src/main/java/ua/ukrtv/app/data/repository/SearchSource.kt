@@ -78,7 +78,10 @@ internal class SearchSource(
                 deferred.awaitAll().forEach { allMovies.addAll(it) }
             }
 
-            val movies = allMovies.distinctBy { it.pageUrl }
+            val movies = allMovies
+                .groupBy { it.provider }
+                .flatMap { (_, items) -> if (items.size >= 30) emptyList() else items }
+                .distinctBy { it.pageUrl }
 
             if (movies.isNotEmpty()) {
                 searchCache.put(cacheKey, movies)

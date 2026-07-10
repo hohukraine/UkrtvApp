@@ -42,7 +42,6 @@ class CodecHealthMonitor @Inject constructor() {
     fun onDroppedFrames(count: Int, elapsedMs: Long) {
         val stats = currentDecoder ?: return
         stats.droppedFrames += count
-        stats.renderedFrames += count
 
         if (elapsedMs - lastCheckTimeMs > checkIntervalMs) {
             lastCheckTimeMs = elapsedMs

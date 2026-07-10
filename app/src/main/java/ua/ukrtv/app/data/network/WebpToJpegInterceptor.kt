@@ -109,12 +109,24 @@ class WebpToJpegInterceptor : Interceptor {
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
         } catch (_: Exception) {}
         
-        options.inJustDecodeBounds = false
-        options.inPreferredConfig = Bitmap.Config.RGB_565
-
-        if (options.outWidth > 1000 || options.outHeight > 1000) {
-            options.inSampleSize = 2
+        // Adaptive downsampling: limit max dimension to ~400px for memory/CPU
+        val maxDimension = 400
+        val inSampleSize = when {
+            options.outWidth > maxDimension && options.outHeight > maxDimension -> {
+                val halfW = options.outWidth / 2
+                val halfH = options.outHeight / 2
+                var size = 1
+                while (halfW / size > maxDimension / 2 || halfH / size > maxDimension / 2) {
+                    size *= 2
+                }
+                size
+            }
+            else -> 1
         }
+        
+        options.inJustDecodeBounds = false
+        options.inSampleSize = inSampleSize
+        options.inPreferredConfig = Bitmap.Config.RGB_565
 
         var bitmap = try {
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
@@ -146,9 +158,14 @@ class WebpToJpegInterceptor : Interceptor {
             return response.newBuilder().body(bytes.toResponseBody(originalContentType)).build()
         }
 
+        // Adaptive quality: lower for large images (less CPU/bandwidth), higher for small ones
+        val quality = when {
+            bitmap.width * bitmap.height > 200 * 300 -> 75
+            else -> 85
+        }
         val output = ByteArrayOutputStream()
         val success = try {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 75, output)
+            bitmap.compress(Bitmap.CompressFormat.JPEG, quality, output)
         } catch (e: Exception) {
             AppLogger.w("WebpToJpeg", "JPEG compress failed for $url: ${e.message}")
             false

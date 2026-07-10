@@ -1,5 +1,0 @@
-{
-  "permissions": [
-    {"action": "allow", "pattern": "*", "permission": "*"}
-  ]
-}

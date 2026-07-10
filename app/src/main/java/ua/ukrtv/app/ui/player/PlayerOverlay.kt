@@ -47,6 +47,9 @@ import ua.ukrtv.app.ui.theme.Scrim
 import ua.ukrtv.app.ui.theme.Shapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forward10
+import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalIsMediatek
+import ua.ukrtv.app.ui.theme.deviceImage
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
@@ -92,6 +95,7 @@ fun PlayerOverlay(
     onPickerCommit: () -> Unit = {},
     brandColor: Color = BrandBlue,
     playFocusRequester: FocusRequester = FocusRequester(),
+    heldSeekDir: SeekDirection? = null,
     modifier: Modifier = Modifier
 ) {
     val progress by remember(positionMs, durationMs) {
@@ -173,7 +177,24 @@ fun PlayerOverlay(
             }
 
             if (showSkipIntro) {
+
+            if (heldSeekDir != null) {
                 AnimatedVisibility(
+                    visible = true,
+                    enter = fadeIn(tween(150, easing = LinearEasing)),
+                    exit = fadeOut(tween(150, easing = LinearEasing))
+                ) {
+                    HeldSeekProgress(
+                        brandColor = brandColor,
+                        direction = heldSeekDir,
+                        positionMs = positionMs,
+                        durationMs = durationMs,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            }
+
+            AnimatedVisibility(
                     visible = visible,
                     enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { -it }),
                     exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { -it })
@@ -424,11 +445,14 @@ private fun NextEpisodeCountdown(
 
 @Composable
 private fun EpisodePoster(poster: String, number: Int, title: String, brandColor: Color) {
+    val deviceClass = LocalDeviceClass.current
+    val isMediatek = LocalIsMediatek.current
     if (poster.isNotEmpty()) {
         AsyncImage(
             model = ImageRequest.Builder(LocalContext.current)
                 .data(poster)
                 .size(80, 120)
+                .deviceImage(deviceClass, isMediatek)
                 .build(),
             contentDescription = null,
             modifier = Modifier
@@ -524,6 +548,89 @@ private fun SeekIndicator(
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeldSeekProgress(
+    brandColor: Color,
+    direction: SeekDirection,
+    positionMs: Long,
+    durationMs: Long,
+    modifier: Modifier = Modifier
+) {
+    val seekStep = SEEK_STEP_MS
+    val targetMs = when (direction) {
+        SeekDirection.Forward -> (positionMs + seekStep).coerceAtMost(durationMs)
+        SeekDirection.Backward -> (positionMs - seekStep).coerceAtLeast(0L)
+    }
+    val targetProgress = if (durationMs > 0) targetMs.toFloat() / durationMs.toFloat() else 0f
+
+    Box(
+        modifier = modifier
+            .background(Color(0x66000000), RoundedCornerShape(16.dp))
+            .padding(horizontal = 32.dp, vertical = 24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = when (direction) {
+                    SeekDirection.Forward -> "+10"
+                    SeekDirection.Backward -> "-10"
+                },
+                color = brandColor,
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp
+            )
+            Spacer(Modifier.height(12.dp))
+            Canvas(
+                modifier = Modifier
+                    .width(200.dp)
+                    .height(6.dp)
+            ) {
+                val w = size.width
+                val h = size.height
+                val barHeight = 4.dp.toPx()
+                val barY = (h - barHeight) / 2f
+                val corner = CornerRadius(barHeight / 2)
+
+                drawRoundRect(
+                    color = Color.Gray.copy(alpha = 0.4f),
+                    topLeft = Offset(0f, barY),
+                    size = Size(w, barHeight),
+                    cornerRadius = corner
+                )
+                val currentProgress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.6f),
+                    topLeft = Offset(0f, barY),
+                    size = Size(w * currentProgress.coerceIn(0f, 1f), barHeight),
+                    cornerRadius = corner
+                )
+                drawRoundRect(
+                    color = brandColor,
+                    topLeft = Offset(0f, barY),
+                    size = Size(w * targetProgress.coerceIn(0f, 1f), barHeight),
+                    cornerRadius = corner
+                )
+                val thumbX = (w * targetProgress.coerceIn(0f, 1f))
+                val thumbRadius = 5.dp.toPx()
+                drawCircle(
+                    color = brandColor,
+                    radius = thumbRadius,
+                    center = Offset(thumbX, h / 2f)
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "${formatTime(positionMs)} → ${formatTime(targetMs)}",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp
             )
         }
     }

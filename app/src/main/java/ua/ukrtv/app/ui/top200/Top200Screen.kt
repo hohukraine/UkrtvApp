@@ -69,6 +69,7 @@ fun Top200Screen(
     LaunchedEffect(Unit) {
         delay(600)
         isBackReady = true
+        withFrameNanos { }
         listFocusRequester.requestFocus()
     }
 
