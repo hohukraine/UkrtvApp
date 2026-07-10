@@ -69,6 +69,7 @@ fun HomeScreen(
     val rawWatchlist by viewModel.watchlist.collectAsState()
     val rawBannerMovies by viewModel.banner.collectAsState()
     val top200Banners by viewModel.top200.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
 
     val currentProviderId by viewModel.currentProviderId.collectAsState()
     val brandColorLong by viewModel.brandColor.collectAsState()
@@ -96,7 +97,6 @@ fun HomeScreen(
         viewModel.navigateToSearch.collect { query -> onSearchQueryClick(query) }
     }
 
-    val isLoading = bannerMovies.isEmpty() && grid.isEmpty() && top200Banners.isEmpty()
     val context = LocalContext.current
     val onMovieFocused = remember { { movie: Movie -> viewModel.onMovieFocused(movie, context) } }
     val onDismiss = remember { { movie: Movie -> viewModel.dismissContinueWatching(movie) } }

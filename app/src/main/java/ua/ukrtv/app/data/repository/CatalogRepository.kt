@@ -42,19 +42,20 @@ class CatalogRepository @Inject constructor(
     }
 
     private suspend fun importFromAssetIfEmpty() {
+        _state.value = _state.value.copy(isBuilding = true, progress = "Importing catalog index...")
+
         try {
             val uCount = catalogDao.countByProvider("Uakino")
             val eCount = catalogDao.countByProvider("Eneyida")
             if (uCount > 1000 && eCount > 1000) {
                 _state.value = _state.value.copy(
                     uakinoReady = true, eneyidaReady = true,
-                    uakinoCount = uCount, eneyidaCount = eCount
+                    uakinoCount = uCount, eneyidaCount = eCount,
+                    isBuilding = false, progress = ""
                 )
                 return
             }
         } catch (_: Exception) { }
-
-        _state.value = _state.value.copy(isBuilding = true, progress = "Importing catalog index...")
 
         try {
             context.assets.open("catalog_index.json").use { stream ->

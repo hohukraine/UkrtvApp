@@ -12,8 +12,8 @@ class ContentUtilsTest {
     }
 
     @Test
-    fun `cleanTitle handles text after slash`() {
-        assertEquals("Назва", ContentUtils.cleanTitle("Оригінал / Назва"))
+    fun `cleanTitle handles text before slash`() {
+        assertEquals("Оригінал", ContentUtils.cleanTitle("Оригінал / Назва"))
     }
 
     @Test

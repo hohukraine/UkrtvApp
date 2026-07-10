@@ -74,6 +74,9 @@ class HomeViewModel @Inject constructor(
 
     private val _retryTrigger = MutableStateFlow(0L)
 
+    private val _isLoading = MutableStateFlow(true)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
     private var cachedColor: Long = 0xFF6E85B7
 
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -103,6 +106,7 @@ class HomeViewModel @Inject constructor(
                     emit(emptyList())
                 }
         }
+        .onEach { if (it.isNotEmpty()) _isLoading.value = false }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private var stableTrending: List<Movie> = emptyList()

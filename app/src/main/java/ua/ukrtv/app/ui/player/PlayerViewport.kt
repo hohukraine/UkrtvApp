@@ -37,7 +37,6 @@ fun PlayerReadyContent(
     playButtonFocusRequester: FocusRequester,
     isShowingControls: Boolean,
     brandColor: Color = BrandBlue,
-    heldSeekDir: SeekDirection? = null,
     onSeek: (Long) -> Unit
 ) {
     var endedCountdown by remember { mutableStateOf<Int?>(null) }
@@ -221,16 +220,10 @@ fun PlayerReadyContent(
                 onSeek = { ratio -> player.seekTo((ratio * player.duration).toLong()) },
                 hasEpisodes = hasEpisodes,
                 hasNextEpisode = viewModel.hasNextEpisode(),
-                hasPreviousEpisode = viewModel.hasPreviousEpisode(),
                 onNextEpisode = {
                     viewModel.saveProgress(currentPosition, duration)
                     viewModel.navigateToNextEpisode()
                 },
-                onPreviousEpisode = {
-                    viewModel.saveProgress(currentPosition, duration)
-                    viewModel.navigateToPreviousEpisode()
-                },
-                heldSeekDir = heldSeekDir,
                 season = playerState.currentSeason,
                 episode = playerState.currentEpisode,
                 showSeasonEpisode = !allEpisodesAreOne,
