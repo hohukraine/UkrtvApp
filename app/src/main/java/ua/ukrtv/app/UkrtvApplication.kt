@@ -2,6 +2,7 @@ package ua.ukrtv.app
 
 import android.app.ActivityManager
 import android.app.Application
+import android.content.Context
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.StrictMode
@@ -15,10 +16,16 @@ import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.util.AppLogger
+import ua.ukrtv.app.util.DeviceClass
+import ua.ukrtv.app.util.getDeviceClass
+import ua.ukrtv.app.util.hasMediatekChipset
 import ua.ukrtv.app.util.CrashReporter
 import androidx.lifecycle.ProcessLifecycleOwner
 import javax.inject.Inject
@@ -40,9 +47,6 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
 
     @Inject
     lateinit var htmlHttpClient: Lazy<ua.ukrtv.app.data.network.HtmlHttpClient>
-
-    @Inject
-    lateinit var networkMonitor: Lazy<ua.ukrtv.app.util.NetworkMonitor>
 
     private var imageLoader: ImageLoader? = null
 
@@ -69,18 +73,28 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
                 )
             }, 5000)
         }
-        CoroutineScope(Dispatchers.IO).launch {
-            Coil.imageLoader(this@UkrtvApplication)
-        }
-
+        val prewarmScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             androidx.lifecycle.LifecycleEventObserver { _, event ->
                 when (event) {
                     androidx.lifecycle.Lifecycle.Event.ON_START -> {
                         AppLogger.d("ProcessLifecycle", "App moved to foreground (since class load: ${(System.nanoTime() - appStartTime) / 1_000_000}ms)")
+                        htmlHttpClient.get().restart()
+                        prewarmScope.launch {
+                            delay(2000)
+                            try {
+                                val provider = providerManager.get().activeProvider.value
+                                contentRepository.get().getHomeGrid(provider).firstOrNull()
+                                AppLogger.d("Prewarm", "HomeCache prewarm completed for ${provider.name}")
+                            } catch (_: Exception) { }
+                        }
                     }
                     androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
                         AppLogger.d("ProcessLifecycle", "App moved to background")
+                        prewarmScope.launch {
+                            htmlHttpClient.get().shutdown()
+                            imageLoader?.memoryCache?.clear()
+                        }
                     }
                     else -> {}
                 }
@@ -97,48 +111,66 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
     }
 
     override fun newImageLoader(): ImageLoader {
-        val memClass = (getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass
-        val maxHeapBytes = memClass * 1024L * 1024L
-        val adaptiveSize = when {
-            memClass <= 128 -> (maxHeapBytes * 0.08).toInt()
-            memClass <= 256 -> (maxHeapBytes * 0.12).toInt()
-            else -> (maxHeapBytes * 0.15).toInt()
-        }
-        val diskCacheSize = when {
-            memClass <= 96 -> 32L * 1024 * 1024
-            memClass <= 192 -> 64L * 1024 * 1024
-            memClass <= 384 -> 128L * 1024 * 1024
-            else -> 192L * 1024 * 1024
-        }
+        val hardware = getDeviceClass(this)
+        return buildImageLoader(this, hardware, hasMediatekChipset(), reuseCurrent = false)
+    }
 
-        return ImageLoader.Builder(this)
+    fun applyImageLoaderFor(deviceClass: DeviceClass, isMediatek: Boolean) {
+        Coil.setImageLoader(buildImageLoader(this, deviceClass, isMediatek, reuseCurrent = true))
+    }
+
+    private fun buildImageLoader(
+        context: Context,
+        deviceClass: DeviceClass,
+        isMediatek: Boolean,
+        reuseCurrent: Boolean
+    ): ImageLoader {
+        val memClass = (context.getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass
+        val maxHeapBytes = memClass * 1024L * 1024L
+        val memPct = when (deviceClass) {
+            DeviceClass.LOW -> 0.08
+            DeviceClass.MID -> 0.12
+            DeviceClass.HIGH -> 0.15
+        }
+        val adaptiveSize = (maxHeapBytes * memPct).toInt()
+        val diskCacheSize = when (deviceClass) {
+            DeviceClass.LOW -> 32L * 1024 * 1024
+            DeviceClass.MID -> 64L * 1024 * 1024
+            DeviceClass.HIGH -> 128L * 1024 * 1024
+        }
+        val allowHardware = deviceClass != DeviceClass.LOW && !isMediatek
+
+        return ImageLoader.Builder(context)
             .okHttpClient(okHttpClient)
             .memoryCache {
-                MemoryCache.Builder(this)
+                MemoryCache.Builder(context)
                     .maxSizeBytes(adaptiveSize)
-                    .strongReferencesEnabled(memClass > 128)
-                    .weakReferencesEnabled(true)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
-                    .directory(this.cacheDir.resolve("image_cache"))
+                    .directory(context.cacheDir.resolve("image_cache"))
                     .maxSizeBytes(diskCacheSize)
                     .build()
             }
             .allowRgb565(true)
             .bitmapConfig(Bitmap.Config.RGB_565)
-            .allowHardware(false)
+            .allowHardware(allowHardware)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
-            .crossfade(false)
+            .crossfade(true)
             .respectCacheHeaders(true)
             .build()
-            .also { imageLoader = it }
+            .also { if (reuseCurrent) imageLoader = it }
     }
 
+    @Suppress("DEPRECATION")
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
+        if (level >= TRIM_MEMORY_UI_HIDDEN) {
+            htmlHttpClient.get().shutdown()
+            imageLoader?.memoryCache?.clear()
+        }
         if (level >= TRIM_MEMORY_RUNNING_LOW) {
             imageLoader?.memoryCache?.clear()
             providerManager.get().clearCaches()

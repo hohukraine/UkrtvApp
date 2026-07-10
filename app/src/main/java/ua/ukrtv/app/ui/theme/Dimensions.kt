@@ -37,6 +37,7 @@ object GridDefaults {
 object HeroDefaults {
     val height = 340.dp
     val bottomFadeHeight = 160.dp
+    val softFadeHeight = 320.dp
     val horizontalPadding = 56.dp
 }
 

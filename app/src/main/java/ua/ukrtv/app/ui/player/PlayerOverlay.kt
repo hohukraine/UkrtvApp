@@ -50,6 +50,8 @@ import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 
 
 import androidx.compose.ui.layout.ContentScale
@@ -72,11 +74,16 @@ fun PlayerOverlay(
     onSeekForward: () -> Unit,
     onSeek: (Float) -> Unit,
     hasEpisodes: Boolean = false,
+    hasNextEpisode: Boolean = false,
+    hasPreviousEpisode: Boolean = false,
+    onNextEpisode: () -> Unit = {},
+    onPreviousEpisode: () -> Unit = {},
     nextCountdown: Int? = null,
     countdownEpisode: Episode? = null,
     countdownSeason: Int? = null,
     season: Int? = null,
     episode: Int? = null,
+    showSeasonEpisode: Boolean = true,
     voiceover: String? = null,
     pickerColumns: List<PickerColumn> = emptyList(),
     pickerFocusedIndex: Int = 0,
@@ -85,6 +92,7 @@ fun PlayerOverlay(
     onPickerCommit: () -> Unit = {},
     brandColor: Color = BrandBlue,
     playFocusRequester: FocusRequester = FocusRequester(),
+    heldSeekDir: SeekDirection? = null,
     modifier: Modifier = Modifier
 ) {
     val progress by remember(positionMs, durationMs) {
@@ -137,6 +145,22 @@ fun PlayerOverlay(
                     )
             )
 
+            if (heldSeekDir != null) {
+                AnimatedVisibility(
+                    visible = true,
+                    enter = fadeIn(tween(150, easing = LinearEasing)),
+                    exit = fadeOut(tween(150, easing = LinearEasing))
+                ) {
+                    HeldSeekProgress(
+                        brandColor = brandColor,
+                        direction = heldSeekDir,
+                        positionMs = positionMs,
+                        durationMs = durationMs,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            }
+
             AnimatedVisibility(
                 visible = visible,
                 enter = fadeIn(tween(300, easing = LinearEasing)),
@@ -159,6 +183,7 @@ fun PlayerOverlay(
                     title = title,
                     season = season,
                     episode = episode,
+                    showSeasonEpisode = showSeasonEpisode,
                     voiceover = voiceover,
                     modifier = Modifier.align(Alignment.TopStart)
                 )
@@ -196,6 +221,10 @@ fun PlayerOverlay(
                     nextCountdown = nextCountdown,
                     countdownEpisode = countdownEpisode,
                     hasEpisodes = hasEpisodes,
+                    hasNextEpisode = hasNextEpisode,
+                    hasPreviousEpisode = hasPreviousEpisode,
+                    onNextEpisode = onNextEpisode,
+                    onPreviousEpisode = onPreviousEpisode,
                     playFocusRequester = playFocusRequester,
                     onPlayPauseToggle = onPlayPauseToggle,
                     onSeekBackward = { onSeekWithIndicator(false) },
@@ -210,7 +239,7 @@ fun PlayerOverlay(
         }
     }
 
-private enum class SeekDirection { Forward, Backward }
+enum class SeekDirection { Forward, Backward }
 
 @Composable
 private fun PlayerOverlayTitle(
@@ -218,6 +247,7 @@ private fun PlayerOverlayTitle(
     title: String,
     season: Int?,
     episode: Int?,
+    showSeasonEpisode: Boolean = true,
     voiceover: String?,
     modifier: Modifier = Modifier
 ) {
@@ -233,13 +263,13 @@ private fun PlayerOverlayTitle(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        if (season != null && episode != null || !voiceover.isNullOrEmpty()) {
+        if (showSeasonEpisode && season != null && episode != null || !voiceover.isNullOrEmpty()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.padding(top = 8.dp)
             ) {
-                if (season != null && episode != null) {
+                if (showSeasonEpisode && season != null && episode != null) {
                     SeasonEpisodeBadge(season = season, episode = episode, brandColor = brandColor)
                 }
                 if (!voiceover.isNullOrEmpty()) {
@@ -289,6 +319,10 @@ private fun BottomControls(
     nextCountdown: Int?,
     countdownEpisode: Episode?,
     hasEpisodes: Boolean,
+    hasNextEpisode: Boolean,
+    hasPreviousEpisode: Boolean,
+    onNextEpisode: () -> Unit,
+    onPreviousEpisode: () -> Unit,
     playFocusRequester: FocusRequester,
     onPlayPauseToggle: () -> Unit,
     onSeekBackward: () -> Unit,
@@ -327,19 +361,43 @@ private fun BottomControls(
                 modifier = Modifier.size(56.dp)
             )
 
-            NetflixButton(
-                brandColor = brandColor,
-                icon = Icons.Default.Replay10,
-                contentDescription = "Назад 10 секунд",
-                onClick = onSeekBackward
-            )
+            if (hasEpisodes) {
+                if (hasPreviousEpisode) {
+                    NetflixButton(
+                        brandColor = brandColor,
+                        icon = Icons.Default.SkipPrevious,
+                        contentDescription = "Попередня серія",
+                        onClick = onPreviousEpisode
+                    )
+                } else {
+                    Spacer(Modifier.size(48.dp))
+                }
 
-            NetflixButton(
-                brandColor = brandColor,
-                icon = Icons.Default.Forward10,
-                contentDescription = "Вперед 10 секунд",
-                onClick = onSeekForward
-            )
+                if (hasNextEpisode) {
+                    NetflixButton(
+                        brandColor = brandColor,
+                        icon = Icons.Default.SkipNext,
+                        contentDescription = "Наступна серія",
+                        onClick = onNextEpisode
+                    )
+                } else {
+                    Spacer(Modifier.size(48.dp))
+                }
+            } else {
+                NetflixButton(
+                    brandColor = brandColor,
+                    icon = Icons.Default.Replay10,
+                    contentDescription = "Назад 10 секунд",
+                    onClick = onSeekBackward
+                )
+
+                NetflixButton(
+                    brandColor = brandColor,
+                    icon = Icons.Default.Forward10,
+                    contentDescription = "Вперед 10 секунд",
+                    onClick = onSeekForward
+                )
+            }
 
             if (pickerColumns.isNotEmpty()) {
                 PlayerPickerRow(
@@ -403,7 +461,6 @@ private fun EpisodePoster(poster: String, number: Int, title: String, brandColor
             model = ImageRequest.Builder(LocalContext.current)
                 .data(poster)
                 .size(80, 120)
-                .crossfade(false)
                 .build(),
             contentDescription = null,
             modifier = Modifier
@@ -499,6 +556,89 @@ private fun SeekIndicator(
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 2.sp
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeldSeekProgress(
+    brandColor: Color,
+    direction: SeekDirection,
+    positionMs: Long,
+    durationMs: Long,
+    modifier: Modifier = Modifier
+) {
+    val seekStep = SEEK_STEP_MS
+    val targetMs = when (direction) {
+        SeekDirection.Forward -> (positionMs + seekStep).coerceAtMost(durationMs)
+        SeekDirection.Backward -> (positionMs - seekStep).coerceAtLeast(0L)
+    }
+    val targetProgress = if (durationMs > 0) targetMs.toFloat() / durationMs.toFloat() else 0f
+
+    Box(
+        modifier = modifier
+            .background(Color(0x66000000), RoundedCornerShape(16.dp))
+            .padding(horizontal = 32.dp, vertical = 24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = when (direction) {
+                    SeekDirection.Forward -> "+10"
+                    SeekDirection.Backward -> "-10"
+                },
+                color = brandColor,
+                fontSize = 48.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 2.sp
+            )
+            Spacer(Modifier.height(12.dp))
+            Canvas(
+                modifier = Modifier
+                    .width(200.dp)
+                    .height(6.dp)
+            ) {
+                val w = size.width
+                val h = size.height
+                val barHeight = 4.dp.toPx()
+                val barY = (h - barHeight) / 2f
+                val corner = CornerRadius(barHeight / 2)
+
+                drawRoundRect(
+                    color = Color.Gray.copy(alpha = 0.4f),
+                    topLeft = Offset(0f, barY),
+                    size = Size(w, barHeight),
+                    cornerRadius = corner
+                )
+                val currentProgress = if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
+                drawRoundRect(
+                    color = Color.White.copy(alpha = 0.6f),
+                    topLeft = Offset(0f, barY),
+                    size = Size(w * currentProgress.coerceIn(0f, 1f), barHeight),
+                    cornerRadius = corner
+                )
+                drawRoundRect(
+                    color = brandColor,
+                    topLeft = Offset(0f, barY),
+                    size = Size(w * targetProgress.coerceIn(0f, 1f), barHeight),
+                    cornerRadius = corner
+                )
+                val thumbX = (w * targetProgress.coerceIn(0f, 1f))
+                val thumbRadius = 5.dp.toPx()
+                drawCircle(
+                    color = brandColor,
+                    radius = thumbRadius,
+                    center = Offset(thumbX, h / 2f)
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "${formatTime(positionMs)} → ${formatTime(targetMs)}",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp
             )
         }
     }

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.data.repository.WatchProgressRepository
 import ua.ukrtv.app.data.streaming.StreamResolver
 import ua.ukrtv.app.domain.model.Season
@@ -37,7 +38,8 @@ class PlayerViewModel @Inject constructor(
     private val playerFactory: PlayerFactory,
     private val thermalMonitor: ThermalMonitor,
     private val warmupManager: PlayerWarmupManager,
-    private val audioEngine: AudioEngine
+    private val audioEngine: AudioEngine,
+    private val providerManager: ProviderManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PlayerState())
@@ -55,6 +57,7 @@ class PlayerViewModel @Inject constructor(
     private var episodeId: String? = null
     private var voiceover: String? = null
     private var retryCount: Int = 0
+    private var crossProviderRetried = false
     private var availableStreams: MutableList<String> = mutableListOf()
     private var currentStreamIndex: Int = 0
     private var seasons: List<Season>? = null
@@ -108,6 +111,7 @@ class PlayerViewModel @Inject constructor(
         this.episode = episode
         this.episodeId = if (season != null && episode != null) "s${season}e${episode}" else null
         selectedCodecMime = null
+        crossProviderRetried = false
 
         updateNavigationState()
 
@@ -143,7 +147,7 @@ class PlayerViewModel @Inject constructor(
                     initPickerColumns()
                     launchDeepResolution()
                 } else {
-                    _state.update { it.copy(status = PlayerStatus.Error(appContext.getString(ua.ukrtv.app.R.string.video_not_found))) }
+                    searchAndResolveOnAlternateProvider(url, subtitle)
                 }
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
@@ -249,6 +253,10 @@ class PlayerViewModel @Inject constructor(
 
         val seasons = _state.value.availableSeasons
         if (seasons != null && seasons.isNotEmpty()) {
+            val allEpisodesAreOne = seasons.all { season ->
+                season.episodes.all { it.number <= 1 }
+            }
+
             if (pendingSeason == null) pendingSeason = this.season ?: seasons.first().number
             val sNum = pendingSeason!!
             val currentSeasonData = seasons.find { it.number == sNum } ?: seasons.first()
@@ -262,19 +270,21 @@ class PlayerViewModel @Inject constructor(
                 pendingVoiceover = this.voiceover.takeIf { it != null && voOptions.contains(it) } ?: voOptions.firstOrNull()
             }
 
-            cols.add(PickerColumn(
-                id = "season",
-                label = "СЕЗОН",
-                value = sNum.toString(),
-                needsCommit = true
-            ))
+            if (!allEpisodesAreOne) {
+                cols.add(PickerColumn(
+                    id = "season",
+                    label = "СЕЗОН",
+                    value = sNum.toString(),
+                    needsCommit = true
+                ))
 
-            cols.add(PickerColumn(
-                id = "episode",
-                label = "СЕРІЯ",
-                value = eNum.toString(),
-                needsCommit = true
-            ))
+                cols.add(PickerColumn(
+                    id = "episode",
+                    label = "СЕРІЯ",
+                    value = eNum.toString(),
+                    needsCommit = true
+                ))
+            }
 
             if (voOptions.size > 1) {
                 val vo = pendingVoiceover ?: voOptions.first()
@@ -458,6 +468,17 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun onPlayerError(error: PlaybackException) {
+        if (PlaybackErrorHandler.isFatalCodecDeath(error)) {
+            AppLogger.w("PickerVM", "Fatal codec death, skipping retries: ${error.message}")
+            if (!crossProviderRetried) {
+                crossProviderRetried = true
+                retryCount = 0
+                viewModelScope.launch { searchAndResolveOnAlternateProvider(pageUrl, subtitle) }
+                return
+            }
+            _state.update { it.copy(status = PlayerStatus.Error("Кодек відтворення недоступний. Спробуйте пізніше.")) }
+            return
+        }
         if (selectedCodecMime != null && PlaybackErrorHandler.isDecodingError(error)) {
             selectedCodecMime = null
             player?.let { p ->
@@ -483,7 +504,50 @@ class PlayerViewModel @Inject constructor(
             loadStream(pageUrl, this.subtitle)
             return
         }
+        if (!crossProviderRetried &&
+            (PlaybackErrorHandler.isBlockedStream(error) || PlaybackErrorHandler.isNotFound(error) || currentStreamIndex >= availableStreams.size - 1)
+        ) {
+            crossProviderRetried = true
+            retryCount = 0
+            viewModelScope.launch { searchAndResolveOnAlternateProvider(pageUrl, subtitle) }
+            return
+        }
         _state.update { it.copy(status = PlayerStatus.Error(PlaybackErrorHandler.getUserMessage(error))) }
+    }
+
+    private suspend fun searchAndResolveOnAlternateProvider(originalUrl: String, subtitle: String) {
+        val targetName = if (originalUrl.contains("uakino")) "Eneyida" else "Uakino"
+        AppLogger.d("PickerVM", "Trying $targetName fallback for $title")
+        try {
+            val other = providerManager.availableProviders.find { it.name == targetName } ?: run {
+                _state.update { it.copy(status = PlayerStatus.Error(appContext.getString(ua.ukrtv.app.R.string.video_not_found))) }
+                return
+            }
+            val results = other.search(title, limit = 5)
+            val match = results.firstOrNull()
+            if (match != null) {
+                val res = streamResolver.resolve(match.url, season = season, episode = episode, voiceover = voiceover, isDeep = false)
+                if (res != null) {
+                    availableStreams = (listOf(res.streamUrl) + res.fallbackStreams).distinct().toMutableList()
+                    referer = res.referer
+                    if (res.seasons != null) seasons = res.seasons
+                    val pos = getSavedPosition()
+                    _state.update { it.copy(
+                        status = PlayerStatus.Ready(res.streamUrl, title, subtitle, pos, res.referer, res.streamType),
+                        availableSeasons = seasons
+                    ) }
+                    updateNavigationState()
+                    initPickerColumns()
+                    launchDeepResolution()
+                    return
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.e("PickerVM", "$targetName fallback error for $title", e)
+        }
+        _state.update { it.copy(status = PlayerStatus.Error(appContext.getString(ua.ukrtv.app.R.string.video_not_found))) }
     }
 
     fun prepareNextEpisode(): Boolean {

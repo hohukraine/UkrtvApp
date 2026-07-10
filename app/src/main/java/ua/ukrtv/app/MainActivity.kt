@@ -4,10 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.animation.AnimatedVisibilityScope
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,8 +22,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.tv.material3.Surface
 import androidx.tv.material3.SurfaceDefaults
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
-import ua.ukrtv.app.data.repository.ContentRepository
 import ua.ukrtv.app.navigation.AppNavigation
 import ua.ukrtv.app.util.AppLogger
 import javax.inject.Inject
@@ -37,12 +31,15 @@ import ua.ukrtv.app.ui.search.SearchScreen
 import ua.ukrtv.app.ui.player.PlayerScreen
 import ua.ukrtv.app.ui.settings.SettingsScreen
 import ua.ukrtv.app.ui.top200.Top200Screen
+import ua.ukrtv.app.ui.trends.FullTrendsGridScreen
+import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.UkrtvTheme
-import ua.ukrtv.app.domain.model.Top200Movie
+import ua.ukrtv.app.util.DeviceClass
+import ua.ukrtv.app.util.PerformancePreferences
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    @Inject lateinit var contentRepository: ContentRepository
+    @Inject lateinit var performancePreferences: PerformancePreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val t0 = System.nanoTime()
@@ -54,8 +51,8 @@ class MainActivity : ComponentActivity() {
             AppLogger.d("Startup", "Activity super.onCreate: ${(System.nanoTime() - t0) / 1_000_000}ms")
         }
         setContent {
-            UkrtvTheme {
-                UkrtvTVApp(contentRepository = contentRepository)
+            UkrtvTheme(performancePreferences = performancePreferences) {
+                UkrtvTVApp()
             }
         }
         if (ua.ukrtv.app.BuildConfig.DEBUG) {
@@ -72,6 +69,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        window.decorView.keepScreenOn = true
+    }
+
+    override fun onStop() {
+        super.onStop()
+        window.decorView.keepScreenOn = false
+    }
+
     override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
         if (keyCode == android.view.KeyEvent.KEYCODE_MENU) {
             ua.ukrtv.app.util.AppLogger.d("MainActivity", "Menu button pressed - Quick Settings trigger")
@@ -81,9 +88,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class, UnstableApi::class)
+@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun UkrtvTVApp(contentRepository: ContentRepository) {
+fun UkrtvTVApp() {
     val navController = rememberNavController()
 
     val onMovieClick = remember(navController) {
@@ -112,117 +119,120 @@ fun UkrtvTVApp(contentRepository: ContentRepository) {
         { navController.navigate(AppNavigation.searchRoute()) }
     }
 
+    val deviceClass = LocalDeviceClass.current
+    val navEnterDur = remember(deviceClass) {
+        when (deviceClass) { DeviceClass.LOW -> 0; DeviceClass.MID -> 200; DeviceClass.HIGH -> 400 }
+    }
+    val navExitDur = remember(deviceClass) {
+        when (deviceClass) { DeviceClass.LOW -> 0; DeviceClass.MID -> 200; DeviceClass.HIGH -> 300 }
+    }
+
     Surface(
         modifier = Modifier.fillMaxSize(),
         colors = SurfaceDefaults.colors(containerColor = Color.Transparent)
     ) {
-        SharedTransitionLayout {
-            val sts = this
-            NavHost(
-                navController = navController,
-                startDestination = AppNavigation.HOME,
-                enterTransition = { fadeIn(animationSpec = tween(300)) },
-                exitTransition = { fadeOut(animationSpec = tween(300)) },
-                popEnterTransition = { fadeIn(animationSpec = tween(300)) },
-                popExitTransition = { fadeOut(animationSpec = tween(200)) }
+        NavHost(
+            navController = navController,
+            startDestination = AppNavigation.HOME,
+            enterTransition = { fadeIn(animationSpec = tween(navEnterDur)) },
+            exitTransition = { fadeOut(animationSpec = tween(navExitDur)) },
+            popEnterTransition = { fadeIn(animationSpec = tween(navEnterDur)) },
+            popExitTransition = { fadeOut(animationSpec = tween(navExitDur)) }
+        ) {
+            composable(AppNavigation.HOME) {
+                HomeScreen(
+                    onMovieClick = onMovieClick,
+                    onContinueWatchingClick = onContinueWatchingClick,
+                    onSearchClick = onSearchClick,
+                    onSearchQueryClick = { query -> navController.navigate(AppNavigation.searchRoute(query)) },
+                    onTop200Click = { navController.navigate(AppNavigation.TOP_200) },
+                    onSeeAllTrendsClick = { navController.navigate(AppNavigation.TRENDS_GRID) },
+                    onSettingsClick = { navController.navigate(AppNavigation.SETTINGS) }
+                )
+            }
+            composable(AppNavigation.TOP_200) {
+                Top200Screen(
+                    onMovieClick = { movie ->
+                        navController.navigate(AppNavigation.searchRoute(movie.originalTitle.ifEmpty { movie.title }))
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = AppNavigation.SEARCH,
+                arguments = listOf(navArgument("q") { type = NavType.StringType; defaultValue = "" })
             ) {
-                composable(AppNavigation.HOME) {
-                    HomeScreen(
-                        onMovieClick = onMovieClick,
-                        onContinueWatchingClick = onContinueWatchingClick,
-                        onSearchClick = onSearchClick,
-                        onSearchQueryClick = { query -> navController.navigate(AppNavigation.searchRoute(query)) },
-                        onTop200Click = { navController.navigate(AppNavigation.TOP_200) },
-                        sharedTransitionScope = sts,
-                        animatedVisibilityScope = this
-                    )
-                }
-                composable(AppNavigation.TOP_200) {
-                    val scope = rememberCoroutineScope()
-                    Top200Screen(
-                        onMovieClick = { movie ->
-                            scope.launch {
-                                val resolved = contentRepository.resolveTop200(movie)
-                                if (resolved != null) {
-                                    navController.navigate(AppNavigation.detailRoute(resolved.id, resolved.pageUrl))
-                                } else {
-                                    navController.navigate(AppNavigation.searchRoute(movie.title))
-                                }
-                            }
-                        },
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable(
-                    route = AppNavigation.SEARCH,
-                    arguments = listOf(navArgument("q") { type = NavType.StringType; defaultValue = "" })
-                ) {
-                    SearchScreen(
-                        onMovieClick = { movie ->
-                            navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
-                        }
-                    )
-                }
-                composable(
-                    route = AppNavigation.DETAIL,
-                    arguments = listOf(
-                        navArgument("id") { type = NavType.StringType },
-                        navArgument("url") { type = NavType.StringType }
-                    )
-                ) {
-                    DetailScreen(
-                        onPlayClick = { launchState ->
-                            if (launchState is ua.ukrtv.app.domain.model.MediaLaunchState.Ready) {
-                                navController.navigate(
-                                    AppNavigation.playerRoute(
-                                        launchState.contentId,
-                                        launchState.title,
-                                        url = launchState.streamResult.sourcePageUrl,
-                                        poster = launchState.posterUrl,
-                                        season = launchState.season,
-                                        episode = launchState.episode
-                                    )
+                SearchScreen(
+                    onMovieClick = { movie ->
+                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
+                    }
+                )
+            }
+            composable(
+                route = AppNavigation.DETAIL,
+                arguments = listOf(
+                    navArgument("id") { type = NavType.StringType },
+                    navArgument("url") { type = NavType.StringType }
+                )
+            ) {
+                DetailScreen(
+                    onPlayClick = { launchState ->
+                        if (launchState is ua.ukrtv.app.domain.model.MediaLaunchState.Ready) {
+                            navController.navigate(
+                                AppNavigation.playerRoute(
+                                    launchState.contentId,
+                                    launchState.title,
+                                    url = launchState.streamResult.sourcePageUrl,
+                                    poster = launchState.posterUrl,
+                                    season = launchState.season,
+                                    episode = launchState.episode
                                 )
-                            }
-                        },
-                        onBackClick = { navController.popBackStack() },
-                        sharedTransitionScope = sts,
-                        animatedVisibilityScope = this
-                    )
-                }
-                composable(AppNavigation.SETTINGS) {
-                    SettingsScreen(
-                        onBack = { navController.popBackStack() }
-                    )
-                }
-                composable(
-                    route = AppNavigation.PLAYER,
-                    arguments = listOf(
-                        navArgument("id") { type = NavType.StringType },
-                        navArgument("title") { type = NavType.StringType },
-                        navArgument("url") { type = NavType.StringType },
-                        navArgument("season") { type = NavType.IntType; defaultValue = -1 },
-                        navArgument("episode") { type = NavType.IntType; defaultValue = -1 },
-                        navArgument("poster") { type = NavType.StringType; defaultValue = "" }
-                    )
-                ) { backStackEntry ->
-                    val id = backStackEntry.arguments?.getString("id") ?: ""
-                    val title = backStackEntry.arguments?.getString("title") ?: ""
-                    val url = backStackEntry.arguments?.getString("url") ?: ""
-                    val poster = backStackEntry.arguments?.getString("poster") ?: ""
-                    val season = backStackEntry.arguments?.getInt("season")?.takeIf { it != -1 }
-                    val episode = backStackEntry.arguments?.getInt("episode")?.takeIf { it != -1 }
+                            )
+                        }
+                    },
+                    onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable(AppNavigation.TRENDS_GRID) {
+                FullTrendsGridScreen(
+                    onMovieClick = { movie: ua.ukrtv.app.domain.model.Movie ->
+                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(AppNavigation.SETTINGS) {
+                SettingsScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = AppNavigation.PLAYER,
+                arguments = listOf(
+                    navArgument("id") { type = NavType.StringType },
+                    navArgument("title") { type = NavType.StringType },
+                    navArgument("url") { type = NavType.StringType },
+                    navArgument("season") { type = NavType.IntType; defaultValue = -1 },
+                    navArgument("episode") { type = NavType.IntType; defaultValue = -1 },
+                    navArgument("poster") { type = NavType.StringType; defaultValue = "" }
+                )
+            ) { backStackEntry ->
+                val id = backStackEntry.arguments?.getString("id") ?: ""
+                val title = backStackEntry.arguments?.getString("title") ?: ""
+                val url = backStackEntry.arguments?.getString("url") ?: ""
+                val poster = backStackEntry.arguments?.getString("poster") ?: ""
+                val season = backStackEntry.arguments?.getInt("season")?.takeIf { it != -1 }
+                val episode = backStackEntry.arguments?.getInt("episode")?.takeIf { it != -1 }
 
-                    PlayerScreen(
-                        url = url,
-                        contentId = id,
-                        title = title,
-                        poster = poster,
-                        season = season,
-                        episode = episode,
-                        onBack = { navController.popBackStack() }
-                    )
-                }
+                PlayerScreen(
+                    url = url,
+                    contentId = id,
+                    title = title,
+                    poster = poster,
+                    season = season,
+                    episode = episode,
+                    onBack = { navController.popBackStack() }
+                )
             }
         }
     }

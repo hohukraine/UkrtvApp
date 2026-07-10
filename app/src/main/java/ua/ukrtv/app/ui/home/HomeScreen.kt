@@ -1,25 +1,28 @@
 package ua.ukrtv.app.ui.home
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -30,12 +33,21 @@ import kotlinx.coroutines.launch
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.domain.model.Top200Movie
-import ua.ukrtv.app.ui.components.ShimmerBox
+import ua.ukrtv.app.util.DeviceClass
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Text
+import androidx.tv.material3.Button
+import androidx.tv.material3.ButtonDefaults
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import ua.ukrtv.app.ui.home.components.ContentRow
 import ua.ukrtv.app.ui.home.components.HeroCarousel
 import ua.ukrtv.app.ui.home.components.Top200SignatureHero
 import ua.ukrtv.app.ui.home.components.TopBar
+import ua.ukrtv.app.ui.home.components.HomeBackground
+import ua.ukrtv.app.ui.components.ShimmerBox
 import ua.ukrtv.app.ui.theme.*
+import ua.ukrtv.app.ui.home.components.TrendsTrailingButton
 
 @Composable
 fun HomeScreen(
@@ -46,47 +58,36 @@ fun HomeScreen(
     onSearchQueryClick: (String) -> Unit = { onSearchClick() },
     onTop200Click: () -> Unit,
     onTop200ItemClick: (Top200Movie) -> Unit = {},
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedVisibilityScope: AnimatedVisibilityScope? = null
+    onSeeAllTrendsClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {}
 ) {
     val grid by viewModel.grid.collectAsState()
-    val continueWatching by viewModel.continueWatching.collectAsState()
-    val watchlist by viewModel.watchlist.collectAsState()
-    val bannerMovies by viewModel.banner.collectAsState()
+    val gridError by viewModel.gridError.collectAsState()
+    val isOnline by viewModel.isOnline.collectAsState()
+    val rawHomeTrending by viewModel.homeTrending.collectAsState()
+    val rawContinueWatching by viewModel.continueWatching.collectAsState()
+    val rawWatchlist by viewModel.watchlist.collectAsState()
+    val rawBannerMovies by viewModel.banner.collectAsState()
     val top200Banners by viewModel.top200.collectAsState()
 
-    val brandColorLong by viewModel.brandColor.collectAsState()
     val currentProviderId by viewModel.currentProviderId.collectAsState()
-    val focusedMovie by viewModel.focusedMovie.collectAsState()
+    val brandColorLong by viewModel.brandColor.collectAsState()
     val focusColor by viewModel.focusColor.collectAsState()
 
+    val deviceClass = LocalDeviceClass.current
     val bannerFocusRequester = remember { FocusRequester() }
     var activeBannerMovie by remember { mutableStateOf<Top200Movie?>(null) }
-    val gridState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
-
     val providerColor = remember(brandColorLong) { Color(brandColorLong) }
-    val activeBannerAccent = remember(activeBannerMovie?.accentColor) {
-        activeBannerMovie?.accentColor?.let {
-            try { Color(android.graphics.Color.parseColor(it)) } catch (_: Exception) { null }
-        }
-    }
 
-    val isScrolled by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.firstVisibleItemScrollOffset > 80 } }
+    val maxGridItems = remember(deviceClass) { when (deviceClass) { DeviceClass.LOW -> 8; DeviceClass.MID -> 15; DeviceClass.HIGH -> 30 } }
+    val maxContinueItems = remember(deviceClass) { when (deviceClass) { DeviceClass.LOW -> 5; DeviceClass.MID -> 10; DeviceClass.HIGH -> 20 } }
+    val maxBannerItems = remember(deviceClass) { when (deviceClass) { DeviceClass.LOW -> 3; DeviceClass.MID -> 5; DeviceClass.HIGH -> 8 } }
+    val homeTrending = remember(rawHomeTrending, maxGridItems) { rawHomeTrending.take(maxGridItems) }
+    val continueWatching = remember(rawContinueWatching, maxContinueItems) { rawContinueWatching.take(maxContinueItems) }
+    val watchlist = remember(rawWatchlist, maxContinueItems) { rawWatchlist.take(maxContinueItems) }
+    val bannerMovies = remember(rawBannerMovies, maxBannerItems) { rawBannerMovies.take(maxBannerItems) }
 
-    val ambientColor by animateColorAsState(
-        targetValue = when {
-            focusedMovie != null -> focusColor
-            !isScrolled && activeBannerAccent != null -> activeBannerAccent
-            else -> providerColor
-        },
-        animationSpec = tween(500),
-        label = "ambientColor"
-    )
-
-    JankMonitor()
-    HandleBackNavigation(gridState, bannerFocusRequester)
-    AutoRestoreFocus(bannerFocusRequester, top200Banners, bannerMovies)
+    if (ua.ukrtv.app.BuildConfig.DEBUG) JankMonitor()
 
     LaunchedEffect(Unit) {
         viewModel.navigateToDetail.collect { movie -> onMovieClick(movie) }
@@ -95,74 +96,268 @@ fun HomeScreen(
         viewModel.navigateToSearch.collect { query -> onSearchQueryClick(query) }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .drawAmbientBackground(ambientColor, providerColor)
+    val isLoading = bannerMovies.isEmpty() && grid.isEmpty() && top200Banners.isEmpty()
+    val context = LocalContext.current
+    val onMovieFocused = remember { { movie: Movie -> viewModel.onMovieFocused(movie, context) } }
+    val onDismiss = remember { { movie: Movie -> viewModel.dismissContinueWatching(movie) } }
+    val top200ItemHandler = remember { { movie: Top200Movie -> viewModel.onTop200BannerClick(movie) } }
+
+    HomeScreenContent(
+        isLoading = isLoading,
+        gridError = gridError,
+        isOnline = isOnline,
+        onRetryGrid = viewModel::retryGrid,
+        top200Banners = top200Banners,
+        bannerMovies = bannerMovies,
+        continueWatching = continueWatching,
+        watchlist = watchlist,
+        homeTrending = homeTrending,
+        activeBannerMovie = activeBannerMovie,
+        providerColor = providerColor,
+        focusColor = focusColor,
+        bannerFocusRequester = bannerFocusRequester,
+        providers = viewModel.providers,
+        currentProviderId = currentProviderId,
+        onSearchClick = onSearchClick,
+        onMovieClick = onMovieClick,
+        onContinueWatchingClick = onContinueWatchingClick,
+        onTop200ItemClick = top200ItemHandler,
+        onTop200Click = onTop200Click,
+        onMovieFocused = onMovieFocused,
+        onActiveColorChange = { viewModel.provideFocusColor(it) },
+        onDismissItem = onDismiss,
+        onActiveMovieChange = { activeBannerMovie = it },
+        onSeeAllTrendsClick = onSeeAllTrendsClick,
+        onProviderClick = viewModel::switchProvider,
+        onSettingsClick = onSettingsClick
+    )
+}
+
+@Composable
+private fun HomeScreenContent(
+    isLoading: Boolean,
+    gridError: String?,
+    isOnline: Boolean,
+    onRetryGrid: () -> Unit,
+    top200Banners: List<Top200Movie>,
+    bannerMovies: List<Movie>,
+    continueWatching: List<Movie>,
+    watchlist: List<Movie>,
+    homeTrending: List<Movie>,
+    activeBannerMovie: Top200Movie?,
+    providerColor: Color,
+    focusColor: Color,
+    bannerFocusRequester: FocusRequester,
+    providers: List<ua.ukrtv.app.domain.model.Provider>,
+    currentProviderId: String,
+    onSearchClick: () -> Unit,
+    onMovieClick: (Movie) -> Unit,
+    onContinueWatchingClick: (Movie) -> Unit,
+    onTop200ItemClick: (Top200Movie) -> Unit,
+    onTop200Click: () -> Unit,
+    onMovieFocused: (Movie) -> Unit,
+    onActiveColorChange: (Color) -> Unit,
+    onDismissItem: (Movie) -> Unit,
+    onActiveMovieChange: (Top200Movie) -> Unit,
+    onSeeAllTrendsClick: () -> Unit,
+    onProviderClick: (String) -> Unit,
+    onSettingsClick: () -> Unit = {}
+) {
+    val gridState = rememberLazyListState()
+    val density = LocalDensity.current
+    val scrollFraction by remember {
+        val hPx = with(density) { HeroDefaults.height.toPx() }
+        derivedStateOf {
+            if (gridState.firstVisibleItemIndex > 0) 1f
+            else (gridState.firstVisibleItemScrollOffset / hPx).coerceIn(0f, 1f)
+        }
+    }
+    val heroActive by remember { derivedStateOf { scrollFraction < 0.99f } }
+
+    HandleBackNavigation(gridState, bannerFocusRequester, bannerMovies, top200Banners)
+    AutoRestoreFocus(bannerFocusRequester, top200Banners, bannerMovies)
+
+    val activeBannerAccent = remember(activeBannerMovie) {
+        activeBannerMovie?.accentColor?.let {
+            try { Color(android.graphics.Color.parseColor(it)) } catch (_: Exception) { null }
+        }
+    }
+
+    HomeBackground(
+        focusedColor = focusColor,
+        brandColor = providerColor,
+        backdropColor = if (heroActive && activeBannerAccent != null) activeBannerAccent else Color.Unspecified,
+        scrollFraction = scrollFraction
     ) {
-        BannerBackdrop(activeBannerMovie, activeBannerAccent, isScrolled)
+        // Sync banner accent with background ambient
+        LaunchedEffect(activeBannerAccent, heroActive) {
+            if (heroActive && activeBannerAccent != null) {
+                onActiveColorChange(activeBannerAccent)
+            }
+        }
+
+        BannerBackdrop(activeBannerMovie, activeBannerAccent, heroActive && activeBannerMovie != null, scrollFraction)
 
         Column {
-            TopBarSection(isScrolled, providerColor, viewModel, currentProviderId, onSearchClick)
+            if (heroActive) {
+                TopBar(
+                    brandColor = providerColor,
+                    providers = providers,
+                    currentProviderId = currentProviderId,
+                    scrollFraction = scrollFraction,
+                    onSearchClick = onSearchClick,
+                    onProviderClick = onProviderClick,
+                    onSettingsClick = onSettingsClick
+                )
+            }
 
-            val context = LocalContext.current
-            val top200ItemHandler = { movie: Top200Movie -> viewModel.onTop200BannerClick(movie) }
-            MainContentRows(
-                gridState = gridState,
-                isLoading = bannerMovies.isEmpty() && grid.isEmpty() && top200Banners.isEmpty(),
-                top200Banners = top200Banners,
-                bannerMovies = bannerMovies,
-                continueWatching = continueWatching,
-                watchlist = watchlist,
-                grid = grid,
-                providerColor = providerColor,
-                bannerFocusRequester = bannerFocusRequester,
-                onMovieClick = onMovieClick,
-                onContinueWatchingClick = onContinueWatchingClick,
-                onTop200ItemClick = top200ItemHandler,
-                onTop200Click = onTop200Click,
-                onMovieFocused = { viewModel.onMovieFocused(it, context) },
-                onDismissItem = { viewModel.dismissContinueWatching(it) },
-                sharedTransitionScope = sharedTransitionScope,
-                animatedVisibilityScope = animatedVisibilityScope,
-                onActiveMovieChange = { activeBannerMovie = it }
-            )
+            LazyColumn(
+                state = gridState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = GridDefaults.horizontalPadding,
+                    end = GridDefaults.horizontalPadding,
+                    top = 8.dp,
+                    bottom = GridDefaults.contentBottomPadding
+                )
+            ) {
+                if (!isOnline) {
+                    item(key = "offline_banner") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color(0xFFE53935).copy(alpha = 0.9f))
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "\u26A0 Немає підключення до інтернету",
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                if (isLoading) {
+                    items(6, key = { "shimmer_$it" }) { ShimmerBox(Modifier.fillMaxWidth().height(280.dp).padding(bottom = 32.dp), Shapes.card) }
+                }
+
+                if (!isLoading && gridError != null) {
+                    item(key = "grid_error") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 80.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = gridError,
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = onRetryGrid,
+                                colors = ButtonDefaults.colors(
+                                    containerColor = providerColor
+                                )
+                            ) {
+                                Text("Повторити", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                if (top200Banners.isNotEmpty()) {
+                    item(key = "banner_top200") {
+                        Top200SignatureHero(
+                            items = top200Banners,
+                            brandColor = providerColor,
+                            onItemClick = onTop200ItemClick,
+                            onItemLongClick = { onTop200Click() },
+                            onActiveMovieChange = onActiveMovieChange,
+                            modifier = Modifier.focusRequester(bannerFocusRequester)
+                        )
+                    }
+                } else if (bannerMovies.isNotEmpty()) {
+                    item(key = "banner_hero") {
+                        HeroCarousel(
+                            items = bannerMovies,
+                            brandColor = providerColor,
+                            onWatchClick = onMovieClick,
+                            onActiveColorChange = onActiveColorChange,
+                            modifier = Modifier.focusRequester(bannerFocusRequester)
+                        )
+                    }
+                }
+
+                if (continueWatching.isNotEmpty()) {
+                    item(key = "continue_watching") {
+                        ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, useWideCards = true)
+                    }
+                }
+
+                if (watchlist.isNotEmpty()) {
+                    item(key = "watchlist") {
+                        ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused)
+                    }
+                }
+
+                if (homeTrending.isNotEmpty()) {
+                    item(key = "trending") {
+                        ContentRow(
+                            title = "Тренди",
+                            items = homeTrending,
+                            brandColor = providerColor,
+                            onItemClick = onMovieClick,
+                            onItemDismiss = null,
+                            onItemFocused = onMovieFocused,
+                            useLargeCards = true,
+                            trailingContent = {
+                                TrendsTrailingButton(
+                                    brandColor = providerColor,
+                                    onClick = onSeeAllTrendsClick
+                                )
+                            }
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun Modifier.drawAmbientBackground(ambientColor: Color, providerColor: Color): Modifier = this.drawBehind {
-    drawRect(
-        brush = Brush.verticalGradient(
-            colors = listOf(
-                ambientColor.copy(alpha = 0.12f),
-                ambientColor.copy(alpha = 0.02f),
-                providerColor.copy(alpha = 0.06f),
-                providerColor.copy(alpha = 0.02f)
-            )
-        )
-    )
-}
+private fun BannerBackdrop(movie: Top200Movie?, accent: Color?, visible: Boolean, scrollFraction: Float = 0f) {
+    val deviceClass = LocalDeviceClass.current
+    val isMediatek = LocalIsMediatek.current
+    val parallaxFactor = when (deviceClass) {
+        DeviceClass.LOW -> 0f
+        DeviceClass.MID -> 0.15f
+        DeviceClass.HIGH -> 0.3f
+    }
+    if (visible && movie != null) {
+        val backdropColor = accent ?: Color(0xFF08121c)
 
-@Composable
-private fun BannerBackdrop(movie: Top200Movie?, accent: Color?, isScrolled: Boolean) {
-    AnimatedVisibility(
-        visible = !isScrolled && movie != null,
-        enter = fadeIn(tween(400)),
-        exit = fadeOut(tween(400))
-    ) {
-        movie?.let { 
-            val backdropColor = accent ?: Color(0xFF08121c)
-            Box(modifier = Modifier.fillMaxWidth().height(HeroDefaults.height + 80.dp)) {
-                if (it.backdropUrl.isNotEmpty()) {
+        if (deviceClass == DeviceClass.LOW) {
+            Box(modifier = Modifier
+                .fillMaxWidth()
+                .height(HeroDefaults.height + 80.dp)
+                .graphicsLayer {
+                    val h = size.height
+                    translationY = -scrollFraction * h * parallaxFactor
+                    alpha = (1f - scrollFraction).coerceIn(0f, 1f)
+                }
+            ) {
+                if (movie.backdropUrl.isNotEmpty()) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
-                            .data(it.backdropUrl)
-                            .crossfade(false)
-                            .size(1920, 1080)
-                            .bitmapConfig(android.graphics.Bitmap.Config.ARGB_8888)
-                            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                            .data(movie.backdropUrl)
+                            .size(960, 540)
+                            .deviceImage(deviceClass, isMediatek)
                             .build(),
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
@@ -170,136 +365,94 @@ private fun BannerBackdrop(movie: Top200Movie?, accent: Color?, isScrolled: Bool
                     )
                 }
                 Box(modifier = Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(listOf(backdropColor, backdropColor.copy(0.9f), backdropColor.copy(0.84f)), endX = 1600f)
+                    Brush.horizontalGradient(listOf(backdropColor, backdropColor.copy(alpha = 0.85f), Color.Transparent), endX = 1400f)
                 ))
                 Box(modifier = Modifier.fillMaxWidth().height(HeroDefaults.bottomFadeHeight).align(Alignment.BottomCenter).background(
                     Brush.verticalGradient(listOf(Color.Transparent, Background))
                 ))
             }
-        }
-    }
-}
+        } else {
+            val backdropHeight = if (deviceClass == DeviceClass.HIGH) 500.dp else 420.dp
+            Box(modifier = Modifier
+                .fillMaxWidth()
+                .height(backdropHeight)
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.White, Color.Transparent),
+                            startY = size.height * 0.45f,
+                            endY = size.height
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                }
+                .graphicsLayer {
+                    val h = size.height
+                    translationY = -scrollFraction * h * parallaxFactor
+                    alpha = (1f - scrollFraction).coerceIn(0f, 1f)
+                }
+            ) {
+                if (movie.backdropUrl.isNotEmpty()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(movie.backdropUrl)
+                            .size(1280, 720)
+                            .deviceImage(deviceClass, isMediatek)
+                            .build(),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
-@Composable
-private fun TopBarSection(isScrolled: Boolean, color: Color, viewModel: HomeViewModel, providerId: String, onSearchClick: () -> Unit) {
-    AnimatedVisibility(
-        visible = !isScrolled,
-        enter = fadeIn(tween(300)) + slideInVertically(tween(300)),
-        exit = fadeOut(tween(300)) + slideOutVertically(tween(300))
-    ) {
-        TopBar(
-            brandColor = color,
-            providers = viewModel.providers,
-            currentProviderId = providerId,
-            onSearchClick = onSearchClick,
-            onProviderClick = viewModel::switchProvider
-        )
-    }
-}
-
-@Composable
-private fun MainContentRows(
-    gridState: LazyListState,
-    isLoading: Boolean,
-    top200Banners: List<Top200Movie>,
-    bannerMovies: List<Movie>,
-    continueWatching: List<Movie>,
-    watchlist: List<Movie>,
-    grid: List<Movie>,
-    providerColor: Color,
-    bannerFocusRequester: FocusRequester,
-    onMovieClick: (Movie) -> Unit,
-    onContinueWatchingClick: (Movie) -> Unit,
-    onTop200ItemClick: (Top200Movie) -> Unit,
-    onTop200Click: () -> Unit,
-    onMovieFocused: (Movie) -> Unit,
-    onDismissItem: (Movie) -> Unit,
-    onActiveMovieChange: (Top200Movie) -> Unit,
-    sharedTransitionScope: SharedTransitionScope?,
-    animatedVisibilityScope: AnimatedVisibilityScope?
-) {
-    LazyColumn(
-        state = gridState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = GridDefaults.horizontalPadding,
-            end = GridDefaults.horizontalPadding,
-            top = 8.dp,
-            bottom = GridDefaults.contentBottomPadding
-        )
-    ) {
-        if (isLoading) {
-            items(6, key = { "shimmer_$it" }) { ShimmerBox(Modifier.fillMaxWidth().height(280.dp).padding(bottom = 32.dp), Shapes.card) }
-        }
-
-        if (top200Banners.isNotEmpty()) {
-            item(key = "banner_top200") {
-                Top200SignatureHero(
-                    items = top200Banners,
-                    brandColor = providerColor,
-                    onItemClick = onTop200ItemClick,
-                    onItemLongClick = { onTop200Click() },
-                    onActiveMovieChange = onActiveMovieChange,
-                    modifier = Modifier.focusRequester(bannerFocusRequester)
-                )
-            }
-        } else if (bannerMovies.isNotEmpty()) {
-            item(key = "banner_hero") {
-                HeroCarousel(
-                    items = bannerMovies,
-                    brandColor = providerColor,
-                    onWatchClick = onMovieClick,
-                    modifier = Modifier.focusRequester(bannerFocusRequester)
-                )
-            }
-        }
-
-        if (continueWatching.isNotEmpty()) {
-            item(key = "continue_watching") {
-                ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, useWideCards = true, sharedTransitionScope = sharedTransitionScope, animatedVisibilityScope = animatedVisibilityScope)
-            }
-        }
-
-        if (watchlist.isNotEmpty()) {
-            item(key = "watchlist") {
-                ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused, sharedTransitionScope = sharedTransitionScope, animatedVisibilityScope = animatedVisibilityScope)
-            }
-        }
-
-        if (grid.isNotEmpty()) {
-            item(key = "trending") {
-                ContentRow("Тренди", grid, providerColor, onMovieClick, null, onMovieFocused, useLargeCards = true, sharedTransitionScope = sharedTransitionScope, animatedVisibilityScope = animatedVisibilityScope)
+                // Multi-stage horizontal gradient for depth
+                Box(modifier = Modifier.fillMaxSize().background(
+                    Brush.horizontalGradient(
+                        colors = listOf(
+                            backdropColor,
+                            backdropColor.copy(alpha = 0.95f),
+                            backdropColor.copy(alpha = 0.85f),
+                            backdropColor.copy(alpha = 0.7f),
+                            Color.Transparent
+                        ),
+                        endX = 1800f
+                    )
+                ))
             }
         }
     }
 }
 
 @Composable
-private fun HandleBackNavigation(gridState: LazyListState, focusRequester: FocusRequester) {
+private fun HandleBackNavigation(gridState: LazyListState, focusRequester: FocusRequester, bannerMovies: List<Movie>, top200Banners: List<Top200Movie>) {
     val coroutineScope = rememberCoroutineScope()
-    val canGoBack by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 } }
+    val canGoBack by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.canScrollBackward } }
     BackHandler(enabled = canGoBack) {
         coroutineScope.launch {
             gridState.animateScrollToItem(0)
-            focusRequester.requestFocus()
+            if (top200Banners.isNotEmpty() || bannerMovies.isNotEmpty()) {
+                focusRequester.requestFocus()
+            }
         }
     }
 }
 
 @Composable
 private fun JankMonitor() {
-    val minJankMs = 20
-    var lastFrameTime by remember { mutableLongStateOf(0L) }
+    val minJankMs = 50
+    val lastFrameTime = remember { object { var value = 0L } }
     val callback = remember {
         object : Choreographer.FrameCallback {
             override fun doFrame(frameTimeNanos: Long) {
-                if (lastFrameTime != 0L) {
-                    val durationMs = (frameTimeNanos - lastFrameTime) / 1_000_000
+                if (lastFrameTime.value != 0L) {
+                    val durationMs = (frameTimeNanos - lastFrameTime.value) / 1_000_000
                     if (durationMs > minJankMs) {
                         AppLogger.w("Jank", "Frame ${durationMs}ms (dropped ${durationMs / 16 - 1})")
                     }
                 }
-                lastFrameTime = frameTimeNanos
+                lastFrameTime.value = frameTimeNanos
                 Choreographer.getInstance().postFrameCallback(this)
             }
         }
@@ -313,12 +466,13 @@ private fun JankMonitor() {
 @Composable
 private fun AutoRestoreFocus(focusRequester: FocusRequester, top200: List<Top200Movie>, banner: List<Movie>) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    val coroutineScope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                coroutineScope.launch {
-                    if (top200.isNotEmpty() || banner.isNotEmpty()) focusRequester.requestFocus()
+            if (event == Lifecycle.Event.ON_RESUME && (top200.isNotEmpty() || banner.isNotEmpty())) {
+                scope.launch {
+                    withFrameNanos { }
+                    focusRequester.requestFocus()
                 }
             }
         }

@@ -47,6 +47,11 @@ object PlaybackErrorHandler {
             msg.contains("c2.mtk.hevc") && msg.contains("init")
     }
 
+    fun isFatalCodecDeath(error: PlaybackException): Boolean {
+        val msg = (error.message ?: "").lowercase()
+        return msg.contains("codec") && msg.contains("died")
+    }
+
     fun isMediatekBlackScreen(error: PlaybackException): Boolean {
         // Mediatek HEVC decoders sometimes freeze without throwing explicit errors.
         // Detect via frame-drop pattern in CodecHealthMonitor instead.
@@ -67,10 +72,17 @@ object PlaybackErrorHandler {
     }
 
     fun shouldFallbackStream(error: PlaybackException): Boolean {
+        if (isFatalCodecDeath(error)) return false
         return isUnsupportedFormat(error) || isDecodingError(error) || isParsingError(error)
     }
 
+    fun isNotFound(error: PlaybackException): Boolean {
+        return error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS &&
+            (error.message?.contains("404") == true)
+    }
+
     fun shouldRetry(error: PlaybackException): Boolean {
+        if (isNotFound(error)) return false
         return isNetworkError(error) || isTimeout(error)
     }
 

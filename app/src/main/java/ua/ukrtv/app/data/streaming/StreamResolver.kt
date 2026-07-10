@@ -60,53 +60,57 @@ class StreamResolver @Inject constructor(
                     }
 
                     val mutex = inflightMutexes.computeIfAbsent(cacheKey) { Mutex() }
-                    mutex.withLock {
-                        streamResolutionCache.get(cacheKey)?.let { cached ->
-                            AppLogger.d("StreamResolver", "Cache hit (after lock) for $url")
-                            return@withContext cached
-                        }
+                    try {
+                        mutex.withLock {
+                            streamResolutionCache.get(cacheKey)?.let { cached ->
+                                AppLogger.d("StreamResolver", "Cache hit (after lock) for $url")
+                                return@withContext cached
+                            }
 
-                        if (isForbiddenUrl(url)) {
-                            AppLogger.w("StreamResolver", "URL is forbidden: $url")
-                            return@withLock null
-                        }
+                            if (isForbiddenUrl(url)) {
+                                AppLogger.w("StreamResolver", "URL is forbidden: $url")
+                                return@withLock null
+                            }
 
-                        val context = ResolutionContext(
-                            season = season,
-                            episode = episode,
-                            voiceover = voiceover,
-                            isDeep = isDeep,
-                            referer = referer,
-                            prefetchedHtml = prefetchedHtml
-                        )
-
-                        var currentResult = resolutionChain.resolve(url, context)
-                        
-                        // Recursive resolution for iframes/redirects
-                        var attempts = 0
-                        while (currentResult != null && !isDirectStreamUrl(currentResult.streamUrl) && attempts < 3) {
-                            val nextUrl = currentResult.streamUrl
-                            if (nextUrl == url) break
-                            
-                            AppLogger.d("StreamResolver", "Recursive resolution for: $nextUrl")
-                            val nextContext = context.copy(referer = currentResult.referer)
-                            val nextResult = resolutionChain.resolve(nextUrl, nextContext)
-                            
-                            if (nextResult == null || nextResult.streamUrl == nextUrl) break
-                            
-                            currentResult = nextResult.copy(
-                                seasons = currentResult.seasons ?: nextResult.seasons,
-                                providerName = currentResult.providerName.ifEmpty { nextResult.providerName },
-                                sourcePageUrl = currentResult.sourcePageUrl
+                            val context = ResolutionContext(
+                                season = season,
+                                episode = episode,
+                                voiceover = voiceover,
+                                isDeep = isDeep,
+                                referer = referer,
+                                prefetchedHtml = prefetchedHtml
                             )
-                            attempts++
+
+                            var currentResult = resolutionChain.resolve(url, context)
+                            
+                            // Recursive resolution for iframes/redirects
+                            var attempts = 0
+                            while (currentResult != null && !isDirectStreamUrl(currentResult.streamUrl) && attempts < 3) {
+                                val nextUrl = currentResult.streamUrl
+                                if (nextUrl == url) break
+                                
+                                AppLogger.d("StreamResolver", "Recursive resolution for: $nextUrl")
+                                val nextContext = context.copy(referer = currentResult.referer)
+                                val nextResult = resolutionChain.resolve(nextUrl, nextContext)
+                                
+                                if (nextResult == null || nextResult.streamUrl == nextUrl) break
+                                
+                                currentResult = nextResult.copy(
+                                    seasons = currentResult.seasons ?: nextResult.seasons,
+                                    providerName = currentResult.providerName.ifEmpty { nextResult.providerName },
+                                    sourcePageUrl = currentResult.sourcePageUrl
+                                )
+                                attempts++
+                            }
+                            
+                            if (currentResult != null) {
+                                streamResolutionCache.put(cacheKey, currentResult)
+                            }
+                            
+                            return@withLock currentResult
                         }
-                        
-                        if (currentResult != null) {
-                            streamResolutionCache.put(cacheKey, currentResult)
-                        }
-                        
-                        return@withLock currentResult
+                    } finally {
+                        inflightMutexes.remove(cacheKey)
                     }
                 }
             }

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ua.ukrtv.app.data.network.HtmlHttpClient
+import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.repository.SessionRepository
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.domain.model.Provider
@@ -18,13 +19,14 @@ import javax.inject.Singleton
 @Singleton
 class ProviderManager @Inject constructor(
     private val htmlHttpClient: HtmlHttpClient,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val catalogRepository: CatalogRepository
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val allProviders: List<MediaProvider> = listOf(
-        EneyidaProvider(htmlHttpClient, sessionRepository),
-        UakinoProvider(htmlHttpClient, sessionRepository)
+        EneyidaProvider(htmlHttpClient, sessionRepository, catalogRepository),
+        UakinoProvider(htmlHttpClient, sessionRepository, catalogRepository)
     )
 
     private fun getById(id: String): MediaProvider? =

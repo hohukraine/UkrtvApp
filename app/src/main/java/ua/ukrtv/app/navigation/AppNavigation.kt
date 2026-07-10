@@ -6,6 +6,7 @@ object AppNavigation {
     const val HOME = "home"
     const val SEARCH = "search?q={q}"
     const val TOP_200 = "top_200"
+    const val TRENDS_GRID = "trends_grid"
     const val DETAIL = "detail/{id}?url={url}"
     const val PLAYER = "player/{id}/{title}?url={url}&season={season}&episode={episode}&poster={poster}"
     const val SETTINGS = "settings"

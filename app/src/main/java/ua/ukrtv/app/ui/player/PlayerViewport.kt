@@ -37,6 +37,7 @@ fun PlayerReadyContent(
     playButtonFocusRequester: FocusRequester,
     isShowingControls: Boolean,
     brandColor: Color = BrandBlue,
+    heldSeekDir: SeekDirection? = null,
     onSeek: (Long) -> Unit
 ) {
     var endedCountdown by remember { mutableStateOf<Int?>(null) }
@@ -147,12 +148,18 @@ fun PlayerReadyContent(
 
         LaunchedEffect(isPlaying) {
             if (isPlaying) {
+                var saveCounter = 0
                 while (true) {
                     delay(1000)
                     currentPosition = player.currentPosition
                     duration = player.duration
                     bufferedPosition = player.bufferedPosition
                     viewModel.updateProgress(currentPosition, duration)
+                    saveCounter++
+                    if (saveCounter >= 10) {
+                        saveCounter = 0
+                        viewModel.saveProgress(currentPosition, duration)
+                    }
                 }
             }
         }
@@ -189,6 +196,12 @@ fun PlayerReadyContent(
                 derivedStateOf { isPlaying && currentPosition in 0..SKIP_INTRO_WINDOW_MS }
             }
 
+            val allEpisodesAreOne = remember(playerState.availableSeasons) {
+                playerState.availableSeasons?.all { season ->
+                    season.episodes.all { it.number <= 1 }
+                } == true
+            }
+
             PlayerOverlay(
                 visible = isShowingControls,
                 brandColor = brandColor,
@@ -207,8 +220,20 @@ fun PlayerReadyContent(
                 onSeekForward = { player.seekTo(player.currentPosition + SEEK_STEP_MS) },
                 onSeek = { ratio -> player.seekTo((ratio * player.duration).toLong()) },
                 hasEpisodes = hasEpisodes,
+                hasNextEpisode = viewModel.hasNextEpisode(),
+                hasPreviousEpisode = viewModel.hasPreviousEpisode(),
+                onNextEpisode = {
+                    viewModel.saveProgress(currentPosition, duration)
+                    viewModel.navigateToNextEpisode()
+                },
+                onPreviousEpisode = {
+                    viewModel.saveProgress(currentPosition, duration)
+                    viewModel.navigateToPreviousEpisode()
+                },
+                heldSeekDir = heldSeekDir,
                 season = playerState.currentSeason,
                 episode = playerState.currentEpisode,
+                showSeasonEpisode = !allEpisodesAreOne,
                 playFocusRequester = playButtonFocusRequester,
                 pickerColumns = playerState.pickerColumns,
                 pickerFocusedIndex = playerState.pickerFocusedIndex,

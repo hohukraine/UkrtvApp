@@ -42,7 +42,6 @@ class StreamResolverTest {
 
         fakeProvider = FakeProvider()
         val providerManager = mockk<ProviderManager>(relaxed = true)
-        val unifiedStreamProvider = mockk<ua.ukrtv.app.data.streaming.UnifiedStreamProvider>(relaxed = true)
         val htmlHttpClient = mockk<ua.ukrtv.app.data.network.HtmlHttpClient>(relaxed = true)
         val resolutionLogger = mockk<ua.ukrtv.app.util.ResolutionLogger>(relaxed = true)
         val hlsExtractor = mockk<ua.ukrtv.app.data.streaming.HlsExtractor>(relaxed = true)
@@ -50,15 +49,13 @@ class StreamResolverTest {
         val streamManager = FakeStreamManager(fakeProvider, providerManager)
         
         val directLinkStrategy = DirectLinkStrategy()
-        val vodIdStrategy = VodIdStrategy(unifiedStreamProvider)
         val providerStrategy = ProviderResolutionStrategy(streamManager)
-        val iframeStrategy = IframeResolutionStrategy(htmlHttpClient, hlsExtractor, unifiedStreamProvider, resolutionLogger)
+        val iframeStrategy = IframeResolutionStrategy(htmlHttpClient, hlsExtractor, resolutionLogger)
         
         resolver = StreamResolver(
             streamManager,
             resolutionLogger,
             directLinkStrategy,
-            vodIdStrategy,
             providerStrategy,
             iframeStrategy
         )

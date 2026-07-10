@@ -13,6 +13,7 @@ import org.jsoup.nodes.Document
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.TtlLruCache
 import ua.ukrtv.app.data.network.HtmlHttpClient
+import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.repository.SessionRepository
 
 import ua.ukrtv.app.domain.model.HomeSection
@@ -23,7 +24,8 @@ import ua.ukrtv.app.util.PerformanceMonitor
 
 class EneyidaProvider(
     private val htmlHttpClient: HtmlHttpClient,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val catalogRepository: CatalogRepository
 ) : MediaProvider {
 
     private val parser = DleParser(EneyidaProfile)
@@ -102,7 +104,15 @@ class EneyidaProvider(
     }
 
     override suspend fun search(query: String, limit: Int): List<SearchItem> = withContext(Dispatchers.IO) {
-        val q = query.trim().takeIf { it.length >= 3 } ?: return@withContext emptyList()
+        val q = query.trim().takeIf { it.length >= 3 || (it.length >= 2 && it.any { c -> c.isDigit() }) } ?: return@withContext emptyList()
+
+        if (catalogRepository.isProviderReady(name)) {
+            val results = catalogRepository.searchByProvider(name, q, limit)
+            if (results.isNotEmpty()) {
+                return@withContext results.map { SearchItem(it.title, it.url, it.poster, name) }
+            }
+        }
+
         if (sessionUserHash.isEmpty()) initializeSession()
 
         val allResults = mutableListOf<Movie>()
@@ -198,9 +208,8 @@ class EneyidaProvider(
                     }
 
                     val best = selectBestMediaUrl(media) ?: media.first()
-                    val finalUrl = resolveBestUrlFromPlaylist(best, src) ?: best
                     val fallbacks = media.filter { it != best }
-                    return MediaSource.Movie(finalUrl, fallbacks, pageUrl, name)
+                    return MediaSource.Movie(best, fallbacks, pageUrl, name)
                 }
             } catch (e: Exception) {
                 AppLogger.w(name, "resolveMoviePage: exception fetching $src: ${e.message}")

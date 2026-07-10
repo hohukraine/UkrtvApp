@@ -15,13 +15,17 @@ import kotlinx.serialization.json.Json
 import okhttp3.*
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.local.AppDatabase
+import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.local.dao.HtmlCacheDao
 import ua.ukrtv.app.data.local.dao.SearchHistoryDao
 import ua.ukrtv.app.data.local.dao.WatchProgressDao
 import ua.ukrtv.app.data.local.dao.WatchlistDao
+import ua.ukrtv.app.data.repository.CatalogIndexBuilder
+import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.network.WebpToJpegInterceptor
 import ua.ukrtv.app.player.CodecPreferences
+import ua.ukrtv.app.util.PerformancePreferences
 import ua.ukrtv.app.util.getDeviceClass
 import ua.ukrtv.app.util.hasMediatekChipset
 import java.io.InputStream
@@ -51,7 +55,7 @@ object Modules {
     @Provides @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(context, AppDatabase::class.java, "ukrtv_db")
-            .fallbackToDestructiveMigration().build()
+            .fallbackToDestructiveMigrationOnDowngrade().build()
     }
 
     @Provides @Singleton
@@ -65,6 +69,22 @@ object Modules {
 
     @Provides @Singleton
     fun provideWatchProgressDao(database: AppDatabase): WatchProgressDao = database.watchProgressDao()
+
+    @Provides @Singleton
+    fun provideCatalogIndexDao(database: AppDatabase): CatalogIndexDao = database.catalogIndexDao()
+
+    @Provides @Singleton
+    fun provideCatalogIndexBuilder(
+        htmlHttpClient: HtmlHttpClient,
+        catalogIndexDao: CatalogIndexDao
+    ): CatalogIndexBuilder = CatalogIndexBuilder(htmlHttpClient, catalogIndexDao)
+
+    @Provides @Singleton
+    fun provideCatalogRepository(
+        @ApplicationContext context: Context,
+        catalogIndexDao: CatalogIndexDao,
+        builder: CatalogIndexBuilder
+    ): CatalogRepository = CatalogRepository(context, catalogIndexDao, builder)
 
     @Provides @Singleton
     fun provideJson(): Json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -215,4 +235,14 @@ object Modules {
 
     @Provides @Singleton
     fun provideCodecPreferences(@ApplicationContext context: Context): CodecPreferences = CodecPreferences(context)
+
+    @Provides @Singleton
+    fun providePerformancePreferences(@ApplicationContext context: Context): ua.ukrtv.app.util.PerformancePreferences = ua.ukrtv.app.util.PerformancePreferences(context)
+
+    @Provides @Singleton
+    fun provideUpdateRepository(
+        @ApplicationContext context: Context,
+        okHttpClient: OkHttpClient,
+        json: kotlinx.serialization.json.Json
+    ): ua.ukrtv.app.data.repository.UpdateRepository = ua.ukrtv.app.data.repository.UpdateRepository(context, okHttpClient, json)
 }
