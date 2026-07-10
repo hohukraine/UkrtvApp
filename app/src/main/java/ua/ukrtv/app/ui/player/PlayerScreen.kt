@@ -148,13 +148,11 @@ private fun PlayerContent(
                 
                 when (ke.keyCode) {
                     android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
-                        if (state.isShowingControls) {
-                            lastInteractionTime = System.currentTimeMillis()
-                            return@onKeyEvent false
-                        }
                         if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
                             heldSeekDir = HeldSeekDir.BACKWARD
                             viewModel.seekTo(maxOf(0L, player.currentPosition - SEEK_STEP_MS))
+                            lastInteractionTime = System.currentTimeMillis()
+                            viewModel.setShowControls(true)
                             return@onKeyEvent true
                         } else if (ke.action == android.view.KeyEvent.ACTION_UP) {
                             heldSeekDir = null
@@ -163,13 +161,11 @@ private fun PlayerContent(
                         return@onKeyEvent false
                     }
                     android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        if (state.isShowingControls) {
-                            lastInteractionTime = System.currentTimeMillis()
-                            return@onKeyEvent false
-                        }
                         if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
                             heldSeekDir = HeldSeekDir.FORWARD
                             viewModel.seekTo(player.currentPosition + SEEK_STEP_MS)
+                            lastInteractionTime = System.currentTimeMillis()
+                            viewModel.setShowControls(true)
                             return@onKeyEvent true
                         } else if (ke.action == android.view.KeyEvent.ACTION_UP) {
                             heldSeekDir = null
@@ -212,12 +208,6 @@ private fun PlayerContent(
             playFocusRequester = playFocusRequester,
             playButtonFocusRequester = playButtonFocusRequester,
             isShowingControls = state.isShowingControls,
-            heldSeekDir = heldSeekDir?.let {
-                when (it) {
-                    HeldSeekDir.FORWARD -> SeekDirection.Forward
-                    HeldSeekDir.BACKWARD -> SeekDirection.Backward
-                }
-            },
             onSeek = { player.seekTo(it) }
         )
 
