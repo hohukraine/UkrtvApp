@@ -29,3 +29,5 @@ benchmark_output.txt
 *.new
 *.v2
 *.final
+# Database generator build
+database-generator/build/
