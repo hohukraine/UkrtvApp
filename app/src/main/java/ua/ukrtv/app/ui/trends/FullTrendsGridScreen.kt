@@ -69,7 +69,7 @@ fun FullTrendsGridScreen(
     LaunchedEffect(isLoading) {
         if (!isLoading) {
             entranceTrigger = System.currentTimeMillis()
-            delay(50)
+            withFrameNanos { }
             gridFocusRequester.requestFocus()
         }
     }

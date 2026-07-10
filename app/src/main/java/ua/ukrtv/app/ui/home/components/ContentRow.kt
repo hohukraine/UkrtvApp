@@ -99,6 +99,15 @@ fun ContentRow(
     val enterTranslateYDp = if (animateEntrance && deviceClass == DeviceClass.HIGH) 12f else 0f
     val scope = rememberCoroutineScope()
 
+    // Re-focus row content when deviceClass changes to prevent focus escape to TopBar
+    val initialDeviceClass = remember { deviceClass }
+    LaunchedEffect(deviceClass) {
+        if (deviceClass != initialDeviceClass && items.isNotEmpty()) {
+            withFrameNanos { }
+            firstItemFocus.requestFocus()
+        }
+    }
+
     Column(modifier = Modifier.padding(bottom = 24.dp)) {
         if (title.isNotEmpty()) {
             Row(
@@ -126,7 +135,14 @@ fun ContentRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(rowFocus)
-                .onFocusChanged { if (it.isFocused && items.isNotEmpty()) firstItemFocus.requestFocus() },
+                .onFocusChanged { state ->
+                    if (state.isFocused && items.isNotEmpty()) {
+                        scope.launch {
+                            withFrameNanos { }
+                            firstItemFocus.requestFocus()
+                        }
+                    }
+                },
             state = lazyListState,
             flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState),
             contentPadding = PaddingValues(horizontal = GridDefaults.horizontalPadding),

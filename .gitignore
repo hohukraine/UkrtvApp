@@ -4,6 +4,13 @@
 /app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
 /build/
 
+# Internal docs
+AGENTS.md
+PLAN_CATALOG_INDEX.md
+
+# Local machine
+local.properties
+
 # IDE
 .idea/caches/
 .idea/planningMode.xml
@@ -16,10 +23,13 @@ androidx/tvprovider/
 
 # AI / IDE
 .opencode/
+.opencode.json
 
 # Dev scripts (Python tools, audit, enrichment)
 scripts/
 pyton/
+debug_search.py
+verify_catalog*.py
 
 # Generated temp files
 *.log

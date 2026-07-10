@@ -69,11 +69,7 @@ import ua.ukrtv.app.ui.theme.OverlayLight
 import ua.ukrtv.app.ui.theme.Surface
 import ua.ukrtv.app.ui.theme.SurfaceFocus
 import ua.ukrtv.app.ui.theme.SurfaceVariant
-import android.app.Activity
-import android.content.Intent
-import android.speech.RecognizerIntent
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+
 import javax.inject.Inject
 
 sealed class SearchState {
@@ -241,21 +237,8 @@ fun SearchScreen(
     )
 
     LaunchedEffect(Unit) {
+        withFrameNanos { }
         focusRequester.requestFocus()
-    }
-
-    val voiceSearchLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val spokenText = result.data
-                ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                ?.firstOrNull()
-            if (spokenText != null) {
-                viewModel.search(spokenText)
-                viewModel.saveToHistory(spokenText)
-            }
-        }
     }
 
     HomeBackground(
@@ -355,28 +338,6 @@ fun SearchScreen(
                 }
             }
 
-            Spacer(Modifier.width(8.dp))
-            androidx.tv.material3.Surface(
-                onClick = {
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Скажіть назву фільму або серіалу")
-                    }
-                    runCatching { voiceSearchLauncher.launch(intent) }
-                },
-                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
-                colors = ClickableSurfaceDefaults.colors(
-                    containerColor = Color.Transparent,
-                    focusedContainerColor = providerColor
-                )
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Mic,
-                    contentDescription = "Голосовий пошук",
-                    tint = OnSurface,
-                    modifier = Modifier.padding(8.dp).size(20.dp)
-                )
-            }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -535,16 +496,10 @@ else if (history.isEmpty()) {
                     )
                 }
                 is SearchState.Success -> {
-                    LaunchedEffect(Unit) {
-                        resultsShown = true
-                    }
-                    if (s.results.isEmpty()) {
-                        Text(
-                            "Нічого не знайдено",
-                            modifier = Modifier.align(Alignment.Center),
-                            color = OnSurfaceVariant
-                        )
-                    } else {
+                    if (s.results.isNotEmpty()) {
+                        LaunchedEffect(Unit) {
+                            resultsShown = true
+                        }
                         LazyVerticalGrid(
                             modifier = Modifier.graphicsLayer { alpha = resultsAlpha },
                             columns = GridCells.Fixed(GridDefaults.columns),

@@ -37,6 +37,7 @@ fun PlayerReadyContent(
     playButtonFocusRequester: FocusRequester,
     isShowingControls: Boolean,
     brandColor: Color = BrandBlue,
+    heldSeekDir: SeekDirection? = null,
     onSeek: (Long) -> Unit
 ) {
     var endedCountdown by remember { mutableStateOf<Int?>(null) }
@@ -52,6 +53,17 @@ fun PlayerReadyContent(
 
     var videoSize by remember { mutableStateOf(player.videoSize) }
     val readyStatus = status as? PlayerStatus.Ready
+
+    val zoomScale = remember(videoSize) {
+        if (videoSize.width <= 0) 1.33f else {
+            val videoRatio = (videoSize.width.toFloat() / videoSize.height.toFloat()) * videoSize.pixelWidthHeightRatio
+            val displayRatio = 16f / 9f
+            if (videoRatio > displayRatio + 0.01f) videoRatio / displayRatio else 1.33f
+        }
+    }
+    val needsManualScale = remember(videoSize) {
+        videoSize.width > 0 && (videoSize.width.toFloat() / videoSize.height.toFloat()) * videoSize.pixelWidthHeightRatio <= 16f / 9f + 0.01f
+    }
 
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AndroidView<SurfaceView>(
@@ -70,6 +82,11 @@ fun PlayerReadyContent(
                         ScaleMode.ZOOM -> C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
                     }
                 )
+                val factor = if (scaleMode == ScaleMode.ZOOM && needsManualScale) zoomScale else 1.0f
+                surfaceView.scaleX = factor
+                surfaceView.scaleY = factor
+                surfaceView.pivotX = (surfaceView.width / 2f).coerceAtLeast(0f)
+                surfaceView.pivotY = (surfaceView.height / 2f).coerceAtLeast(0f)
             },
             modifier = if (scaleMode == ScaleMode.FIT) {
                 val ratio = if (videoSize.width > 0 && videoSize.height > 0) {
@@ -224,6 +241,7 @@ fun PlayerReadyContent(
                     viewModel.saveProgress(currentPosition, duration)
                     viewModel.navigateToNextEpisode()
                 },
+                heldSeekDir = heldSeekDir,
                 season = playerState.currentSeason,
                 episode = playerState.currentEpisode,
                 showSeasonEpisode = !allEpisodesAreOne,

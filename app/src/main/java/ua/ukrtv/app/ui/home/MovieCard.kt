@@ -81,9 +81,9 @@ fun MovieCard(
 
     val imageRequest = remember(movie.poster, deviceClass) {
         val (iw, ih) = when (deviceClass) {
-            DeviceClass.LOW -> 120 to 180
-            DeviceClass.MID -> 180 to 270
-            DeviceClass.HIGH -> 300 to 450
+            DeviceClass.LOW -> 200 to 300
+            DeviceClass.MID -> 300 to 450
+            DeviceClass.HIGH -> 500 to 750
         }
         ImageRequest.Builder(ctx)
             .data(movie.poster)
