@@ -1,8 +1,6 @@
 package ua.ukrtv.app.ui.theme
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -10,7 +8,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
-import ua.ukrtv.app.util.getDeviceClass
+import ua.ukrtv.app.UkrtvApplication
+import ua.ukrtv.app.util.PerformancePreferences
+import ua.ukrtv.app.util.resolveDeviceClass
 import ua.ukrtv.app.util.hasMediatekChipset
 
 private val TvColorScheme = darkColorScheme(
@@ -85,10 +85,19 @@ val TvTypography = androidx.tv.material3.Typography(
 )
 
 @Composable
-fun UkrtvTheme(content: @Composable () -> Unit) {
+fun UkrtvTheme(
+    performancePreferences: PerformancePreferences,
+    content: @Composable () -> Unit
+) {
     val context = LocalContext.current
-    val deviceClass = remember(context) { getDeviceClass(context) }
+    val profile by performancePreferences.profile.collectAsState()
+    val deviceClass = remember(context, profile) { resolveDeviceClass(context, profile) }
     val isMediatek = remember { hasMediatekChipset() }
+
+    LaunchedEffect(deviceClass, isMediatek) {
+        (context.applicationContext as? UkrtvApplication)
+            ?.applyImageLoaderFor(deviceClass, isMediatek)
+    }
 
     CompositionLocalProvider(
         LocalDeviceClass provides deviceClass,

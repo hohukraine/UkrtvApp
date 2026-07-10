@@ -1,5 +1,7 @@
 package ua.ukrtv.app.ui.search
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -29,6 +31,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -36,23 +39,27 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import ua.ukrtv.app.ui.home.components.HomeBackground
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.data.repository.ContentRepository
+import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.ui.home.MovieCard
-import ua.ukrtv.app.ui.theme.Background
-import ua.ukrtv.app.ui.theme.BrandBlue
+import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalIsMediatek
+import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.Error
 import ua.ukrtv.app.ui.theme.GridDefaults
@@ -84,6 +91,7 @@ enum class SuggestionType { HISTORY, TRENDING }
 class SearchViewModel @Inject constructor(
     private val repository: ContentRepository,
     private val historyDao: ua.ukrtv.app.data.local.dao.SearchHistoryDao,
+    private val providerManager: ProviderManager,
     savedStateHandle: androidx.lifecycle.SavedStateHandle
 ) : ViewModel() {
     private val _state = MutableStateFlow<SearchState>(SearchState.Idle)
@@ -102,6 +110,27 @@ class SearchViewModel @Inject constructor(
     val trendingMovies = flow {
         emit(repository.getPopularByCategory(ua.ukrtv.app.data.providers.ContentCategory.MOVIES).firstOrNull() ?: emptyList())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val brandColor: StateFlow<Long> = providerManager.activeProvider
+        .map { provider ->
+            val colorInt = try { android.graphics.Color.parseColor(provider.brandColor) } catch (_: Exception) { 0xFF6E85B7.toInt() }
+            (colorInt.toLong() and 0xFFFFFFFFL)
+        }
+        .distinctUntilChanged()
+        .onStart {
+            val p = providerManager.activeProvider.value
+            val colorInt = try { android.graphics.Color.parseColor(p.brandColor) } catch (_: Exception) { 0xFF6E85B7.toInt() }
+            emit((colorInt.toLong() and 0xFFFFFFFFL))
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0xFF6E85B7)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val currentProviderId: StateFlow<String> = providerManager.activeProvider
+        .map { it.name }
+        .distinctUntilChanged()
+        .onStart { emit(providerManager.activeProvider.value.name) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     init {
         loadHistory()
@@ -140,6 +169,14 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             historyDao.insert(ua.ukrtv.app.data.local.entity.SearchHistoryEntity(query.lowercase().trim()))
             loadHistory()
+        }
+    }
+
+    fun retrySearch() {
+        val q = _query.value
+        if (q.isNotBlank()) {
+            _query.value = ""
+            _query.value = q
         }
     }
 
@@ -185,8 +222,25 @@ fun SearchScreen(
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
 
+    val brandColorLong by viewModel.brandColor.collectAsState()
+    val providerColor = remember(brandColorLong) { Color(brandColorLong) }
+
+    // Entrance animations
+    var trendingShown by remember { mutableStateOf(false) }
+    var resultsShown by remember { mutableStateOf(false) }
+
+    val trendingAlpha by animateFloatAsState(
+        targetValue = if (trendingShown) 1f else 0f,
+        animationSpec = tween(300),
+        label = "trendingAlpha"
+    )
+    val resultsAlpha by animateFloatAsState(
+        targetValue = if (resultsShown) 1f else 0f,
+        animationSpec = tween(250),
+        label = "resultsAlpha"
+    )
+
     LaunchedEffect(Unit) {
-        delay(300)
         focusRequester.requestFocus()
     }
 
@@ -204,12 +258,16 @@ fun SearchScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
-            .padding(horizontal = GridDefaults.horizontalPadding, vertical = 24.dp)
+    HomeBackground(
+        brandColor = providerColor,
+        focusedColor = providerColor,
+        modifier = Modifier.fillMaxSize()
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = GridDefaults.horizontalPadding, vertical = 24.dp)
+        ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -217,20 +275,15 @@ fun SearchScreen(
             Icon(
                 imageVector = Icons.Default.Search,
                 contentDescription = null,
-                tint = BrandBlue,
+                tint = providerColor,
                 modifier = Modifier.size(24.dp)
             )
             Spacer(Modifier.width(12.dp))
 
             androidx.tv.material3.Surface(
-                onClick = { keyboardController?.show() },
+                onClick = { focusRequester.requestFocus(); keyboardController?.show() },
                 modifier = Modifier
-                    .weight(1f)
-                    .onFocusChanged {
-                        if (it.isFocused) {
-                            focusRequester.requestFocus()
-                        }
-                    },
+                    .weight(1f),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
                 shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
                 colors = ClickableSurfaceDefaults.colors(
@@ -255,7 +308,7 @@ fun SearchScreen(
                         fontSize = 18.sp
                     ),
                     singleLine = true,
-                    cursorBrush = SolidColor(BrandBlue),
+                    cursorBrush = SolidColor(providerColor),
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Text,
                         imeAction = ImeAction.Search
@@ -290,7 +343,7 @@ fun SearchScreen(
                     shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = Color.Transparent,
-                        focusedContainerColor = BrandBlue
+                        focusedContainerColor = providerColor
                     )
                 ) {
                     Icon(
@@ -314,7 +367,7 @@ fun SearchScreen(
                 shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
                 colors = ClickableSurfaceDefaults.colors(
                     containerColor = Color.Transparent,
-                    focusedContainerColor = BrandBlue
+                    focusedContainerColor = providerColor
                 )
             ) {
                 Icon(
@@ -350,7 +403,7 @@ fun SearchScreen(
                                     shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
                                     colors = ClickableSurfaceDefaults.colors(
                                         containerColor = Surface,
-                                        focusedContainerColor = BrandBlue.copy(alpha = 0.2f),
+                                        focusedContainerColor = providerColor.copy(alpha = 0.2f),
                                         contentColor = OnSurface,
                                         focusedContentColor = OnSurface
                                     ),
@@ -367,7 +420,7 @@ fun SearchScreen(
                                         Icon(
                                             imageVector = icon,
                                             contentDescription = null,
-                                            tint = BrandBlue.copy(alpha = 0.6f),
+                                            tint = providerColor.copy(alpha = 0.6f),
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(Modifier.width(12.dp))
@@ -381,6 +434,12 @@ fun SearchScreen(
                         }
                     } else {
                         val trending by viewModel.trendingMovies.collectAsState()
+                        LaunchedEffect(trending) {
+                            if (trending.isNotEmpty()) {
+                                delay(30)
+                                trendingShown = true
+                            }
+                        }
 
                         Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                             if (history.isNotEmpty()) {
@@ -397,6 +456,7 @@ fun SearchScreen(
                                         .padding(bottom = 32.dp)
                                         .fillMaxWidth()
                                         .focusProperties {
+                                            @Suppress("DEPRECATION")
                                             @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
                                             exit = { FocusRequester.Default }
                                         },
@@ -426,6 +486,7 @@ fun SearchScreen(
                             }
 
                             if (trending.isNotEmpty()) {
+                                Column(modifier = Modifier.graphicsLayer { alpha = trendingAlpha }) {
                                 Text(
                                         "ПОПУЛЯРНЕ ЗАРАЗ",
                                     color = OnSurfaceVariant,
@@ -457,6 +518,7 @@ fun SearchScreen(
                                     }
                                 }
                             }
+                                }
 else if (history.isEmpty()) {
                                 Text(
                                     "Почніть вводити назву для пошуку",
@@ -469,10 +531,13 @@ else if (history.isEmpty()) {
                 is SearchState.Loading -> {
                     CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.Center),
-                        color = BrandBlue
+                        color = providerColor
                     )
                 }
                 is SearchState.Success -> {
+                    LaunchedEffect(Unit) {
+                        resultsShown = true
+                    }
                     if (s.results.isEmpty()) {
                         Text(
                             "Нічого не знайдено",
@@ -481,19 +546,17 @@ else if (history.isEmpty()) {
                         )
                     } else {
                         LazyVerticalGrid(
+                            modifier = Modifier.graphicsLayer { alpha = resultsAlpha },
                             columns = GridCells.Fixed(GridDefaults.columns),
                             horizontalArrangement = Arrangement.spacedBy(GridDefaults.columnSpacing),
                             verticalArrangement = Arrangement.spacedBy(GridDefaults.rowSpacing),
                             contentPadding = PaddingValues(bottom = 32.dp)
                         ) {
                             items(s.results, key = { it.id + it.pageUrl }) { movie ->
-                                var itemFocused by remember { mutableStateOf(false) }
                                 MovieCard(
                                     movie = movie,
                                     width = CardDefaults.posterWidth,
                                     height = CardDefaults.posterHeight,
-                                    isExpanded = itemFocused,
-                                    modifier = Modifier.onFocusChanged { itemFocused = it.isFocused },
                                     onClick = {
                                         viewModel.saveToHistory(query)
                                         onMovieClick(movie)
@@ -504,13 +567,22 @@ else if (history.isEmpty()) {
                     }
                 }
                 is SearchState.Error -> {
-                    Text(
-                        s.message,
+                    Column(
                         modifier = Modifier.align(Alignment.Center),
-                        color = Error
-                    )
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            s.message,
+                            color = Error
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        androidx.tv.material3.Button(onClick = { viewModel.retrySearch() }) {
+                            Text("Повторити", color = Color.White)
+                        }
+                    }
                 }
             }
         }
+    }
     }
 }

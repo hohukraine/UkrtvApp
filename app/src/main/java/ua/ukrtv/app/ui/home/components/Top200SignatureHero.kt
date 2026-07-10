@@ -37,8 +37,12 @@ import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.ui.components.RatingCircle
 import ua.ukrtv.app.ui.theme.Gold
 import ua.ukrtv.app.ui.theme.HeroDefaults
+import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalIsMediatek
 import ua.ukrtv.app.ui.theme.OnSurface
 import ua.ukrtv.app.ui.theme.Shapes
+import ua.ukrtv.app.ui.theme.deviceImage
+import ua.ukrtv.app.util.DeviceClass
 
 @OptIn(ExperimentalTvMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -87,6 +91,8 @@ private fun HeroPage(
     onLongClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val deviceClass = LocalDeviceClass.current
+    val isMediatek = LocalIsMediatek.current
     val accentColor = remember(movie.accentColor) {
         try { Color(android.graphics.Color.parseColor(movie.accentColor)) } catch (_: Exception) { Color(0xFF08121c) }
     }
@@ -131,13 +137,12 @@ private fun HeroPage(
                         )
                     )
                 ) {
+                    val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 200 to 300; DeviceClass.MID -> 400 to 600; DeviceClass.HIGH -> 600 to 900 }
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(movie.posterUrl)
-                            .size(400, 600)
-                            .crossfade(false)
-                            .bitmapConfig(android.graphics.Bitmap.Config.ARGB_8888)
-                            .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                            .size(iw, ih)
+                            .deviceImage(deviceClass, isMediatek)
                             .build(),
                         contentDescription = movie.title,
                         contentScale = ContentScale.Crop,
@@ -158,31 +163,47 @@ private fun HeroPage(
                             fontWeight = FontWeight.Black,
                             letterSpacing = 2.sp
                         )
-                        Spacer(Modifier.width(16.dp))
-                        // Channel Identity
+                        Spacer(Modifier.width(20.dp))
+                        // Channel Identity (Avatar + Name)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(20.dp)
+                                    .size(24.dp)
                                     .clip(CircleShape)
                                     .background(onAccentColor.copy(alpha = 0.1f)),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("Щ", color = onAccentColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data(ua.ukrtv.app.R.drawable.avatar_chesnyi)
+                                        .build(),
+                                    contentDescription = null,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
                             }
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(8.dp))
                             Text(
-                                text = "ЩО ПОДИВИТИСЯ",
-                                color = onAccentColor.copy(alpha = 0.5f),
-                                fontSize = 11.sp,
+                                text = "Чесний огляд",
+                                color = onAccentColor.copy(alpha = 0.8f),
+                                fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Title (Year)
+                    // Title (Year) - Adaptive Scaling
+                    val titleLength = movie.title.length
+                    val baseFontSize = if (deviceClass == DeviceClass.HIGH) 54.sp else 42.sp
+                    val adaptiveFontSize = when {
+                        titleLength > 45 -> baseFontSize * 0.65f
+                        titleLength > 30 -> baseFontSize * 0.8f
+                        else -> baseFontSize
+                    }
+                    val adaptiveLineHeight = adaptiveFontSize * 1.1f
+
                     Text(
                         text = buildAnnotatedString {
                             append(movie.title)
@@ -193,12 +214,14 @@ private fun HeroPage(
                             }
                         },
                         color = onAccentColor,
-                        fontSize = 42.sp,
+                        fontSize = adaptiveFontSize,
+                        lineHeight = adaptiveLineHeight,
                         fontWeight = FontWeight.Black,
-                        lineHeight = 48.sp
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                     
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // TMDB Style Row
                     Row(
@@ -221,7 +244,7 @@ private fun HeroPage(
                         )
                     }
                     
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
                     
                     // Channel Comment (Review)
                     Box(
@@ -231,24 +254,16 @@ private fun HeroPage(
                             .background(onAccentColor.copy(alpha = 0.05f))
                             .padding(16.dp)
                     ) {
-                        Column {
-                            Text(
-                                text = "ОГЛЯД ВІД ЧЕСНОГО ОГЛЯДУ",
-                                color = (if (onAccentColor == Color.Black) Color(0xFF997a00) else Gold).copy(alpha = 0.8f),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = movie.comment,
-                                color = onAccentColor,
-                                fontSize = 15.sp,
-                                lineHeight = 22.sp,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                        Text(
+                            text = "«${movie.comment}»",
+                            color = onAccentColor,
+                            fontSize = 16.sp,
+                            lineHeight = 24.sp,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = FontWeight.Medium,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        )
                     }
                 }
             }

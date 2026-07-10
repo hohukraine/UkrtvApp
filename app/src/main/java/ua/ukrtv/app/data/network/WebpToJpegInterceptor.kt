@@ -25,8 +25,8 @@ class WebpToJpegInterceptor : Interceptor {
         private val IMAGE_EXTENSIONS = listOf(".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp")
         private data class CacheEntry(val bytes: ByteArray, val timestamp: Long)
         private const val CACHE_TTL_MS = 3_600_000L
-        private val JPEG_CACHE = object : LinkedHashMap<String, CacheEntry>(500, 0.75f, true) {
-            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CacheEntry>): Boolean = size > 500
+        private val JPEG_CACHE = object : LinkedHashMap<String, CacheEntry>(100, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CacheEntry>): Boolean = size > 100
         }
     }
 
@@ -110,9 +110,8 @@ class WebpToJpegInterceptor : Interceptor {
         } catch (_: Exception) {}
         
         options.inJustDecodeBounds = false
-        // Try ARGB_8888 first for widest compatibility, fallback to RGB_565
-        options.inPreferredConfig = Bitmap.Config.ARGB_8888
-        
+        options.inPreferredConfig = Bitmap.Config.RGB_565
+
         if (options.outWidth > 1000 || options.outHeight > 1000) {
             options.inSampleSize = 2
         }
@@ -123,14 +122,6 @@ class WebpToJpegInterceptor : Interceptor {
             null
         }
 
-        if (bitmap == null) {
-            // Try with RGB_565 if 8888 failed for some reason
-            options.inPreferredConfig = Bitmap.Config.RGB_565
-            bitmap = try {
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-            } catch (_: Exception) { null }
-        }
-        
         if (bitmap == null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
             try {
                 val source = ImageDecoder.createSource(ByteBuffer.wrap(bytes))

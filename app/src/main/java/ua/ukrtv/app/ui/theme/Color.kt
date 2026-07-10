@@ -1,6 +1,7 @@
 package ua.ukrtv.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.ColorPainter
 
 // Brand
 val BrandBlue = Color(0xFF6E85B7)
@@ -28,5 +29,8 @@ val Success = Color(0xFF4CAF50)
 // Overlay
 val Scrim = Color(0xAA000000)
 val OverlayLight = Color(0xFF1A1A1D)
+
+// Shared painters (avoids allocation per recomposition)
+val PlaceholderDark = ColorPainter(Color(0xFF141414))
 
 

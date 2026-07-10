@@ -25,8 +25,8 @@ class HtmlHttpClient(
     private val tag: String = "HtmlHttpClient",
 ) {
     private val userAgent: String = Constants.USER_AGENT
-    private val refreshJob = SupervisorJob()
-    private val refreshScope = CoroutineScope(Dispatchers.IO + refreshJob)
+    private var refreshJob = SupervisorJob()
+    private var refreshScope = CoroutineScope(Dispatchers.IO + refreshJob)
     private val hostSemaphores = ConcurrentHashMap<String, Semaphore>()
     private val inflightRefreshes = ConcurrentHashMap<String, Boolean>()
 
@@ -36,6 +36,14 @@ class HtmlHttpClient(
 
     fun shutdown() {
         refreshJob.cancel()
+        htmlCache.clear()
+    }
+
+    fun restart() {
+        if (refreshJob.isCancelled) {
+            refreshJob = SupervisorJob()
+            refreshScope = CoroutineScope(Dispatchers.IO + refreshJob)
+        }
     }
 
     private fun isSslError(e: Exception): Boolean {

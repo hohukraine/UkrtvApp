@@ -79,4 +79,8 @@
 -keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
 -keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
 
+# Coil
+-keep class coil.** { *; }
+-dontwarn coil.**
+
 

@@ -18,3 +18,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "UkrtvApp"
 include(":app")
+include(":database-generator")

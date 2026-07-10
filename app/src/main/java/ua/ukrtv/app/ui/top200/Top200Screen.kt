@@ -25,21 +25,25 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.Gold
+import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalIsMediatek
 import ua.ukrtv.app.ui.theme.OnSurface
 import ua.ukrtv.app.ui.theme.OnSurfaceDim
 import ua.ukrtv.app.ui.theme.OnSurfaceVariant
 import ua.ukrtv.app.ui.theme.OverlayLight
 import ua.ukrtv.app.ui.theme.SurfaceFocus
 import ua.ukrtv.app.ui.theme.SurfaceVariant
+import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.ui.components.RatingCircle
 import ua.ukrtv.app.domain.model.Top200Movie
+import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.data.repository.Top200Repository
 import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -139,12 +143,18 @@ fun Top200Screen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     val context = LocalContext.current
-                    val imageRequest = remember(movie.posterUrl, movie.title) {
+                    val deviceClass = LocalDeviceClass.current
+                    val isMediatek = LocalIsMediatek.current
+                    val (iw, ih) = when (deviceClass) {
+                        DeviceClass.LOW -> 120 to 180
+                        DeviceClass.MID -> 180 to 270
+                        DeviceClass.HIGH -> 300 to 450
+                    }
+                    val imageRequest = remember(movie.posterUrl, deviceClass) {
                         ImageRequest.Builder(context)
                             .data(movie.posterUrl.ifEmpty { null })
-                            .size(180, 270)
-                            .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
-                            .crossfade(false)
+                            .size(iw, ih)
+                            .deviceImage(deviceClass, isMediatek)
                             .build()
                     }
 

@@ -38,7 +38,6 @@ class PlayerFactory @Inject constructor(
         AppLogger.d("PlayerFactory", "Device: $deviceClass Mediatek=$isMediatek buffers=$buffers")
     }
 
-    @OptIn(UnstableApi::class)
     fun createLoadControl() = DefaultLoadControl.Builder()
         .setBufferDurationsMs(
             buffers.minBufferMs,
@@ -88,7 +87,6 @@ class PlayerFactory @Inject constructor(
         }
     }
 
-    @OptIn(UnstableApi::class)
     fun buildPlayer(
         context: Context,
         dataSourceFactory: DataSource.Factory
@@ -132,7 +130,8 @@ class PlayerFactory @Inject constructor(
             .build()
 
         player.addAnalyticsListener(object : AnalyticsListener {
-            @Suppress("DEPRECATION", "OverridingDeprecatedMember")
+            @Suppress("DEPRECATION")
+            @Deprecated("Superseded by new Media3 listener API", level = DeprecationLevel.HIDDEN)
             override fun onVideoDecoderInitialized(
                 eventTime: AnalyticsListener.EventTime,
                 decoderName: String,

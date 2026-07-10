@@ -1,0 +1,203 @@
+# Baseline Profile — UkrtvApp
+# Auto-generated for AOT compilation of startup-critical path
+
+# ── Application + Hilt DI ──
+Lua/ukrtv/app/UkrtvApplication
+Lua/ukrtv/app/UkrtvApplication_MembersInjector
+Lua/ukrtv/app/UkrtvApplication_HiltComponents
+Lua/ukrtv/app/UkrtvApplication_HiltComponents$ApplicationC
+Lua/ukrtv/app/UkrtvApplication_HiltComponents$ViewModelC
+Lua/ukrtv/app/UkrtvApplication_HiltComponents$ActivityC
+Lua/ukrtv/app/UkrtvApplication_HiltComponents$FragmentC
+Lua/ukrtv/app/UkrtvApplication_HiltComponents$ActivityRetainedC
+Lua/ukrtv/app/UkrtvApplication_HiltComponents$ServiceC
+Ldagger/hilt/android/internal/managers/ApplicationComponentManager
+Ldagger/hilt/android/internal/managers/ActivityComponentManager
+Ldagger/hilt/android/internal/managers/ViewModelComponentManager
+Ldagger/hilt/android/internal/managers/FragmentComponentManager
+Ldagger/internal/InstanceFactory
+
+# ── Main Activity + Navigation ──
+Lua/ukrtv/app/MainActivity
+Lua/ukrtv/app/MainActivity_MembersInjector
+Landroidx/activity/ComponentActivity
+Landroidx/navigation/NavHostController
+Landroidx/navigation/compose/NavHost
+Landroidx/navigation/compose/rememberNavController
+Landroidx/compose/animation/AnimatedContentTransitionScopeImpl
+Landroidx/activity/compose/BackHandler
+
+# ── Composables: Home Screen ──
+Lua/ukrtv/app/ui/home/HomeScreenKt
+Lua/ukrtv/app/ui/home/HomeViewModel
+Lua/ukrtv/app/ui/home/HomeViewModel_HiltModules$KeyModule
+Lua/ukrtv/app/ui/home/HomeViewModel_HiltModules$EarlySynthesizedInputs$dex
+Lua/ukrtv/app/ui/home/components/ContentRow
+Lua/ukrtv/app/ui/home/components/TopBar
+Lua/ukrtv/app/ui/home/components/HeroCarousel
+Lua/ukrtv/app/ui/home/components/HeroCarouselKt$HeroItemContent
+Lua/ukrtv/app/ui/home/components/Top200SignatureHero
+Lua/ukrtv/app/ui/home/MovieCard
+Lua/ukrtv/app/ui/home/CompactMovieCard
+Lua/ukrtv/app/ui/home/ContinueWatchingCard
+Lua/ukrtv/app/ui/home/components/MovieInfoHeader
+
+# ── Composables: Detail Screen ──
+Lua/ukrtv/app/ui/detail/DetailScreen
+Lua/ukrtv/app/ui/detail/DetailViewModel
+Lua/ukrtv/app/ui/detail/DetailViewModel_HiltModules$KeyModule
+Lua/ukrtv/app/ui/detail/DetailViewModel_HiltModules$EarlySynthesizedInputs$dex
+
+# ── Composables: Player Screen ──
+Lua/ukrtv/app/ui/player/PlayerScreen
+Lua/ukrtv/app/ui/player/PlayerViewModel
+Lua/ukrtv/app/ui/player/PlayerViewModel_HiltModules$KeyModule
+Lua/ukrtv/app/ui/player/PlayerViewModel_HiltModules$EarlySynthesizedInputs$dex
+Lua/ukrtv/app/ui/player/PlayerOverlay
+Lua/ukrtv/app/ui/player/EpisodePickerPanel
+
+# ── Coil Image Loading ──
+Lcoil/Coil
+Lcoil/ImageLoader
+Lcoil/request/ImageRequest
+Lcoil/request/ImageRequest$Builder
+Lcoil/compose/AsyncImage
+Lcoil/compose/AsyncImagePainter
+Lcoil/compose/SubcomposeAsyncImage
+Lcoil/memory/MemoryCache$Key
+Lcoil/memory/MemoryCache$Default
+Lcoil/decode/Decoder
+Lcoil/decode/ImageSource
+Lcoil/network/HttpUriFetcher
+Lcoil/util/System
+
+# ── Compose Runtime ──
+Landroidx/compose/runtime/Composer
+Landroidx/compose/runtime/CompositionImpl
+Landroidx/compose/runtime/Recomposer
+Landroidx/compose/runtime/MovableContent
+Landroidx/compose/runtime/RememberObserver
+Landroidx/compose/ui/Modifier
+Landroidx/compose/ui/Modifier$Node
+Landroidx/compose/ui/layout/MeasurePolicy
+Landroidx/compose/ui/layout/SubcomposeLayout
+Landroidx/compose/ui/layout/Placeable
+Landroidx/compose/ui/draw/DrawModifier
+Landroidx/compose/ui/graphics/drawscope/CanvasDrawScope
+Landroidx/compose/ui/node/LayoutNode
+Landroidx/compose/ui/node/LayoutNodeLayoutDelegate
+
+# ── Compose Foundation Layout ──
+Landroidx/compose/foundation/layout/Column
+Landroidx/compose/foundation/layout/Row
+Landroidx/compose/foundation/layout/Box
+Landroidx/compose/foundation/lazy/LazyColumn
+Landroidx/compose/foundation/lazy/LazyListState
+Landroidx/compose/foundation/lazy/LazyRow
+Landroidx/compose/foundation/lazy/items
+Landroidx/compose/foundation/lazy/grid/LazyVerticalGrid
+Landroidx/compose/foundation/background
+Landroidx/compose/foundation/clickable
+Landroidx/compose/foundation/focusable
+Landroidx/compose/foundation/gestures/ScrollableDefaults
+Landroidx/compose/foundation/shape/RoundedCornerShape
+
+# ── TV Material3 ──
+Landroidx/tv/material3/Surface
+Landroidx/tv/material3/ClickableSurfaceDefaults
+Landroidx/tv/material3/Border
+Landroidx/tv/material3/Card
+Landroidx/tv/material3/StandardCardContainer
+Landroidx/tv/material3/Carousel
+
+# ── Material3 ──
+Landroidx/compose/material3/Text
+Landroidx/compose/material3/TextStyle
+
+# ── Media3 / ExoPlayer ──
+Landroidx/media3/exoplayer/ExoPlayer
+Landroidx/media3/exoplayer/ExoPlayer$Builder
+Landroidx/media3/exoplayer/hls/HlsMediaSource
+Landroidx/media3/exoplayer/source/DefaultMediaSourceFactory
+Landroidx/media3/exoplayer/trackselection/DefaultTrackSelector
+Landroidx/media3/exoplayer/upgrade/DefaultLoadControl
+Landroidx/media3/common/Format
+Landroidx/media3/common/Player
+Landroidx/media3/ui/PlayerView
+Landroidx/media3/datasource/DefaultHttpDataSource
+Landroidx/media3/datasource/okhttp/OkHttpDataSource
+Landroidx/media3/exoplayer/analytics/AnalyticsCollector
+
+# ── OkHttp + Networking ──
+Lokhttp3/OkHttpClient
+Lokhttp3/OkHttpClient$Builder
+Lokhttp3/Request
+Lokhttp3/Request$Builder
+Lokhttp3/Response
+Lokhttp3/Call
+Lokhttp3/EventListener
+Lokhttp3/ConnectionPool
+Lokhttp3/Dns
+Lokhttp3/internal/http/RealInterceptorChain
+Lokhttp3/internal/connection/RealConnection
+Lokhttp3/internal/connection/RouteSelector
+
+# ── Jsoup (HTML Parsing) ──
+Lorg/jsoup/Jsoup
+Lorg/jsoup/nodes/Document
+Lorg/jsoup/nodes/Element
+Lorg/jsoup/select/Elements
+Lorg/jsoup/parser/Parser
+
+# ── Data Loading (Providers) ──
+Lua/ukrtv/app/data/provider/uakino/UakinoProvider
+Lua/ukrtv/app/data/provider/eneyida/EneyidaProvider
+Lua/ukrtv/app/data/parser/DleParser
+Lua/ukrtv/app/data/repository/ContentRepository
+Lua/ukrtv/app/data/repository/HomeCacheRepository
+Lua/ukrtv/app/data/repository/WatchProgressRepository
+Lua/ukrtv/app/data/repository/WatchlistRepository
+Lua/ukrtv/app/data/repository/Top200Repository
+Lua/ukrtv/app/data/provider/ResolutionChain
+Lua/ukrtv/app/data/provider/IframeResolutionStrategy
+Lua/ukrtv/app/data/provider/AjaxPlaylistResolutionStrategy
+Lua/ukrtv/app/data/network/HtmlHttpClient
+Lua/ukrtv/app/util/PerformanceMonitor
+
+# ── Domain Models ──
+Lua/ukrtv/app/domain/model/Movie
+Lua/ukrtv/app/domain/model/MovieDetail
+Lua/ukrtv/app/domain/model/Top200Movie
+Lua/ukrtv/app/domain/model/ProviderSeason
+Lua/ukrtv/app/domain/model/ProviderEpisode
+
+# ── Room Database ──
+Landroidx/room/Room
+Landroidx/room/RoomDatabase
+Lua/ukrtv/app/data/local/AppDatabase
+Lua/ukrtv/app/data/local/dao/WatchHistoryDao
+Lua/ukrtv/app/data/local/dao/ContinueWatchingDao
+Lua/ukrtv/app/data/local/dao/HtmlCacheDao
+Lua/ukrtv/app/data/local/dao/WatchlistDao
+Lua/ukrtv/app/data/local/dao/WatchProgressDao
+Lua/ukrtv/app/data/local/dao/SearchHistoryDao
+
+# ── AndroidX Core ──
+Landroidx/core/app/SplashScreen
+Landroidx/core/app/SplashScreenViewProvider
+Landroidx/core/view/WindowInsetsCompat
+Landroidx/core/view/WindowCompat
+Landroidx/lifecycle/Lifecycle
+Landroidx/lifecycle/LifecycleCoroutineScope
+Landroidx/lifecycle/viewmodel/compose/viewModel
+
+# ── Kotlin Coroutines ──
+Lkotlinx/coroutines/flow/StateFlow
+Lkotlinx/coroutines/flow/MutableStateFlow
+Lkotlinx/coroutines/flow/collectLatest
+Lkotlinx/coroutines/launch
+Lkotlinx/coroutines/withContext
+
+# ── Gson / Serialization ──
+Lcom/google/gson/Gson
+Lkotlinx/serialization/json/Json

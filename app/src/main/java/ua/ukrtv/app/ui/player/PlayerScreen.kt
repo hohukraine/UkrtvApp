@@ -17,7 +17,7 @@ import ua.ukrtv.app.ui.theme.BrandBlue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.delay
@@ -212,6 +212,12 @@ private fun PlayerContent(
             playFocusRequester = playFocusRequester,
             playButtonFocusRequester = playButtonFocusRequester,
             isShowingControls = state.isShowingControls,
+            heldSeekDir = heldSeekDir?.let {
+                when (it) {
+                    HeldSeekDir.FORWARD -> SeekDirection.Forward
+                    HeldSeekDir.BACKWARD -> SeekDirection.Backward
+                }
+            },
             onSeek = { player.seekTo(it) }
         )
 

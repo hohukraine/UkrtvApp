@@ -1,10 +1,14 @@
 package ua.ukrtv.app.domain.model
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+
+@Stable
+@Immutable
 data class Top200Movie(
     val rank: Int,
     val title: String,
     val originalTitle: String,
-    val tmdbId: Int = 0,
     val comment: String,
     val year: String = "",
     val director: String = "",

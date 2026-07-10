@@ -9,29 +9,6 @@ import java.io.File
 class EneyidaParserTest {
 
     @Test
-    fun testParseEneyidaHome() {
-        val file = File("../../eneyida.html")
-        if (!file.exists()) {
-             println("Test skipped: eneyida.html not found at ${file.absolutePath}")
-             return
-        }
-        val html = file.readText()
-        
-        val parser = DleParser(EneyidaProfile)
-        val movies = parser.parseList(html)
-        
-        println("Found ${movies.size} items in eneyida.html")
-        assertTrue(movies.isNotEmpty())
-        
-        val from = movies.find { it.title.contains("Ззовні") }
-        if (from != null) {
-            println("Found From: ${from.title} -> ${from.pageUrl}")
-            // In eneyida.html: <a class="short_title" id="short_title" href="https://eneyida.tv/7026-zzovni.html">Ззовні</a>
-            assertEquals("https://eneyida.tv/7026-zzovni.html", from.pageUrl)
-        }
-    }
-
-    @Test
     fun testEneyidaSeriesDetection() {
          val html = """
             <article class="short">

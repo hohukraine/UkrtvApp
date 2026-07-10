@@ -10,12 +10,46 @@ enum class DeviceClass {
 
 fun getDeviceClass(context: Context): DeviceClass {
     val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return DeviceClass.MID
-    val memClass = am.memoryClass
-    val isLowRam = am.isLowRamDevice
+    val memInfo = ActivityManager.MemoryInfo()
+    am.getMemoryInfo(memInfo)
+    val totalRamGb = memInfo.totalMem / (1024.0 * 1024.0 * 1024.0)
+    val cores = Runtime.getRuntime().availableProcessors()
+    val density = context.resources.displayMetrics.densityDpi
+
+    if (am.isLowRamDevice || totalRamGb <= 1.0) return DeviceClass.LOW
+
+    var score = 0
+    score += when {
+        totalRamGb >= 3.5 -> 2
+        totalRamGb >= 2.0 -> 1
+        else -> 0
+    }
+    score += when {
+        cores >= 8 -> 2
+        cores >= 4 -> 1
+        else -> 0
+    }
+    // High-density screens cost more GPU bandwidth to composite
+    score += when {
+        density <= 320 -> 2
+        density <= 420 -> 1
+        else -> 0
+    }
+
     return when {
-        memClass <= 96 || isLowRam -> DeviceClass.LOW
-        memClass <= 256 -> DeviceClass.MID
+        score <= 1 -> DeviceClass.LOW
+        score <= 3 -> DeviceClass.MID
         else -> DeviceClass.HIGH
+    }
+}
+
+fun resolveDeviceClass(context: Context, profile: PerformanceProfile): DeviceClass {
+    val hardware = getDeviceClass(context)
+    return when (profile) {
+        PerformanceProfile.AUTO -> hardware
+        PerformanceProfile.PERFORMANCE -> DeviceClass.LOW
+        PerformanceProfile.BALANCED -> DeviceClass.MID
+        PerformanceProfile.VISUAL -> DeviceClass.HIGH
     }
 }
 

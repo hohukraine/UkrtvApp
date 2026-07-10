@@ -1,0 +1,338 @@
+package ua.ukrtv.app.ui.trends
+
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import ua.ukrtv.app.ui.theme.PlaceholderDark
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.tv.material3.ClickableSurfaceDefaults
+import androidx.tv.material3.ExperimentalTvMaterial3Api
+import androidx.tv.material3.Surface
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import kotlinx.coroutines.delay
+import ua.ukrtv.app.domain.model.Movie
+import ua.ukrtv.app.ui.home.components.HomeBackground
+import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalIsMediatek
+import ua.ukrtv.app.ui.theme.SurfaceVariant
+import ua.ukrtv.app.ui.theme.deviceImage
+import ua.ukrtv.app.util.DeviceClass
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun FullTrendsGridScreen(
+    viewModel: FullTrendsGridViewModel = hiltViewModel(),
+    onMovieClick: (Movie) -> Unit,
+    onBack: () -> Unit
+) {
+    val items by viewModel.items.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val brandColorLong by viewModel.brandColor.collectAsState()
+    val providerColor = remember(brandColorLong) { Color(brandColorLong) }
+    val deviceClass = LocalDeviceClass.current
+    val gridFocusRequester = remember { FocusRequester() }
+    val gridState = rememberLazyGridState()
+
+    var entranceTrigger by remember { mutableStateOf(0L) }
+    LaunchedEffect(isLoading) {
+        if (!isLoading) {
+            entranceTrigger = System.currentTimeMillis()
+            delay(50)
+            gridFocusRequester.requestFocus()
+        }
+    }
+
+    val scrollFraction by remember {
+        derivedStateOf {
+            if (gridState.firstVisibleItemIndex > 0) 1f
+            else (gridState.firstVisibleItemScrollOffset / 200f).coerceIn(0f, 1f)
+        }
+    }
+
+    HomeBackground(
+        brandColor = providerColor,
+        focusedColor = providerColor,
+        scrollFraction = scrollFraction,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Premium header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (deviceClass == DeviceClass.HIGH) {
+                    Surface(
+                        onClick = onBack,
+                        shape = ClickableSurfaceDefaults.shape(CircleShape),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = Color.White.copy(alpha = 0.05f),
+                            focusedContainerColor = Color.White,
+                            contentColor = Color.White,
+                            focusedContentColor = Color.Black
+                        ),
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(Color.White.copy(alpha = 0.05f), CircleShape)
+                    ) {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", modifier = Modifier.size(24.dp))
+                        }
+                    }
+                } else {
+                    Surface(
+                        onClick = onBack,
+                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = Color.Transparent,
+                            focusedContainerColor = SurfaceVariant
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Назад",
+                            tint = Color.White,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
+                Spacer(Modifier.width(16.dp))
+                Text(
+                    text = "Всі тренди",
+                    color = Color.White,
+                    fontSize = if (deviceClass == DeviceClass.HIGH) 26.sp else 24.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                if (!isLoading) {
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = "(${items.size})",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 16.sp
+                    )
+                }
+            }
+
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Adaptive(180.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 48.dp),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusRequester(gridFocusRequester)
+            ) {
+                if (!isLoading && error != null && items.isEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 80.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = error!!,
+                                color = Color.White.copy(alpha = 0.6f),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            androidx.tv.material3.Button(
+                                onClick = { viewModel.retry() },
+                                colors = androidx.tv.material3.ButtonDefaults.colors(
+                                    containerColor = providerColor
+                                )
+                            ) {
+                                Text("Повторити", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+                itemsIndexed(items, key = { _, movie -> movie.pageUrl }) { index, movie ->
+                    CompactGridCard(
+                        movie = movie,
+                        onClick = { onMovieClick(movie) },
+                        entranceIndex = index,
+                        entranceTrigger = entranceTrigger,
+                        deviceClass = deviceClass
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun CompactGridCard(
+    movie: Movie,
+    onClick: () -> Unit,
+    entranceIndex: Int = 0,
+    entranceTrigger: Long = 0L,
+    deviceClass: DeviceClass = DeviceClass.MID
+) {
+    val context = LocalContext.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val isMediatek = LocalIsMediatek.current
+
+    // Entrance animation
+    val staggerMs = when (deviceClass) {
+        DeviceClass.HIGH -> 30
+        DeviceClass.MID -> 20
+        DeviceClass.LOW -> 0
+    }
+    val animDuration = when (deviceClass) {
+        DeviceClass.HIGH -> 200
+        DeviceClass.MID -> 150
+        DeviceClass.LOW -> 0
+    }
+    var itemVisible by remember(entranceTrigger, entranceIndex) { mutableStateOf(deviceClass == DeviceClass.LOW) }
+    LaunchedEffect(entranceTrigger, entranceIndex) {
+        if (deviceClass != DeviceClass.LOW) {
+            delay((entranceIndex * staggerMs).toLong())
+            itemVisible = true
+        }
+    }
+    val entranceAlpha by animateFloatAsState(
+        targetValue = if (itemVisible) 1f else 0f,
+        animationSpec = if (deviceClass == DeviceClass.LOW) {
+            androidx.compose.animation.core.snap()
+        } else {
+            tween(durationMillis = animDuration)
+        },
+        label = "entranceAlpha"
+    )
+    val entranceScale by animateFloatAsState(
+        targetValue = if (itemVisible) 1f else 0.95f,
+        animationSpec = if (deviceClass == DeviceClass.HIGH) {
+            spring(dampingRatio = 0.7f, stiffness = 300f)
+        } else {
+            androidx.compose.animation.core.snap()
+        },
+        label = "entranceScale"
+    )
+
+    val focusScale = if (isFocused) 1.05f else 1f
+
+    val (gridW, gridH) = when (deviceClass) {
+        DeviceClass.LOW -> 180 to 270
+        DeviceClass.MID -> 300 to 450
+        DeviceClass.HIGH -> 360 to 540
+    }
+    val imageRequest = remember(movie.poster, deviceClass) {
+        ImageRequest.Builder(context)
+            .data(movie.poster)
+            .size(gridW, gridH)
+            .deviceImage(deviceClass, isMediatek)
+            .build()
+    }
+
+    val displayScale = entranceScale * focusScale
+
+    Column(
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = displayScale
+                scaleY = displayScale
+                alpha = entranceAlpha
+            }
+    ) {
+        Surface(
+            onClick = onClick,
+            interactionSource = interactionSource,
+            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
+            colors = ClickableSurfaceDefaults.colors(
+                containerColor = Color(0xFF141414),
+                focusedContainerColor = Color(0xFF1E1E1E)
+            ),
+            modifier = Modifier
+                .aspectRatio(2f / 3f)
+                .fillMaxWidth()
+        ) {
+            Box(Modifier.fillMaxSize()) {
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = movie.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(8.dp)),
+                    placeholder = PlaceholderDark,
+                    error = PlaceholderDark
+                )
+
+                if (movie.provider != null) {
+                    val providerColor = when (movie.provider) {
+                        "Uakino" -> Color(0xFFFF6B35)
+                        "Eneyida" -> Color(0xFF4ECDC4)
+                        else -> Color(0xFF888888)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .background(providerColor.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = movie.provider.uppercase(),
+                            color = Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+
+        Text(
+            text = movie.title,
+            color = Color.White.copy(alpha = 0.8f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp, start = 2.dp, end = 2.dp)
+        )
+    }
+}

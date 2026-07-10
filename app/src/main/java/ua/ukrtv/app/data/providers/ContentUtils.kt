@@ -30,7 +30,7 @@ object ContentUtils {
         if (title.isBlank()) return ""
         titleCache.get(title)?.let { return it }
 
-        var clean = if (title.contains(" / ")) title.substringAfterLast("/").trim() else title
+        var clean = if (title.contains(" / ")) title.substringBefore(" / ").trim() else title
 
         for (marker in STOP_MARKERS) {
             val idx = clean.indexOf(marker, ignoreCase = true)

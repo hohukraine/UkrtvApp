@@ -36,7 +36,7 @@ object CrashReporter {
                 writer.appendLine("=== CRASH REPORT ===")
                 writer.appendLine("Time: ${SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())}")
                 writer.appendLine("PID: ${Process.myPid()}")
-                writer.appendLine("Thread: ${thread.name} (id=${thread.id})")
+                writer.appendLine("Thread: ${thread.name} (id=${thread.threadId()})")
                 writer.appendLine("")
                 writer.appendLine("=== Exception ===")
                 writer.appendLine("${throwable.javaClass.name}: ${throwable.message}")

@@ -16,7 +16,7 @@ android {
         minSdk = 23
         targetSdk = 37
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
     }
 
     buildFeatures {
@@ -38,6 +38,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("debug")
         }
         debug {
             isMinifyEnabled = false
@@ -61,6 +62,19 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
+}
+
+val genJar by configurations.creating
+
+dependencies {
+    genJar(project(":database-generator"))
+}
+
+tasks.register<JavaExec>("generateCatalogDb") {
+    description = "Generates catalog_index.json from provider category pages (run manually)"
+    classpath = genJar
+    mainClass = "ua.ukrtv.app.generator.DbGeneratorKt"
+    args = listOf(layout.projectDirectory.file("src/main/assets/catalog_index.json").asFile.absolutePath)
 }
 
 dependencies {
@@ -87,12 +101,7 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
     
     // Network & Parsing
-    implementation(libs.gson)
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.gson)
-    implementation(libs.retrofit.scalars)
     implementation(libs.okhttp)
-    implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
     implementation(libs.jsoup)
     
     // Storage & Data
@@ -118,6 +127,9 @@ dependencies {
 
     // SplashScreen
     implementation(libs.splashscreen)
+
+    // Startup profiling
+    implementation(libs.profileinstaller)
 
     // Test
     testImplementation(libs.junit)

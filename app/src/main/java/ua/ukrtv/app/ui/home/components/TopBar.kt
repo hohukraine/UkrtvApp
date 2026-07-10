@@ -1,25 +1,28 @@
 package ua.ukrtv.app.ui.home.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
-import kotlinx.coroutines.delay
 import ua.ukrtv.app.domain.model.Provider
+import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.GridDefaults
+import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.util.DeviceClass
 
 /**
  * TopBar - Professional Navigation & Branding
@@ -30,15 +33,48 @@ fun TopBar(
     brandColor: Color,
     providers: List<Provider>,
     currentProviderId: String,
+    scrollFraction: Float = 0f,
     onSearchClick: () -> Unit,
     onProviderClick: (String) -> Unit,
+    onSettingsClick: () -> Unit = {},
     searchFocusRequester: FocusRequester = remember { FocusRequester() }
 ) {
+    val deviceClass = LocalDeviceClass.current
+    val bgAlpha = when (deviceClass) {
+        DeviceClass.LOW -> (scrollFraction * 0.3f).coerceIn(0f, 0.3f)
+        DeviceClass.MID -> (scrollFraction * 0.5f).coerceIn(0f, 0.5f)
+        DeviceClass.HIGH -> (scrollFraction * 0.7f).coerceIn(0f, 0.7f)
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = GridDefaults.horizontalPadding)
-            .padding(top = 16.dp, bottom = 8.dp)
+            .then(
+                when {
+                    deviceClass == DeviceClass.HIGH -> {
+                        val bgBrightness = (0.08f + 0.25f * scrollFraction).coerceIn(0f, 0.33f)
+                        Modifier
+                            .padding(horizontal = GridDefaults.horizontalPadding - 16.dp, vertical = 8.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.White.copy(alpha = bgBrightness),
+                                        Color.White.copy(alpha = bgBrightness * 0.4f)
+                                    )
+                                )
+                            )
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    }
+                    bgAlpha > 0.01f -> Modifier
+                        .background(Background.copy(alpha = bgAlpha))
+                        .padding(horizontal = GridDefaults.horizontalPadding)
+                        .padding(top = 16.dp, bottom = 8.dp)
+                    else -> Modifier
+                        .padding(horizontal = GridDefaults.horizontalPadding)
+                        .padding(top = 16.dp, bottom = 8.dp)
+                }
+            )
     ) {
         // App Identity (Left)
         Row(
@@ -84,6 +120,42 @@ fun TopBar(
                 )
             }
         }
+
+        // Settings icon (Right)
+        SettingsButton(
+            brandColor = brandColor,
+            onClick = onSettingsClick,
+            modifier = Modifier.align(Alignment.CenterEnd)
+        )
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun SettingsButton(
+    brandColor: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.Transparent,
+            focusedContainerColor = Color.Transparent,
+            contentColor = Color.White.copy(alpha = 0.5f),
+            focusedContentColor = brandColor
+        ),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(4.dp)),
+        modifier = modifier.size(36.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Default.Settings,
+                contentDescription = "Налаштування",
+                modifier = Modifier.size(22.dp)
+            )
+        }
     }
 }
 
@@ -98,26 +170,37 @@ private fun NavButton(
 ) {
     Surface(
         onClick = onClick,
-        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.1f),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.12f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
-            focusedContainerColor = Color.Transparent,
+            focusedContainerColor = brandColor.copy(alpha = 0.1f),
             contentColor = if (isSelected) brandColor else Color.White.copy(alpha = 0.5f),
             focusedContentColor = brandColor
         ),
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(4.dp)),
-        modifier = modifier.height(36.dp)
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(6.dp)),
+        modifier = modifier.height(38.dp)
     ) {
         Box(
             contentAlignment = Alignment.Center,
-            modifier = Modifier.padding(horizontal = 12.dp)
+            modifier = Modifier.padding(horizontal = 16.dp)
         ) {
-            Text(
-                text = text,
-                fontSize = 15.sp,
-                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                letterSpacing = 1.2.sp
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = text,
+                    fontSize = 15.sp,
+                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                    letterSpacing = 1.2.sp
+                )
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 4.dp)
+                            .width(16.dp)
+                            .height(3.dp)
+                            .background(brandColor, RoundedCornerShape(2.dp))
+                    )
+                }
+            }
         }
     }
 }

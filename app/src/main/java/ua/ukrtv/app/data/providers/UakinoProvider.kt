@@ -17,6 +17,7 @@ import org.jsoup.nodes.Document
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.TtlLruCache
 import ua.ukrtv.app.data.network.HtmlHttpClient
+import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.repository.SessionRepository
 
 import ua.ukrtv.app.domain.model.HomeSection
@@ -24,10 +25,12 @@ import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.MovieDetail
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.PerformanceMonitor
+import ua.ukrtv.app.util.SearchScorer
 
 class UakinoProvider(
     private val htmlHttpClient: HtmlHttpClient,
-    private val sessionRepository: SessionRepository
+    private val sessionRepository: SessionRepository,
+    private val catalogRepository: CatalogRepository
 ) : MediaProvider {
 
     private val parser = DleParser(UakinoProfile)
@@ -105,7 +108,15 @@ class UakinoProvider(
     }
 
     override suspend fun search(query: String, limit: Int): List<SearchItem> = withContext(Dispatchers.IO) {
-        val q = query.trim().takeIf { it.length >= 3 } ?: return@withContext emptyList()
+        val q = query.trim().takeIf { it.length >= 3 || (it.length >= 2 && it.any { c -> c.isDigit() }) } ?: return@withContext emptyList()
+
+        if (catalogRepository.isProviderReady(name)) {
+            val results = catalogRepository.searchByProvider(name, q, limit)
+            if (results.isNotEmpty()) {
+                return@withContext results.map { SearchItem(it.title, it.url, it.poster, name) }
+            }
+        }
+
         if (sessionUserHash.isEmpty()) initializeSession()
 
         val allResults = mutableListOf<Movie>()
@@ -135,9 +146,41 @@ class UakinoProvider(
             }
         }
 
-        allResults.filter { it.title.isNotEmpty() && !it.pageUrl.contains("/?do=") && !it.pageUrl.endsWith("/") }
+        val filtered = allResults.filter { it.title.isNotEmpty() && !it.pageUrl.contains("/?do=") && !it.pageUrl.endsWith("/") }
             .distinctBy { it.pageUrl }.take(limit)
             .map { SearchItem(it.title, it.pageUrl, it.poster, name) }
+
+        if (filtered.isNotEmpty()) return@withContext filtered
+        return@withContext searchCatalogFallback(q, limit)
+    }
+
+    private suspend fun searchCatalogFallback(query: String, limit: Int): List<SearchItem> = withContext(Dispatchers.IO) {
+        val results = mutableListOf<Movie>()
+        val q = SearchScorer.transliterate(SearchScorer.normalizeTitle(query))
+
+        for (page in 0 until 3) {
+            if (results.size >= limit) break
+            val pageUrl = if (page == 0) "/filmy/online/"
+                          else "/filmy/online/page/$page/"
+            try {
+                htmlHttpClient.getHtml(absoluteUrl(pageUrl), baseUrl)?.let { html ->
+                    val parsed = parser.parseListFastJsoup(html, baseUrl)
+                    if (parsed.isEmpty()) {
+                        results.addAll(DleParser.parseListFastRegex(html, baseUrl))
+                    } else {
+                        results.addAll(parsed)
+                    }
+                }
+            } catch (_: Exception) { break }
+        }
+
+        val matched = results.filter { movie ->
+            val movieNorm = SearchScorer.transliterate(SearchScorer.normalizeTitle(movie.title))
+            movieNorm.contains(q) || q.contains(movieNorm) ||
+            SearchScorer.bigramSimilarity(q, movieNorm) > 0.4f
+        }.distinctBy { it.pageUrl }.take(limit)
+
+        matched.map { SearchItem(it.title, it.pageUrl, it.poster, name) }
     }
 
     override suspend fun getMovieDetails(url: String): MovieDetail = withContext(Dispatchers.IO) {
@@ -176,8 +219,7 @@ class UakinoProvider(
         val directUrls = DleResolutionUtils.findMediaUrlsInText(html)
         if (directUrls.isNotEmpty()) {
             val best = selectBestMediaUrl(directUrls) ?: directUrls.first()
-            val finalUrl = resolveBestUrlFromPlaylist(best) ?: best
-            return MediaSource.Movie(finalUrl, directUrls.filter { it != best }, pageUrl, name)
+            return MediaSource.Movie(best, directUrls.filter { it != best }, pageUrl, name)
         }
 
         val parsedDoc = doc ?: Jsoup.parse(html, pageUrl)
@@ -192,9 +234,8 @@ class UakinoProvider(
                 val media = DleResolutionUtils.findMediaUrlsInText(iframeResp)
                 if (media.isNotEmpty()) {
                     val best = selectBestMediaUrl(media) ?: media.first()
-                    val finalUrl = resolveBestUrlFromPlaylist(best) ?: best
                     val fallbacks = media.filter { it != best }
-                    return MediaSource.Movie(finalUrl, fallbacks, pageUrl, name)
+                    return MediaSource.Movie(best, fallbacks, pageUrl, name)
                 }
             } catch (e: Exception) {
                 AppLogger.w("$name:MovieIframe", "Iframe failed: ${e.message}")

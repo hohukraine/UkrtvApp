@@ -22,6 +22,10 @@ import androidx.tv.material3.Surface
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import ua.ukrtv.app.domain.model.Comment
+import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalIsMediatek
+import ua.ukrtv.app.ui.theme.deviceImage
+import ua.ukrtv.app.util.DeviceClass
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -135,12 +139,13 @@ private fun CommentCard(
         ) {
             if (comment.avatar.isNotBlank()) {
                 val ctx = LocalContext.current
-                val avatarRequest = remember(comment.avatar) {
+                val deviceClass = LocalDeviceClass.current
+                val isMediatek = LocalIsMediatek.current
+                val avatarRequest = remember(comment.avatar, deviceClass) {
                     ImageRequest.Builder(ctx)
                         .data(comment.avatar)
                         .size(72, 72)
-                        .bitmapConfig(android.graphics.Bitmap.Config.RGB_565)
-                        .crossfade(false)
+                        .deviceImage(deviceClass, isMediatek)
                         .build()
                 }
                 AsyncImage(
