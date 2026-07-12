@@ -22,7 +22,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/zaX6d5GCtb2CmOH9jrHBl58xxBY.jpg",
                 accentColor = "#8c867c",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Вогнеборці", "Only the Brave"),
+                searchQueries = listOf("Вогнеборці"),
             ),
             Top200Movie(
                 rank = 2,
@@ -37,7 +37,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/2u7zbn8EudG6kLlBzUYqP8RyFU4.jpg",
                 accentColor = "#2d1f15",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Володар перснів (Трилогія)", "The Lord of the Rings"),
+                searchQueries = listOf("Володар перснів"),
             ),
             Top200Movie(
                 rank = 3,
@@ -52,7 +52,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/2ssWTSVklAEc98frZUQhgtGHx7s.jpg",
                 accentColor = "#313e49",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Інтерстеллар", "Interstellar"),
+                searchQueries = listOf("Інтерстеллар"),
             ),
             Top200Movie(
                 rank = 4,
@@ -67,7 +67,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/lzMS0CI3FLQYC5EgJoWeIaEt0lm.jpg",
                 accentColor = "#a1582b",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Марсіянин", "The Martian"),
+                searchQueries = listOf("Марсіянин"),
             ),
             Top200Movie(
                 rank = 5,
@@ -82,7 +82,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/2oZklIzUbvZXXzIFzv7Hi68d6xf.jpg",
                 accentColor = "#9a7b79",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Джанго вільний", "Django Unchained"),
+                searchQueries = listOf("Джанґо вільний"),
             ),
             Top200Movie(
                 rank = 6,
@@ -97,7 +97,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/7g1zO5t0bd27Iqn5ZUDJmksOGPJ.jpg",
                 accentColor = "#1b1918",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Мерзенна вісімка", "The Hateful Eight"),
+                searchQueries = listOf("Мерзенна вісімка"),
             ),
             Top200Movie(
                 rank = 7,
@@ -112,7 +112,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/hClLP88yMIuhslwSVxtYrvWmxfp.jpg",
                 accentColor = "#8c847f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Джентльмени", "The Gentlemen"),
+                searchQueries = listOf("Джентльмени"),
             ),
             Top200Movie(
                 rank = 8,
@@ -127,7 +127,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg",
                 accentColor = "#2e1929",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Месники: Війна нескінченності", "Avengers: Infinity War"),
+                searchQueries = listOf("Месники Війна нескінченності"),
             ),
             Top200Movie(
                 rank = 9,
@@ -142,7 +142,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/6c7j7MQCczzNVvcrNEiXbs8Kt2p.jpg",
                 accentColor = "#222729",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Гнів", "Man on Fire"),
+                searchQueries = listOf("Гнів"),
             ),
             Top200Movie(
                 rank = 10,
@@ -157,7 +157,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/5HLNp2zEsXezVoXtOfLJE29xaUI.jpg",
                 accentColor = "#998472",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Збройовий барон", "Lord of War"),
+                searchQueries = listOf("Збройний барон"),
             ),
             Top200Movie(
                 rank = 11,
@@ -172,7 +172,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/5En0fmDagt3Pk8d7P3uTwfeQceg.jpg",
                 accentColor = "#148ea1",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Зелена книга", "Green Book"),
+                searchQueries = listOf("Зелена книга"),
             ),
             Top200Movie(
                 rank = 12,
@@ -187,7 +187,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/xnHVX37XZEp33hhCbYlQFq7ux1J.jpg",
                 accentColor = "#312529",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Титанік", "Titanic"),
+                searchQueries = listOf("Титанік"),
             ),
             Top200Movie(
                 rank = 13,
@@ -202,7 +202,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/8ZTVqvKDQ8emSGUEMjsS4yHAwrp.jpg",
                 accentColor = "#141620",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Початок", "Inception"),
+                searchQueries = listOf("Початок"),
             ),
             Top200Movie(
                 rank = 14,
@@ -217,7 +217,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/oQHF0Y4gCw6VdPmapjsbZoxY2ht.jpg",
                 accentColor = "#17181b",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Три білборди за межами Еббінга, Міссурі", "Three Billboards Outside Ebbing, Missouri", "Три білборди на межі", "Three Billboards"),
+                searchQueries = listOf("Three Billboards Outside Ebbing, Missouri"),
             ),
             Top200Movie(
                 rank = 15,
@@ -232,7 +232,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/jw4SNkaSgbrO7VJPsZUZqbBg1Ph.jpg",
                 accentColor = "#31372c",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Артур: Король", "Arthur the King"),
+                searchQueries = listOf("Артур ти король"),
             ),
             Top200Movie(
                 rank = 16,
@@ -247,7 +247,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/zv1xOEQzebKyku349qDZ085FZlO.jpg",
                 accentColor = "#2f2d27",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Перл Гарбор", "Pearl Harbor"),
+                searchQueries = listOf("Перл Гарбор"),
             ),
             Top200Movie(
                 rank = 17,
@@ -262,7 +262,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/nuO8o9ltxhI7AZQxePavEZ4TyHa.jpg",
                 accentColor = "#332e2b",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Тренувальний день", "Training Day"),
+                searchQueries = listOf("Тренувальний день"),
             ),
             Top200Movie(
                 rank = 18,
@@ -277,7 +277,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/fuKb0cuIU9DpUhHrN0ycoFmr63e.jpg",
                 accentColor = "#898680",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Євротур", "EuroTrip"),
+                searchQueries = listOf("Євротур"),
             ),
             Top200Movie(
                 rank = 19,
@@ -292,7 +292,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/2aQyMFEtppL6dNK384l5qhGSn5G.jpg",
                 accentColor = "#552a14",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Логан", "Logan"),
+                searchQueries = listOf("Лоґан Росомаха"),
             ),
             Top200Movie(
                 rank = 20,
@@ -307,7 +307,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/W1ffLQGHoxfAOq0ZYdPtJlvAdb.jpg",
                 accentColor = "#868484",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Вічне сяйво чистого розуму", "Eternal Sunshine of the Spotless Mind"),
+                searchQueries = listOf("Вічне сяйво чистого розуму"),
             ),
             Top200Movie(
                 rank = 21,
@@ -322,7 +322,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/yir5430WblZSZuIMd9C6pIZerfA.jpg",
                 accentColor = "#9d5a59",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Малюк на драйві", "Baby Driver"),
+                searchQueries = listOf("На драйві"),
             ),
             Top200Movie(
                 rank = 22,
@@ -337,7 +337,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/zrorHYxfdql7XX0bABNot55Aibk.jpg",
                 accentColor = "#938379",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Постріл в порожнечу", "Shot Caller"),
+                searchQueries = listOf("Постріл в безодню"),
             ),
             Top200Movie(
                 rank = 23,
@@ -352,7 +352,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/7Nwnmyzrtd0FkcRyPqmdzTPppQa.jpg",
                 accentColor = "#b79344",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Вовк з Уолл-стріт", "The Wolf of Wall Street"),
+                searchQueries = listOf("Вовк з Волл Стріт"),
             ),
             Top200Movie(
                 rank = 24,
@@ -367,7 +367,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/suaEOtk1N1sgg2MTM7oZd2cfVp3.jpg",
                 accentColor = "#d57b3f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Кримінальне чтиво", "Pulp Fiction"),
+                searchQueries = listOf("Кримінальне чтиво"),
             ),
             Top200Movie(
                 rank = 25,
@@ -382,7 +382,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/vQGo5VjJcHxpzIa8lMBFzpAth1w.jpg",
                 accentColor = "#9e876a",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Без меж", "Limitless", "Limitless 2011", "Області пітьми"),
+                searchQueries = listOf("Без меж"),
             ),
             Top200Movie(
                 rank = 26,
@@ -397,7 +397,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/66Kn4XWhkuPkJxOJyPEx4U2CUfN.jpg",
                 accentColor = "#878484",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Форрест Гамп", "Forrest Gump"),
+                searchQueries = listOf("Форрест Ґамп"),
             ),
             Top200Movie(
                 rank = 27,
@@ -412,7 +412,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/4mlS1MitcOqdPLhxEFyk9Qwf5rr.jpg",
                 accentColor = "#848586",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Тачки 3", "Cars 3"),
+                searchQueries = listOf("Тачки 3"),
             ),
             Top200Movie(
                 rank = 28,
@@ -427,7 +427,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/1cO6OQJxz7YhTZ4V1OlkYfebeJa.jpg",
                 accentColor = "#141414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Армагедон", "Armageddon"),
+                searchQueries = listOf("Армагеддон"),
             ),
             Top200Movie(
                 rank = 29,
@@ -442,7 +442,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/82lM4GJ9uuNvNDOEpxFy77uv4Ak.jpg",
                 accentColor = "#1a272c",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Хижак", "Predator"),
+                searchQueries = listOf("Хижак"),
             ),
             Top200Movie(
                 rank = 30,
@@ -457,7 +457,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/kQVdpIPCqfpa24I8SQRiwOAbkLG.jpg",
                 accentColor = "#a28860",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Будь-якою ціною", "Hell or High Water"),
+                searchQueries = listOf("Будь якою ціною"),
             ),
             Top200Movie(
                 rank = 31,
@@ -472,7 +472,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/oCFVYPXI4IfhtF3GapU2jkDicDI.jpg",
                 accentColor = "#8b857e",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Ізгой", "Cast Away"),
+                searchQueries = listOf("Вигнанець"),
             ),
             Top200Movie(
                 rank = 32,
@@ -487,7 +487,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/oO5sMDETneOPCneX3jfXMFfPh9E.jpg",
                 accentColor = "#241414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Нокдаун", "Cinderella Man"),
+                searchQueries = listOf("Нокдаун"),
             ),
             Top200Movie(
                 rank = 33,
@@ -502,7 +502,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/gTghF8ardwJ48XLHkiapWk3ZmSo.jpg",
                 accentColor = "#283240",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Великий куш", "Snatch"),
+                searchQueries = listOf("Великий куш"),
             ),
             Top200Movie(
                 rank = 34,
@@ -517,7 +517,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/izkMjmhauFx9DjoBQqM5sM5WAwE.jpg",
                 accentColor = "#141414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Термінатор 2: Судний день", "Terminator 2: Judgment Day"),
+                searchQueries = listOf("Термінатор 2 Судний день"),
             ),
                         Top200Movie(
                 rank = 35,
@@ -532,7 +532,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/gl0jzn4BupSbL2qMVeqrjKkF9Js.jpg",
                 accentColor = "#858486",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Принцеса Мононоке", "Princess Mononoke"),
+                searchQueries = listOf("Принцеса Мононоке"),
             ),
             Top200Movie(
                 rank = 36,
@@ -547,7 +547,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/5RQ5SIcrtKeUYeYeJLRTljR8LcN.jpg",
                 accentColor = "#141414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Зачаровані місяцем", "Moonstruck", "Moonstruck 1987"),
+                searchQueries = listOf("Зачаровані місяцем"),
             ),
             Top200Movie(
                 rank = 37,
@@ -562,7 +562,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/b6HWTOxn1xevvyHU2K9ICvaRU6g.jpg",
                 accentColor = "#393424",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Зелена миля", "The Green Mile"),
+                searchQueries = listOf("Зелена миля"),
             ),
             Top200Movie(
                 rank = 38,
@@ -577,7 +577,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/A9Ub7OXDS0OuEP2DelhYJM8yvrO.jpg",
                 accentColor = "#768890",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Розправ крила", "Spread Your Wings"),
+                searchQueries = listOf("Розправ крила"),
             ),
             Top200Movie(
                 rank = 39,
@@ -592,7 +592,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/cyecB7godJ6kNHGONFjUyVN9OX5.jpg",
                 accentColor = "#1a1d26",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Залізна людина", "Iron Man"),
+                searchQueries = listOf("Залізна людина"),
             ),
             Top200Movie(
                 rank = 40,
@@ -607,7 +607,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/nAxGnGHOsfzufThz20zgmRwKur3.jpg",
                 accentColor = "#da7a20",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Грішники", "Sinners"),
+                searchQueries = listOf("Грішники"),
             ),
             Top200Movie(
                 rank = 41,
@@ -622,7 +622,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/dcvbs8z0GEXslC1kCT77x19XDeR.jpg",
                 accentColor = "#af5185",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Богемна рапсодія", "Bohemian Rhapsody"),
+                searchQueries = listOf("Богемна рапсодія"),
             ),
             Top200Movie(
                 rank = 42,
@@ -637,7 +637,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/5ZDM988DfYLFPBqy4CNvQ9AXnp4.jpg",
                 accentColor = "#8a867f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Мільйон способів втратити голову", "A Million Ways to Die in the West"),
+                searchQueries = listOf("Мільйон способів втратити голову"),
             ),
             Top200Movie(
                 rank = 43,
@@ -652,7 +652,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/jhk6D8pim3yaByu1801kMoxXFaX.jpg",
                 accentColor = "#898b7a",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Гладіатор", "Gladiator"),
+                searchQueries = listOf("Гладіатор"),
             ),
             Top200Movie(
                 rank = 44,
@@ -667,7 +667,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/7jaNOECZG8uS1tlq69HsY5xY8P9.jpg",
                 accentColor = "#958b6f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Падіння Чорного яструба", "Black Hawk Down", "Black Hawk Down 2001"),
+                searchQueries = listOf("Падіння чорного яструба"),
             ),
             Top200Movie(
                 rank = 45,
@@ -682,7 +682,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/nbvREKIjX16mwNZtFqAoQTTHPnQ.jpg",
                 accentColor = "#937f7c",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Ейс Вентура", "Ace Ventura: Pet Detective"),
+                searchQueries = listOf("Ейс Вентура Детектив з розшуку домашніх тварин"),
             ),
             Top200Movie(
                 rank = 46,
@@ -697,7 +697,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/kWYHKVCl2aD3kRco4eRUr4h6LsD.jpg",
                 accentColor = "#1e1414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Патріот", "The Patriot"),
+                searchQueries = listOf("Патріот"),
             ),
             Top200Movie(
                 rank = 47,
@@ -712,7 +712,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/sOLgkBKf1gjMRc4yXxM5aciXdfr.jpg",
                 accentColor = "#a73d38",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Тачки", "Cars"),
+                searchQueries = listOf("Тачки"),
             ),
             Top200Movie(
                 rank = 48,
@@ -727,7 +727,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/lywmuPU5Hr1Mnpb9UGeDbILmkTx.jpg",
                 accentColor = "#b04625",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Швидкість", "Speed"),
+                searchQueries = listOf("Швидкість"),
             ),
             Top200Movie(
                 rank = 49,
@@ -742,7 +742,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/4qxZJRYe4ezA5J1sidnV7vuaYaz.jpg",
                 accentColor = "#b88e2f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Чудова сімка (2016)", "The Magnificent Seven"),
+                searchQueries = listOf("Чудова сімка"),
             ),
             Top200Movie(
                 rank = 50,
@@ -757,7 +757,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/kIBK5SKwgqIIuRKhhWrJn3XkbPq.jpg",
                 accentColor = "#213042",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Месники: Ера Альтрона", "Avengers: Age of Ultron"),
+                searchQueries = listOf("Месники Ера Альтрона"),
             ),
             Top200Movie(
                 rank = 51,
@@ -772,7 +772,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/ix9WYBqQ2xSZCgyeQ1vVdrbaFa4.jpg",
                 accentColor = "#202f33",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("План втечі", "Escape Plan"),
+                searchQueries = listOf("План втечі"),
             ),
             Top200Movie(
                 rank = 52,
@@ -787,7 +787,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/13VjjUeJ6mcDUB36XRu4YFpYNSm.jpg",
                 accentColor = "#141414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Сікаріо 2: Солдат", "Sicario: Day of the Soldado"),
+                searchQueries = listOf("Сікаріо 2"),
             ),
             Top200Movie(
                 rank = 53,
@@ -802,7 +802,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/9UAKA6ceZi6TgQwTAAMt7DWwYPI.jpg",
                 accentColor = "#c27c50",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Нафта", "There Will Be Blood"),
+                searchQueries = listOf("Нафта"),
             ),
             Top200Movie(
                 rank = 54,
@@ -817,7 +817,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/hmEbQB5UlcwobldcSDNlLZiUnmA.jpg",
                 accentColor = "#8e827f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Уцілілий", "Lone Survivor"),
+                searchQueries = listOf("Врятований"),
             ),
             Top200Movie(
                 rank = 55,
@@ -832,7 +832,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/jJYOr36wS1B6EyGjLY17r9kNHHh.jpg",
                 accentColor = "#908d71",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Борат", "Borat"),
+                searchQueries = listOf("Борат 2"),
             ),
             Top200Movie(
                 rank = 56,
@@ -847,7 +847,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/5YZbUmjbMa3ClvSW1Wj3D6XGolb.jpg",
                 accentColor = "#39245a",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Вартові галактики 3", "Guardians of the Galaxy Vol. 3"),
+                searchQueries = listOf("Вартові галактики 3"),
             ),
             Top200Movie(
                 rank = 57,
@@ -862,7 +862,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/zRKQW58MBEY078AxkHxEJzUskCl.jpg",
                 accentColor = "#6d928f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Дюна", "Dune"),
+                searchQueries = listOf("Дюна"),
             ),
             Top200Movie(
                 rank = 58,
@@ -877,7 +877,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/3pKIcv6KhUE35jsKnv3MylQ3OT2.jpg",
                 accentColor = "#7a8a8b",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Робот Чаппі", "Chappie"),
+                searchQueries = listOf("Робот Чаппі"),
             ),
             Top200Movie(
                 rank = 59,
@@ -892,7 +892,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/tKnmfO5lAyu8hpTZMyMaI4lhZpJ.jpg",
                 accentColor = "#141417",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Пункт призначення 2", "Final Destination 2"),
+                searchQueries = listOf("Пункт призначення 2"),
             ),
             Top200Movie(
                 rank = 60,
@@ -907,7 +907,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/ih2xVgeMS8R5WUetYE8Mr9hVTlB.jpg",
                 accentColor = "#1e252a",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Сам удома", "Home Alone"),
+                searchQueries = listOf("Сам удома"),
             ),
             Top200Movie(
                 rank = 61,
@@ -922,7 +922,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/h3js4rulxzKMOokM2oO5Kr0mBZU.jpg",
                 accentColor = "#271e1b",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Трансформери 3", "Transformers: Dark of the Moon"),
+                searchQueries = listOf("Трансформери 3"),
             ),
             Top200Movie(
                 rank = 62,
@@ -937,7 +937,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/5bzPWQ2dFUl2aZKkp7ILJVVkRed.jpg",
                 accentColor = "#ae8b55",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Назад у майбутнє", "Back to the Future"),
+                searchQueries = listOf("Назад у майбутнє"),
             ),
             Top200Movie(
                 rank = 63,
@@ -952,7 +952,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/pzMrxeP9XkKOtQVUBPTq5yk4ck5.jpg",
                 accentColor = "#868683",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Неймовірне життя Волтера Мітті", "The Secret Life of Walter Mitty"),
+                searchQueries = listOf("Таємне життя Волтера Мітті"),
             ),
             Top200Movie(
                 rank = 64,
@@ -967,7 +967,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/ayDMYGUNVvXS76wQgFwTiUIDNb5.jpg",
                 accentColor = "#818a84",
                 onAccentColor = "#000000",
-                searchQueries = listOf("13 годин: Таємні солдати Бенгазі", "13 Hours: The Secret Soldiers of Benghazi"),
+                searchQueries = listOf("13 годин Таємні воїни Бенгазі"),
             ),
             Top200Movie(
                 rank = 65,
@@ -982,7 +982,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg",
                 accentColor = "#24142e",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Месники: Фінал", "Avengers: Endgame"),
+                searchQueries = listOf("Месники Завершення"),
             ),
             Top200Movie(
                 rank = 66,
@@ -997,7 +997,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/86rDAqR5oDu29qZTGyk88VdB2lI.jpg",
                 accentColor = "#927f7d",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Кров'ю і потом", "Pain & Gain"),
+                searchQueries = listOf("Кров'ю і потом Анаболіки"),
             ),
             Top200Movie(
                 rank = 67,
@@ -1012,7 +1012,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/6OpluXPGIE8hfVrhpeygR7p4XwR.jpg",
                 accentColor = "#868583",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Доки не зіграв в ящик", "The Bucket List", "Список останніх бажань", "The Bucket List 2007", "Bucket List"),
+                searchQueries = listOf("Список останніх бажань"),
             ),
             Top200Movie(
                 rank = 68,
@@ -1027,7 +1027,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/jpFcZH2eyh6gcoxCa637TrGe4bT.jpg",
                 accentColor = "#958872",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Я, робот", "I, Robot"),
+                searchQueries = listOf("Я Робот"),
             ),
             Top200Movie(
                 rank = 69,
@@ -1042,7 +1042,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/ff2ti5DkA9UYLzyqhQfI2kZqEuh.jpg",
                 accentColor = "#458995",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Джон Уік", "John Wick"),
+                searchQueries = listOf("Джон Уік"),
             ),
             Top200Movie(
                 rank = 70,
@@ -1057,7 +1057,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/p8yXQse3IDZiwEjWRHda3EzDQjA.jpg",
                 accentColor = "#171414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Банди Нью-Йорка", "Gangs of New York"),
+                searchQueries = listOf("Банди Нью Йорка"),
             ),
             Top200Movie(
                 rank = 71,
@@ -1072,7 +1072,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/aWNknDl5kGZTgjqfeIKxdZaKGmm.jpg",
                 accentColor = "#3a4250",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Життя Уве", "A Man Called Ove", "Людина на ім'я Уве", "En man som heter Ove"),
+                searchQueries = listOf("Життя"),
             ),
             Top200Movie(
                 rank = 72,
@@ -1087,7 +1087,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/nnmbJvYyDS1VkMOCbxSpdBi3WbJ.jpg",
                 accentColor = "#1a1e20",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Апокаліпто", "Apocalypto"),
+                searchQueries = listOf("Апокаліпсис"),
             ),
             Top200Movie(
                 rank = 73,
@@ -1102,7 +1102,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/cK070s3Qdn1Ib7Gq8RgIyJKgvu3.jpg",
                 accentColor = "#a2826a",
                 onAccentColor = "#000000",
-                searchQueries = listOf("1+1", "Intouchables", "1 1", "Intouchables 2011", "The Intouchables"),
+                searchQueries = listOf("Недоторканні"),
             ),
             Top200Movie(
                 rank = 74,
@@ -1117,7 +1117,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/qpjuVCGZvNsbDa4UyxrbAa4Dno3.jpg",
                 accentColor = "#4a2e31",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Голий пістолет", "The Naked Gun"),
+                searchQueries = listOf("Голий пістолет"),
             ),
             Top200Movie(
                 rank = 75,
@@ -1132,7 +1132,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/qzmCz3tK2v5BFLQYgbQVGmTI3YD.jpg",
                 accentColor = "#211e1c",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Королівство", "The Kingdom"),
+                searchQueries = listOf("Королівство"),
             ),
             Top200Movie(
                 rank = 76,
@@ -1147,7 +1147,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/nHRUtBwFNnNN70vcQ7lAsjc2T6S.jpg",
                 accentColor = "#14191b",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Тихе місце", "A Quiet Place"),
+                searchQueries = listOf("Тихе місце"),
             ),
             Top200Movie(
                 rank = 77,
@@ -1162,7 +1162,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/kQGxGXzYiCumY8kmXXpgbZyZQK8.jpg",
                 accentColor = "#1c2b3e",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Вітряна ріка", "Wind River"),
+                searchQueries = listOf("Вітряна ріка"),
             ),
             Top200Movie(
                 rank = 78,
@@ -1177,7 +1177,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/6qAYgsvnH4wUS9fAcrxUvUtCM6x.jpg",
                 accentColor = "#1e4950",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Поліцейська академія", "Police Academy"),
+                searchQueries = listOf("Поліцейська академія"),
             ),
             Top200Movie(
                 rank = 79,
@@ -1192,7 +1192,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/cgjLr9VVQzp0mYQ6IUc3JlZ8Frp.jpg",
                 accentColor = "#9d846d",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Брюс Всемогутній", "Bruce Almighty"),
+                searchQueries = listOf("Брюс Всемогутній"),
             ),
             Top200Movie(
                 rank = 80,
@@ -1207,7 +1207,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/90ooE5SbUEO0OVJHewNO7pgySb6.jpg",
                 accentColor = "#36516b",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Подвійний форсаж", "2 Fast 2 Furious"),
+                searchQueries = listOf("Подвійний Форсаж"),
             ),
             Top200Movie(
                 rank = 81,
@@ -1222,7 +1222,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/2c0Ls3EwFoWJWVqWuaMyCUAgmzD.jpg",
                 accentColor = "#ae7e63",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Напад на 13-й відділок", "Assault on Precinct 13"),
+                searchQueries = listOf("Напад на 13 й відділок"),
             ),
             Top200Movie(
                 rank = 82,
@@ -1237,7 +1237,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/k0ACyZCXdqx50464BlE0ZeWR5cu.jpg",
                 accentColor = "#2D2D2D",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Злочинець", "Felon", "Felon 2008"),
+                searchQueries = listOf("Злочинець"),
             ),
             Top200Movie(
                 rank = 83,
@@ -1252,7 +1252,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/jr8tSoJGj33XLgFBy6lmZhpGQNu.jpg",
                 accentColor = "#ad885a",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Кіт в чоботах 2", "Puss in Boots: The Last Wish"),
+                searchQueries = listOf("Кіт у чоботях 2 Останнє бажання"),
             ),
             Top200Movie(
                 rank = 84,
@@ -1267,7 +1267,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/en971MEXui9diirXlogOrPKmsEn.jpg",
                 accentColor = "#35181d",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Дедпул", "Deadpool"),
+                searchQueries = listOf("Дедпул"),
             ),
             Top200Movie(
                 rank = 85,
@@ -1282,7 +1282,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/4W6RYDNe4OByNryOCvJprrutm9h.jpg",
                 accentColor = "#9a7a7b",
                 onAccentColor = "#000000",
-                searchQueries = listOf("День бабака", "Groundhog Day"),
+                searchQueries = listOf("День Бабака"),
             ),
             Top200Movie(
                 rank = 86,
@@ -1297,7 +1297,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/dMARcKLrv0T7kVJ4iQR3vqTTdtT.jpg",
                 accentColor = "#211a1a",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Форсаж 3: Токійський дрифт", "The Fast and the Furious: Tokyo Drift"),
+                searchQueries = listOf("Потрійний форсаж Токійський дрифт"),
             ),
             Top200Movie(
                 rank = 87,
@@ -1312,7 +1312,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/bdD39MpSVhKjxarTxLSfX6baoMP.jpg",
                 accentColor = "#818885",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Врятувати рядового Райана", "Saving Private Ryan"),
+                searchQueries = listOf("Врятувати рядового Раяна"),
             ),
             Top200Movie(
                 rank = 88,
@@ -1327,7 +1327,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/iQcCAm8hKWZyUntqrvzyEGtXyJl.jpg",
                 accentColor = "#89877e",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Творець", "The Creator"),
+                searchQueries = listOf("Творець"),
             ),
             Top200Movie(
                 rank = 89,
@@ -1342,7 +1342,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/2fswjyrY3GEzeoVn6mF8pNeNcgf.jpg",
                 accentColor = "#251814",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Загадкова історія Бенджаміна Баттона", "The Curious Case of Benjamin Button"),
+                searchQueries = listOf("Загадкова справа Бенджаміна Баттона"),
             ),
             Top200Movie(
                 rank = 90,
@@ -1357,7 +1357,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/6WRrGYalXXveItfpnipYdayFkQB.jpg",
                 accentColor = "#44251d",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Відступники", "The Departed"),
+                searchQueries = listOf("Відступники"),
             ),
             Top200Movie(
                 rank = 91,
@@ -1372,7 +1372,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/95ckrV6wQgbffurAVmETQ5YKASL.jpg",
                 accentColor = "#908d71",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Лють", "Fury"),
+                searchQueries = listOf("Лють"),
             ),
             Top200Movie(
                 rank = 92,
@@ -1387,7 +1387,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/xtHonIIIQXverDQM08TMQXjn9Fe.jpg",
                 accentColor = "#928676",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Третій зайвий 2", "Ted 2"),
+                searchQueries = listOf("Третій зайвий 2"),
             ),
             Top200Movie(
                 rank = 93,
@@ -1402,7 +1402,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/2pITFeesu6aikrEknoH6bNXOdhk.jpg",
                 accentColor = "#171919",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("4 брати: Кров за кров", "Four Brothers", "Чотири брати", "Four Brothers 2005"),
+                searchQueries = listOf("Four Brothers"),
             ),
             Top200Movie(
                 rank = 94,
@@ -1417,7 +1417,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/pPZUYQx5PuH4xkXkFizirTd0ey1.jpg",
                 accentColor = "#948873",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Джиперс Криперс 2", "Jeepers Creepers 2"),
+                searchQueries = listOf("Джиперс Кріперс 2"),
             ),
             Top200Movie(
                 rank = 95,
@@ -1432,7 +1432,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/vBSsIyWExRpe3Robi8SAnayrMq1.jpg",
                 accentColor = "#8b8381",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Вороги", "Hostiles"),
+                searchQueries = listOf("Вороги"),
             ),
             Top200Movie(
                 rank = 96,
@@ -1447,7 +1447,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/cOoVcVQ3i1m5b2xtqKBtoTSbxC1.jpg",
                 accentColor = "#2b2324",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Дедпул 3", "Deadpool & Wolverine"),
+                searchQueries = listOf("Дедпул"),
             ),
             Top200Movie(
                 rank = 97,
@@ -1462,7 +1462,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/viBWzktrBmhzRw4ehmUIrrN4C0z.jpg",
                 accentColor = "#9f866a",
                 onAccentColor = "#000000",
-                searchQueries = listOf("127 годин", "127 Hours", "127 Hours 2010"),
+                searchQueries = listOf("127 Hours"),
             ),
             Top200Movie(
                 rank = 98,
@@ -1477,7 +1477,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/eGX66zonvc4bXg3rM08RUxdYSDx.jpg",
                 accentColor = "#431a32",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Супермен (2025)", "Superman"),
+                searchQueries = listOf("Супермен"),
             ),
             Top200Movie(
                 rank = 99,
@@ -1492,7 +1492,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/c6OLXfKAk5BKeR6broC8pYiCquX.jpg",
                 accentColor = "#8e847d",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Бійцівський клуб", "Fight Club"),
+                searchQueries = listOf("Бійцівський клуб"),
             ),
                         Top200Movie(
                 rank = 100,
@@ -1507,7 +1507,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/dyJvKsNs2KP8qQnAXbRwDjblViy.jpg",
                 accentColor = "#181414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Віднесені привидами", "Spirited Away"),
+                searchQueries = listOf("Віднесені привидами"),
             ),
             Top200Movie(
                 rank = 101,
@@ -1522,7 +1522,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/mVr0UiqyltcfqxbAUcLl9zWL8ah.jpg",
                 accentColor = "#191d22",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Той, хто біжить по лезу 2049", "Blade Runner 2049"),
+                searchQueries = listOf("Той хто біжить по лезу 2049"),
             ),
             Top200Movie(
                 rank = 102,
@@ -1537,7 +1537,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/AeK2MPOpYrOOgZNfFnfwp0L8tNn.jpg",
                 accentColor = "#aa8362",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Людина-павук: Додому шляху нема", "Spider-Man: No Way Home"),
+                searchQueries = listOf("Людина павук Додому шляху нема"),
             ),
             Top200Movie(
                 rank = 103,
@@ -1552,7 +1552,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/cfT29Im5VDvjE0RpyKOSdCKZal7.jpg",
                 accentColor = "#142432",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Темний лицар", "The Dark Knight"),
+                searchQueries = listOf("Темний Лицар"),
             ),
             Top200Movie(
                 rank = 104,
@@ -1567,7 +1567,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/iFaWUETEE2umP1WY0LUAmjSpzm7.jpg",
                 accentColor = "#222021",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Містер і місіс Сміт", "Mr. & Mrs. Smith", "Mr and Mrs Smith 2005", "Mr. & Mrs. Smith 2005"),
+                searchQueries = listOf("Містер і місіс Сміт"),
             ),
             Top200Movie(
                 rank = 105,
@@ -1582,7 +1582,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/nazre7z7MoUwAqimnrSlMlfLR5t.jpg",
                 accentColor = "#141527",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Законослухняний громадянин", "Law Abiding Citizen"),
+                searchQueries = listOf("Законослухняний громадянин Театральна"),
             ),
             Top200Movie(
                 rank = 106,
@@ -1597,7 +1597,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/ih4lZkUpmSE7AP3maymiO72xJ1z.jpg",
                 accentColor = "#8e827f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Місія нездійсненна: Протокол Фантом", "Mission: Impossible — Ghost Protocol"),
+                searchQueries = listOf("Місія неможлива Протокол Фантом"),
             ),
             Top200Movie(
                 rank = 107,
@@ -1612,7 +1612,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/hT3OqvzMqCQuJsUjZnQwA5NuxgK.jpg",
                 accentColor = "#1472a2",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Вишка", "Fall"),
+                searchQueries = listOf("Над безоднею"),
             ),
             Top200Movie(
                 rank = 108,
@@ -1627,7 +1627,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/bvk2AAH64lP2YZs02Q3jskfHT8j.jpg",
                 accentColor = "#a97f67",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Міцний горішок", "Die Hard"),
+                searchQueries = listOf("Міцний горішок 2"),
             ),
             Top200Movie(
                 rank = 109,
@@ -1642,7 +1642,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/sVkjgKq8cwKm95LCyfrLldLbQIG.jpg",
                 accentColor = "#88877f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Меч короля Артура", "King Arthur: Legend of the Sword"),
+                searchQueries = listOf("Король Артур Легенда меча"),
             ),
             Top200Movie(
                 rank = 110,
@@ -1657,7 +1657,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/5a7lMDn3nAj2ByO0X1fg6BhUphR.jpg",
                 accentColor = "#3b336f",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Першому гравцю приготуватися", "Ready Player One"),
+                searchQueries = listOf("Першому гравцю приготуватися"),
             ),
             Top200Movie(
                 rank = 111,
@@ -1672,7 +1672,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/3zvZ699gMW2RhWc0GisIukzq0Ls.jpg",
                 accentColor = "#424257",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Доктор Стрендж", "Doctor Strange"),
+                searchQueries = listOf("Доктор Стрендж"),
             ),
             Top200Movie(
                 rank = 112,
@@ -1687,7 +1687,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/87tmTU1NSR5EUGTKsF5rhLwZtZc.jpg",
                 accentColor = "#166864",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("В диких умовах", "Into the Wild"),
+                searchQueries = listOf("Тепер я йду у дику далечінь"),
             ),
             Top200Movie(
                 rank = 113,
@@ -1702,7 +1702,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/oGMomeS7bE43eN8SGJUaKvQnmud.jpg",
                 accentColor = "#141414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Крихітка на мільйон доларів", "Million Dollar Baby"),
+                searchQueries = listOf("Крихітка на мільйон доларів"),
             ),
             Top200Movie(
                 rank = 114,
@@ -1717,7 +1717,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/nHyri67CN6juBR6hmOefCn9oGf8.jpg",
                 accentColor = "#7b868d",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Круті чуваки", "The Other Guys"),
+                searchQueries = listOf("Копи на підхваті"),
             ),
             Top200Movie(
                 rank = 115,
@@ -1732,7 +1732,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/2vq5GTJOahE03mNYZGxIynlHcWr.jpg",
                 accentColor = "#898383",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Форд проти Феррарі", "Ford v Ferrari"),
+                searchQueries = listOf("Ford v Ferrari"),
             ),
             Top200Movie(
                 rank = 116,
@@ -1747,7 +1747,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/zywtNiaZ9r7azrcNdl2j0jOgrkw.jpg",
                 accentColor = "#8c837f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Термінал", "The Terminal"),
+                searchQueries = listOf("Термінал"),
             ),
             Top200Movie(
                 rank = 117,
@@ -1762,7 +1762,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/P7d3lyBaYbAXVor6iB2avLvc4K.jpg",
                 accentColor = "#818589",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Еверест", "Everest"),
+                searchQueries = listOf("Еверест"),
             ),
             Top200Movie(
                 rank = 118,
@@ -1777,7 +1777,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/dtGxDOcFssdUUTYBr6M6INXTI1e.jpg",
                 accentColor = "#202428",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Залягти на дно в Брюгге", "In Bruges"),
+                searchQueries = listOf("Залягти на дно в Брюге"),
             ),
             Top200Movie(
                 rank = 119,
@@ -1792,7 +1792,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/IYUD7rAIXzBM91TT3Z5fILUS7n.jpg",
                 accentColor = "#be561b",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Бетмен (2022)", "The Batman"),
+                searchQueries = listOf("Бетмен"),
             ),
             Top200Movie(
                 rank = 120,
@@ -1807,7 +1807,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/ePgD1cwmklyrFBjl6z96IuixuSY.jpg",
                 accentColor = "#392617",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Я — легенда", "I Am Legend", "I Am Legend 2007", "I am Legend"),
+                searchQueries = listOf("Я Легенда"),
             ),
             Top200Movie(
                 rank = 121,
@@ -1822,7 +1822,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/628Dep6AxEtDxjZoGP78TsOxYbK.jpg",
                 accentColor = "#8f827d",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Місія нездійсненна: Розплата", "Mission: Impossible — Dead Reckoning"),
+                searchQueries = listOf("Місія неможлива Розплата Частина"),
             ),
             Top200Movie(
                 rank = 122,
@@ -1837,7 +1837,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/gQEfeFzEDhvz1YB3JXU2yUZspmH.jpg",
                 accentColor = "#8b8282",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Полювання на злодіїв", "Den of Thieves"),
+                searchQueries = listOf("Злодії"),
             ),
             Top200Movie(
                 rank = 123,
@@ -1852,7 +1852,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/gHz4ZQytRs8YGrqFMwB3Vrr8pig.jpg",
                 accentColor = "#a37e6d",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Пасажири", "Passengers"),
+                searchQueries = listOf("Пробудження"),
             ),
             Top200Movie(
                 rank = 124,
@@ -1867,7 +1867,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/qSxeCfWUUyht9hZgaaYmtPtTkw2.jpg",
                 accentColor = "#453226",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Джуманджі (1995)", "Jumanji"),
+                searchQueries = listOf("Джуманджі"),
             ),
             Top200Movie(
                 rank = 125,
@@ -1882,7 +1882,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/kK9WAzCaxN5vxoTgO38wiPIe9ba.jpg",
                 accentColor = "#262021",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Широко крокуючи", "Walking Tall"),
+                searchQueries = listOf("Широко крокуючи"),
             ),
             Top200Movie(
                 rank = 126,
@@ -1897,7 +1897,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/fj0hwDJEOOHllRim2BMt5L7tbjf.jpg",
                 accentColor = "#9c8271",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Леон", "Léon: The Professional", "Leon", "The Professional"),
+                searchQueries = listOf("Леон"),
             ),
             Top200Movie(
                 rank = 127,
@@ -1912,7 +1912,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/uw4SnKFZ453Gxmj5XR5Susj8TNo.jpg",
                 accentColor = "#938478",
                 onAccentColor = "#000000",
-                searchQueries = listOf("День незалежності", "Independence Day"),
+                searchQueries = listOf("День незалежності"),
             ),
             Top200Movie(
                 rank = 128,
@@ -1927,7 +1927,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/tH2SoOS2HqOJCOImbeGkmKSdCMz.jpg",
                 accentColor = "#14242d",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Міст у Терабітію", "Bridge to Terabithia"),
+                searchQueries = listOf("Міст у Терабітію"),
             ),
             Top200Movie(
                 rank = 129,
@@ -1942,7 +1942,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/bInicBgSHfQiWLbnRT5jxw9Grvm.jpg",
                 accentColor = "#1c1c1d",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Війна світів", "War of the Worlds"),
+                searchQueries = listOf("Війна світів"),
             ),
             Top200Movie(
                 rank = 130,
@@ -1957,7 +1957,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/qKxAghWoR2M8ZIheMpbHp8jeXFi.jpg",
                 accentColor = "#908579",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Найшвидший Індіан", "The World's Fastest Indian"),
+                searchQueries = listOf("Найпрудкіший Індіан"),
             ),
             Top200Movie(
                 rank = 131,
@@ -1972,7 +1972,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/v8zOcynvSd6IW3FzZrvst2HJ53s.jpg",
                 accentColor = "#6b2020",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Легенда (2015)", "Legend"),
+                searchQueries = listOf("Легенда"),
             ),
             Top200Movie(
                 rank = 132,
@@ -1987,7 +1987,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/Gn7CHQKw5rgQrnVQhvGnlOaD8F.jpg",
                 accentColor = "#221c1e",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Альфа", "Alpha"),
+                searchQueries = listOf("Альф"),
             ),
             Top200Movie(
                 rank = 133,
@@ -2002,7 +2002,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/9BBTo63ANSmhC4e6r62OJFuK2GL.jpg",
                 accentColor = "#152128",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Месники (2012)", "The Avengers"),
+                searchQueries = listOf("Месники"),
             ),
             Top200Movie(
                 rank = 134,
@@ -2017,7 +2017,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/voVkSwgFYv9GOpRNfUAwj6qYRTL.jpg",
                 accentColor = "#141414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Термінатор 3", "Terminator 3: Rise of the Machines"),
+                searchQueries = listOf("Термінатор 3"),
             ),
             Top200Movie(
                 rank = 135,
@@ -2032,7 +2032,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/y6jpd3c1UFoouBmIVWZMCGVyQmS.jpg",
                 accentColor = "#7e4822",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Містер Чорч", "Mr. Church"),
+                searchQueries = listOf("Кухар"),
             ),
             Top200Movie(
                 rank = 136,
@@ -2047,7 +2047,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/lkDYN0whyE82mcM20rwtwjbniKF.jpg",
                 accentColor = "#383d3a",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Ф1", "F1", "F1 2025", "Formula 1", "26906"),
+                searchQueries = listOf("Ф1"),
             ),
             Top200Movie(
                 rank = 137,
@@ -2062,7 +2062,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/aCHn2TXYJfzPXQKA6r9mKPbMlUB.jpg",
                 accentColor = "#978275",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Шоу Трумана", "The Truman Show"),
+                searchQueries = listOf("Шоу Трумена"),
             ),
             Top200Movie(
                 rank = 138,
@@ -2077,7 +2077,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/5dwlH8Krm2bsuc2Pubw2cBb03g5.jpg",
                 accentColor = "#201915",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Залізна хватка", "True Grit"),
+                searchQueries = listOf("Справжня мужність"),
             ),
             Top200Movie(
                 rank = 139,
@@ -2092,7 +2092,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/ld7V9BjMk2xtiBNcR8savyyk5ca.jpg",
                 accentColor = "#8f8877",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Дім дивних дітей міс Сапсан", "Miss Peregrine's Home for Peculiar Children"),
+                searchQueries = listOf("Дім дивних дітей Міс Сапсан"),
             ),
             Top200Movie(
                 rank = 140,
@@ -2107,7 +2107,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/dWLoSzvw52y1gt7ni9gZXdy693e.jpg",
                 accentColor = "#848585",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Хижа в лісі", "The Cabin in the Woods", "The Cabin in the Woods 2012", "Cabin in the Woods"),
+                searchQueries = listOf("The Cabin in the Woods"),
             ),
             Top200Movie(
                 rank = 141,
@@ -2122,7 +2122,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/zfbjgQE1uSd9wiPTX4VzsLi0rGG.jpg",
                 accentColor = "#201414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Втеча з Шоушенка", "The Shawshank Redemption"),
+                searchQueries = listOf("Втеча з Шоушенка"),
             ),
             Top200Movie(
                 rank = 142,
@@ -2137,7 +2137,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/y51M7Ca95sCXTCDvJaRP1uzxKbg.jpg",
                 accentColor = "#302514",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Троя", "Troy"),
+                searchQueries = listOf("Троя"),
             ),
             Top200Movie(
                 rank = 143,
@@ -2152,7 +2152,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/8zLS8p1tRyWFLRFfmgQq0j5WE6z.jpg",
                 accentColor = "#191414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Мумія (1999)", "The Mummy"),
+                searchQueries = listOf("Мумія"),
             ),
             Top200Movie(
                 rank = 144,
@@ -2167,7 +2167,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/ss0Os3uWJfQAENILHZUdX8Tt1OC.jpg",
                 accentColor = "#84534a",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Все усюди і одразу", "Everything Everywhere All at Once"),
+                searchQueries = listOf("Все завжди і водночас"),
             ),
             Top200Movie(
                 rank = 145,
@@ -2182,7 +2182,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/lewYqqt8epnjFhEOIIIINX9Z8EE.jpg",
                 accentColor = "#938676",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Арахісовий сокіл", "The Peanut Butter Falcon"),
+                searchQueries = listOf("Арахісовий сокіл"),
             ),
             Top200Movie(
                 rank = 146,
@@ -2197,7 +2197,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/gddUsvfyySrM5k8B8wwJy2VRlBx.jpg",
                 accentColor = "#1c1414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Старим тут не місце", "No Country for Old Men"),
+                searchQueries = listOf("Старим тут не місце"),
             ),
             Top200Movie(
                 rank = 147,
@@ -2212,7 +2212,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/zwr45axiNqYhTs6IO4wjNOMp054.jpg",
                 accentColor = "#bf7956",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Втеча", "The Getaway"),
+                searchQueries = listOf("Втеча"),
             ),
                         Top200Movie(
                 rank = 148,
@@ -2227,7 +2227,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/6m2qbAqSMJTX4HUwRvVEQI6ioiO.jpg",
                 accentColor = "#3a74bc",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf(),
+                searchQueries = listOf("Дівчинка що стрибала крізь час"),
             ),
             Top200Movie(
                 rank = 149,
@@ -2242,7 +2242,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/auBT5JgJEQjECGfC96JMmYQLpjK.jpg",
                 accentColor = "#211b22",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Смерть на похороні", "Death at a Funeral"),
+                searchQueries = listOf("Смерть на похороні"),
             ),
             Top200Movie(
                 rank = 150,
@@ -2257,7 +2257,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/ap6Zc5NDOfbZaMhkRDyghbGeLf0.jpg",
                 accentColor = "#631716",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Доктор Сон", "Doctor Sleep"),
+                searchQueries = listOf("Доктор Сон"),
             ),
             Top200Movie(
                 rank = 151,
@@ -2272,7 +2272,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/cWWM1TTGnOoglZKLpVERGtQ6HJ4.jpg",
                 accentColor = "#a07e71",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Фокус", "Focus"),
+                searchQueries = listOf("Фокус"),
             ),
             Top200Movie(
                 rank = 152,
@@ -2287,7 +2287,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/aJFwk1clMal1prxAvKAgHxKPAf.jpg",
                 accentColor = "#ea2620",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("28 днів потому", "28 Days Later"),
+                searchQueries = listOf("28 днів потому"),
             ),
             Top200Movie(
                 rank = 153,
@@ -2302,7 +2302,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/3yXLkSTrVhG66MIAr3X6C4gjccw.jpg",
                 accentColor = "#a2a24b",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Мадагаскар 2", "Madagascar: Escape 2 Africa"),
+                searchQueries = listOf("Мадагаскар"),
             ),
             Top200Movie(
                 rank = 154,
@@ -2317,7 +2317,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/z9DFGaWj4G4kZUWLZ6ESs1NP1Fp.jpg",
                 accentColor = "#aa7f66",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Американський пиріг", "American Pie"),
+                searchQueries = listOf("Американський пиріг"),
             ),
             Top200Movie(
                 rank = 155,
@@ -2332,7 +2332,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/uT895WNwm0aIJRtGizcQhrejWUo.jpg",
                 accentColor = "#1b1414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Шалений Макс: Дорога гніву", "Mad Max: Fury Road"),
+                searchQueries = listOf("Шалений Макс Дорога гніву Black"),
             ),
             Top200Movie(
                 rank = 156,
@@ -2347,7 +2347,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/hwNtEmmugU5Yd7hpfprNWI0DGIn.jpg",
                 accentColor = "#967f7a",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Безславні виродки", "Inglourious Basterds"),
+                searchQueries = listOf("Безславні виродки"),
             ),
             Top200Movie(
                 rank = 157,
@@ -2362,7 +2362,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/tHR34A5n0my4maACNdLpWGd6QYq.jpg",
                 accentColor = "#272c21",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("13 життів", "Thirteen Lives", "Тринадцять життів", "Thirteen Lives 2022"),
+                searchQueries = listOf("13 життів"),
             ),
                         Top200Movie(
                 rank = 158,
@@ -2377,7 +2377,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/cuodmX7wuVDciUH8LdSFEqoTzIy.jpg",
                 accentColor = "#858486",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Мисливець за головами", "Headhunters"),
+                searchQueries = listOf("Мисливці за головами"),
             ),
                         Top200Movie(
                 rank = 159,
@@ -2392,7 +2392,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/dSbXXdDcnQFimUf1mhkPk5dkQU3.jpg",
                 accentColor = "#9f846c",
                 onAccentColor = "#000000",
-                searchQueries = listOf("13-й район", "District 13"),
+                searchQueries = listOf("13 й район"),
             ),
             Top200Movie(
                 rank = 160,
@@ -2407,7 +2407,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/76J14zgwVWyOciri7X7F3DGP3TA.jpg",
                 accentColor = "#1a1714",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Імла", "The Mist"),
+                searchQueries = listOf("Імла"),
             ),
             Top200Movie(
                 rank = 161,
@@ -2422,7 +2422,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/7bjaAcbrJDVvdF2Uew6rGp9Tp05.jpg",
                 accentColor = "#838884",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Пиво зі смаком дружби", "The Greatest Beer Run Ever"),
+                searchQueries = listOf("Пиво зі смаком дружби"),
             ),
             Top200Movie(
                 rank = 162,
@@ -2437,7 +2437,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/qVGpxnjrGlHaSTCqTQI6viBDSfp.jpg",
                 accentColor = "#141414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Воно", "It", "It 2017", "Воно 2017"),
+                searchQueries = listOf("Воно"),
             ),
             Top200Movie(
                 rank = 163,
@@ -2452,7 +2452,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/1uyDZmTjUQsbflqfkUJZvAGV3bv.jpg",
                 accentColor = "#141414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Гран Торіно", "Gran Torino"),
+                searchQueries = listOf("Гран Торіно"),
             ),
             Top200Movie(
                 rank = 164,
@@ -2467,7 +2467,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/uRNgkJSkNBFbbn9fPsEjDIy8Sh3.jpg",
                 accentColor = "#be8d44",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Пірати Карибського моря (Трилогія)", "Pirates of the Caribbean"),
+                searchQueries = listOf("Пірати Карибського Моря Прокляття"),
             ),
             Top200Movie(
                 rank = 165,
@@ -2482,7 +2482,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/rl95VDEP3nsUQmGzE0S1S7y6T0N.jpg",
                 accentColor = "#141414",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Снайпер", "American Sniper"),
+                searchQueries = listOf("Американський снайпер"),
             ),
             Top200Movie(
                 rank = 166,
@@ -2497,7 +2497,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/nl18gyzai02Tu99VkURu7kCFrR8.jpg",
                 accentColor = "#cd823f",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Геркулес (2014)", "Hercules"),
+                searchQueries = listOf("Геркулес"),
             ),
             Top200Movie(
                 rank = 167,
@@ -2512,7 +2512,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/8JPz1636hMcaADngF4H4KOxXfp1.jpg",
                 accentColor = "#878682",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Адреналін", "Crank"),
+                searchQueries = listOf("Адреналін"),
             ),
             Top200Movie(
                 rank = 168,
@@ -2527,7 +2527,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/5oaMV2q0qzxkIW2ukU3lldLu5q2.jpg",
                 accentColor = "#ad766b",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Американський психопат", "American Psycho"),
+                searchQueries = listOf("Американський психопат"),
             ),
             Top200Movie(
                 rank = 169,
@@ -2542,7 +2542,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/f9Atch0jlzcOT9RbF8UccqfNOpd.jpg",
                 accentColor = "#2f373d",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Убивця", "The Killer"),
+                searchQueries = listOf("Вбивця"),
             ),
             Top200Movie(
                 rank = 170,
@@ -2557,7 +2557,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/xj1Sv1xm4Y0ydBueGuf10Y9qM0O.jpg",
                 accentColor = "#af8d52",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Розумник Вілл Хантінг", "Good Will Hunting"),
+                searchQueries = listOf("Розумник Вілл Хантінг"),
             ),
             Top200Movie(
                 rank = 171,
@@ -2572,7 +2572,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/n0FDJI9c0uWiZwm8wgXVjaMBn96.jpg",
                 accentColor = "#90817e",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Аполлон 13", "Apollo 13"),
+                searchQueries = listOf("Аполлон 13"),
             ),
             Top200Movie(
                 rank = 172,
@@ -2587,7 +2587,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/uKPbFF08QkRMvIAsgCh1soeyPhZ.jpg",
                 accentColor = "#8b867e",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Прибуття", "Arrival"),
+                searchQueries = listOf("Прибуття"),
             ),
             Top200Movie(
                 rank = 173,
@@ -2602,7 +2602,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/g7CHF8gTLGooTbP4GznIGwaqAGL.jpg",
                 accentColor = "#2e2863",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Таємниця Коко", "Coco"),
+                searchQueries = listOf("Коко"),
             ),
             Top200Movie(
                 rank = 174,
@@ -2617,7 +2617,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/mhi2fRCbEXtN43FNiq45WQg0DFe.jpg",
                 accentColor = "#173a27",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Дежавю", "Deja Vu", "Deja Vu 2006"),
+                searchQueries = listOf("Deja Vu"),
             ),
             Top200Movie(
                 rank = 175,
@@ -2632,7 +2632,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/q57IZEpDaxQcgmwFcZkg7AsTbg9.jpg",
                 accentColor = "#212727",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Рокі Бальбоа", "Rocky Balboa"),
+                searchQueries = listOf("Роккі Бальбоа"),
             ),
             Top200Movie(
                 rank = 176,
@@ -2647,7 +2647,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/wOLTJxfv98miIQcn0oNXq9fIgXM.jpg",
                 accentColor = "#948773",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Погані хлопці", "Bad Boys"),
+                searchQueries = listOf("Погані хлопці"),
             ),
             Top200Movie(
                 rank = 177,
@@ -2662,7 +2662,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/uy2trYgO8MOQfQXlvMaLhBnkUqg.jpg",
                 accentColor = "#1f2c31",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Стрілок", "Shooter"),
+                searchQueries = listOf("Стрілець"),
             ),
                         Top200Movie(
                 rank = 178,
@@ -2677,7 +2677,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/wlP3Sjw5WVvjsi2CGFp84QwrZZC.jpg",
                 accentColor = "#678f98",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Дика", "Wild"),
+                searchQueries = listOf("Дика"),
             ),
             Top200Movie(
                 rank = 179,
@@ -2692,7 +2692,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/aHj7d7wSLqrg5cjAcgHhiGr97Ih.jpg",
                 accentColor = "#1b292d",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Людина, що біжить", "The Running Man"),
+                searchQueries = listOf("Людина що біжить"),
             ),
             Top200Movie(
                 rank = 180,
@@ -2707,7 +2707,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/lWcNlDMmZ6xJVoCZjhFxqVl0TIa.jpg",
                 accentColor = "#2b5a6a",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("День патріота", "Patriots Day"),
+                searchQueries = listOf("День патріота"),
             ),
             Top200Movie(
                 rank = 181,
@@ -2722,7 +2722,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/l6zhhG4HR1ovOPkWBXIoXkJyQz5.jpg",
                 accentColor = "#948773",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Ямакасі", "Yamakasi"),
+                searchQueries = listOf("Ямакасі Нові самураї"),
             ),
             Top200Movie(
                 rank = 182,
@@ -2737,7 +2737,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/i5H7zusQGsysGQ8i6P361Vnr0n2.jpg",
                 accentColor = "#c9592f",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Сім", "Se7en", "Se7en 1995", "Seven 1995"),
+                searchQueries = listOf("Сім"),
             ),
             Top200Movie(
                 rank = 183,
@@ -2752,7 +2752,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/e782pDRAlu4BG0ahd777n8zfPzZ.jpg",
                 accentColor = "#2c4f7c",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Піноккіо (Дель Торо)", "Pinocchio"),
+                searchQueries = listOf("Піноккіо"),
             ),
             Top200Movie(
                 rank = 184,
@@ -2767,7 +2767,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/iVped1djsF0tvGkvnHbzsE3ZPTF.jpg",
                 accentColor = "#1a292c",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Залізна людина 3", "Iron Man 3"),
+                searchQueries = listOf("Залізна людина 3"),
             ),
             Top200Movie(
                 rank = 185,
@@ -2782,7 +2782,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/evPzxMacNWsjkUKQO4NXKe5Rl6a.jpg",
                 accentColor = "#898680",
                 onAccentColor = "#000000",
-                searchQueries = listOf("30 секунд до опівночі", "Zero Dark Thirty", "Тридцять хвилин по опівночі", "Zero Dark Thirty 2012"),
+                searchQueries = listOf("Zero Dark Thirty"),
             ),
             Top200Movie(
                 rank = 186,
@@ -2797,7 +2797,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/jWq20KNbg5txb28tLxJl0yLYuxp.jpg",
                 accentColor = "#938973",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Диктатор", "The Dictator"),
+                searchQueries = listOf("Диктатор"),
             ),
             Top200Movie(
                 rank = 187,
@@ -2812,7 +2812,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/xwgBHC2FgoIrQitl8jZwXXdsR9u.jpg",
                 accentColor = "#232725",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Одного разу в Голівуді", "Once Upon a Time in Hollywood", "Once Upon a Time in Hollywood 2019"),
+                searchQueries = listOf("Одного разу в Голлівуді"),
             ),
             Top200Movie(
                 rank = 188,
@@ -2827,7 +2827,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/4Bb1kMIfrT2tYRZ9M6Jhqy6gkeF.jpg",
                 accentColor = "#3d3634",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("12 років рабства", "12 Years a Slave"),
+                searchQueries = listOf("років рабства"),
             ),
             Top200Movie(
                 rank = 189,
@@ -2842,7 +2842,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/2rjI2uXmjitMAaXVO21r9ao7v2j.jpg",
                 accentColor = "#6885a2",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Каскадери", "The Fall Guy"),
+                searchQueries = listOf("Каскадер"),
             ),
             Top200Movie(
                 rank = 190,
@@ -2857,7 +2857,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/a4ZupLMg23auAw8e1j1K39PCO6z.jpg",
                 accentColor = "#c48645",
                 onAccentColor = "#000000",
-                searchQueries = listOf("1408", "1408"),
+                searchQueries = listOf("1408"),
             ),
             Top200Movie(
                 rank = 191,
@@ -2872,7 +2872,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/iCDMBi6WLjUBnt24dNwHqqF81UL.jpg",
                 accentColor = "#a98461",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Трансформери (2007)", "Transformers"),
+                searchQueries = listOf("Трансформери"),
             ),
             Top200Movie(
                 rank = 192,
@@ -2886,7 +2886,7 @@ class Top200Repository @Inject constructor() {
                 posterUrl = "https://media.themoviedb.org/t/p/w500/iNBq74eNqBWxlRmva4n9dHxpQoM.jpg",
                 backdropUrl = "https://media.themoviedb.org/t/p/original/iNBq74eNqBWxlRmva4n9dHxpQoM.jpg",
                 accentColor = "#5e5e73",
-                searchQueries = listOf("Антарктида (Птушкін)", "Antarctica", "Antarctica 2022", "Антарктида")
+                searchQueries = listOf("Антарктида (Птушкін)")
             ),
             Top200Movie(
                 rank = 193,
@@ -2901,7 +2901,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/8OAuQm5Bxg4k4HIYfmcga5rYSzU.jpg",
                 accentColor = "#938478",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Пророк", "Next"),
+                searchQueries = listOf("Пророк"),
             ),
             Top200Movie(
                 rank = 194,
@@ -2916,7 +2916,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/s9I2LmQMYCanl6DvC3X1AOHs2r8.jpg",
                 accentColor = "#858584",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Потрійний кордон", "Triple Frontier"),
+                searchQueries = listOf("Потрійний кордон"),
             ),
             Top200Movie(
                 rank = 195,
@@ -2931,7 +2931,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/uMBByiSDpgFwWVegAtwwnuzvogJ.jpg",
                 accentColor = "#142633",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Знайомтесь, Джо Блек", "Meet Joe Black", "Meet Joe Black 1998"),
+                searchQueries = listOf("Знайомтеся Джо Блек"),
             ),
                         Top200Movie(
                 rank = 196,
@@ -2946,7 +2946,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/tav8VVa6H6KooK5rFhAG2jT5ZNx.jpg",
                 accentColor = "#848685",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Джунглі", "Jungle"),
+                searchQueries = listOf("Джунглі"),
             ),
             Top200Movie(
                 rank = 197,
@@ -2961,7 +2961,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/7ZO9yoEU2fAHKhmJWfAc2QIPWJg.jpg",
                 accentColor = "#181614",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Здобич", "Prey"),
+                searchQueries = listOf("Здобич"),
             ),
             Top200Movie(
                 rank = 198,
@@ -2976,7 +2976,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/yriYPLqyFqPW0QXaegT1KmWXk9a.jpg",
                 accentColor = "#142a2e",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Ефект метелика", "The Butterfly Effect"),
+                searchQueries = listOf("Ефект метелика"),
             ),
             Top200Movie(
                 rank = 199,
@@ -2991,7 +2991,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/tlm8UkiQsitc8rSuIAscQDCnP8d.jpg",
                 accentColor = "#848783",
                 onAccentColor = "#000000",
-                searchQueries = listOf("Матриця", "The Matrix"),
+                searchQueries = listOf("Матриця"),
             ),
             Top200Movie(
                 rank = 200,
@@ -3006,7 +3006,7 @@ class Top200Repository @Inject constructor() {
                 backdropUrl = "https://media.themoviedb.org/t/p/w1920_and_h800_multi_faces/9udCLTxTFl28RxnK8Q05E154ZGa.jpg",
                 accentColor = "#2b1b16",
                 onAccentColor = "#ffffff",
-                searchQueries = listOf("Готель «Гранд Будапешт»", "The Grand Budapest Hotel"),
+                searchQueries = listOf("Готель Ґранд Будапешт"),
             ),
         )
     }

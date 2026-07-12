@@ -1,12 +1,8 @@
 package ua.ukrtv.app.data.repository
 
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
-import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.local.entity.CatalogIndexEntity
 import ua.ukrtv.app.data.network.HtmlHttpClient
@@ -33,10 +29,12 @@ class CatalogIndexBuilder @Inject constructor(
     private val htmlHttpClient: HtmlHttpClient,
     private val catalogDao: CatalogIndexDao
 ) {
-    private val maxPagesPerCategory = 300
+    private val buildTimeoutMs = 60_000L
+    private val incrementalMaxEmptyPages = 3
 
     suspend fun buildForProvider(profile: DleProviderProfile, sources: List<CatalogSource>): CatalogBuildResult =
         withContext(Dispatchers.IO) {
+            val startTime = System.currentTimeMillis()
             var totalItems = 0
             var totalPages = 0
             var totalErrors = 0
@@ -48,7 +46,11 @@ class CatalogIndexBuilder @Inject constructor(
                 var hasMore = true
                 val pageItems = mutableListOf<CatalogIndexEntity>()
 
-                while (hasMore && page <= maxPagesPerCategory) {
+                while (hasMore) {
+                    if (System.currentTimeMillis() - startTime > buildTimeoutMs) {
+                        AppLogger.w("CatalogIndexBuilder:${profile.name}", "Build timeout after ${buildTimeoutMs / 1000}s")
+                        break
+                    }
                     val pageUrl = buildPageUrl(profile.baseUrl, source.path, page)
                     try {
                         val html = htmlHttpClient.getHtml(pageUrl, profile.baseUrl) ?: ""
@@ -78,13 +80,70 @@ class CatalogIndexBuilder @Inject constructor(
             CatalogBuildResult(profile.name, totalItems, totalPages, totalErrors)
         }
 
+    suspend fun buildForProviderIncremental(
+        profile: DleProviderProfile,
+        sources: List<CatalogSource>,
+        existingUrls: Set<String>
+    ): CatalogBuildResult =
+        withContext(Dispatchers.IO) {
+            val startTime = System.currentTimeMillis()
+            var totalNewItems = 0
+            var totalPages = 0
+            var totalErrors = 0
+
+            for (source in sources) {
+                var page = 1
+                var emptyPagesInRow = 0
+
+                while (emptyPagesInRow < incrementalMaxEmptyPages) {
+                    if (System.currentTimeMillis() - startTime > buildTimeoutMs) {
+                        AppLogger.w("CatalogIndexBuilder:${profile.name}", "Incremental timeout after ${buildTimeoutMs / 1000}s")
+                        break
+                    }
+
+                    val pageUrl = buildPageUrl(profile.baseUrl, source.path, page)
+                    try {
+                        val html = htmlHttpClient.getHtml(pageUrl, profile.baseUrl) ?: ""
+                        if (html.isBlank()) {
+                            emptyPagesInRow++
+                            page++
+                            continue
+                        }
+
+                        val items = parseCategoryPage(html, profile.baseUrl, source.contentType, profile)
+                        if (items.isEmpty()) {
+                            emptyPagesInRow++
+                            page++
+                            continue
+                        }
+
+                        val newItems = items.filter { it.url !in existingUrls }
+                        totalPages++
+
+                        if (newItems.isEmpty()) {
+                            emptyPagesInRow++
+                        } else {
+                            emptyPagesInRow = 0
+                            newItems.chunked(100).forEach { chunk ->
+                                catalogDao.insertAll(chunk)
+                            }
+                            totalNewItems += newItems.size
+                        }
+                    } catch (e: Exception) {
+                        totalErrors++
+                        emptyPagesInRow++
+                        AppLogger.w("CatalogIndexBuilder:${profile.name}", "Incremental page $page failed: ${e.message}")
+                    }
+                    page++
+                }
+            }
+
+            CatalogBuildResult(profile.name, totalNewItems, totalPages, totalErrors)
+        }
+
     private fun buildPageUrl(baseUrl: String, path: String, page: Int): String {
         val cleanBase = baseUrl.trimEnd('/')
-        return if (page <= 1) {
-            "$cleanBase/$path"
-        } else {
-            "$cleanBase/$path/page/$page/"
-        }
+        return "$cleanBase/$path/page/$page/"
     }
 
     internal fun parseCategoryPage(
@@ -126,7 +185,7 @@ class CatalogIndexBuilder @Inject constructor(
                     results.add(
                         CatalogIndexEntity(
                             url = url,
-                            title = title,
+                            title = title.lowercase(),
                             titleEn = titleEn,
                             poster = poster,
                             provider = profile.name,
@@ -189,11 +248,12 @@ class CatalogIndexBuilder @Inject constructor(
 
         val UakinoSources = listOf(
             CatalogSource("filmy/", "movie"),
-            CatalogSource("seriesss/", "series")
+            CatalogSource("seriesss/", "series"),
+            CatalogSource("cartoon/", "cartoon")
         )
 
         val EneyidaSources = listOf(
-            CatalogSource("f/sort=rating/order=desc", "unknown")
+            CatalogSource("f/sort=new/order=desc", "unknown")
         )
     }
 }

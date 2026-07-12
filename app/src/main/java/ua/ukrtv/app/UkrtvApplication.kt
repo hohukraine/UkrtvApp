@@ -28,10 +28,17 @@ import ua.ukrtv.app.util.getDeviceClass
 import ua.ukrtv.app.util.hasMediatekChipset
 import ua.ukrtv.app.util.CrashReporter
 import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.work.Configuration
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltAndroidApp
-class UkrtvApplication : Application(), ImageLoaderFactory {
+class UkrtvApplication : Application(), ImageLoaderFactory, Configuration.Provider {
     companion object {
         val appStartTime = System.nanoTime()
     }
@@ -48,7 +55,15 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
     @Inject
     lateinit var htmlHttpClient: Lazy<ua.ukrtv.app.data.network.HtmlHttpClient>
 
+    @Inject
+    lateinit var workerFactory: dagger.Lazy<androidx.hilt.work.HiltWorkerFactory>
+
     private var imageLoader: ImageLoader? = null
+
+    override val workManagerConfiguration: Configuration
+        get() = Configuration.Builder()
+            .setWorkerFactory(workerFactory.get())
+            .build()
 
     override fun onCreate() {
         super.onCreate()
@@ -88,6 +103,17 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
                                 AppLogger.d("Prewarm", "HomeCache prewarm completed for ${provider.name}")
                             } catch (_: Exception) { }
                         }
+                        prewarmScope.launch {
+                            delay(4000)
+                            try {
+                                val repo = contentRepository.get()
+                                val provider = providerManager.get().activeProvider.value
+                                if (repo.isHomeCacheStale(provider.name)) {
+                                    AppLogger.d("Prewarm", "Home cache stale, refreshing for ${provider.name}")
+                                    repo.getTrendsForGrid()
+                                }
+                            } catch (_: Exception) { }
+                        }
                     }
                     androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
                         AppLogger.d("ProcessLifecycle", "App moved to background")
@@ -103,6 +129,26 @@ class UkrtvApplication : Application(), ImageLoaderFactory {
         if (ua.ukrtv.app.BuildConfig.DEBUG) {
             AppLogger.d("Startup", "App.onCreate done: ${(System.nanoTime() - appStartTime) / 1_000_000}ms")
         }
+
+        scheduleCatalogUpdate()
+    }
+
+    private fun scheduleCatalogUpdate() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiresBatteryNotLow(true)
+            .build()
+
+        val catalogWork = PeriodicWorkRequestBuilder<ua.ukrtv.app.worker.CatalogUpdateWorker>(
+            12, TimeUnit.HOURS
+        ).setConstraints(constraints).build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "catalog_update",
+            ExistingPeriodicWorkPolicy.KEEP,
+            catalogWork
+        )
+        AppLogger.i("UkrtvApplication", "Catalog update scheduled every 12 hours")
     }
 
     private fun clearCaches() {

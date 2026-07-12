@@ -4,10 +4,12 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withTimeout
 import ua.ukrtv.app.Constants
+import ua.ukrtv.app.data.TtlLruCache
 import ua.ukrtv.app.domain.model.HomeSection
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.MovieDetail
 import ua.ukrtv.app.domain.model.StreamResolutionResult
+import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.data.providers.ContentCategory
 import ua.ukrtv.app.data.providers.ContentUtils
@@ -25,11 +27,13 @@ class ContentRepository @Inject constructor(
     private val streamResolver: StreamResolver,
     private val htmlCacheDao: ua.ukrtv.app.data.local.dao.HtmlCacheDao,
     private val homeCacheRepository: HomeCacheRepository,
-    private val catalogRepository: CatalogRepository
+    private val catalogRepository: CatalogRepository,
+    private val catalogDao: CatalogIndexDao
 ) {
     private val homeSource = HomeGridSource(homeCacheRepository)
-    private val searchSource = SearchSource(providerManager)
+    private val searchSource = SearchSource(providerManager, catalogDao)
     private val detailSource = DetailSource(providerManager, streamResolver)
+    private val trendsCache = TtlLruCache<String, List<Movie>>(maxSize = 5, ttlMs = 15 * 60 * 1000L)
 
     private var cleanupJob: kotlinx.coroutines.Job? = null
 
@@ -52,6 +56,11 @@ class ContentRepository @Inject constructor(
         }
     }
 
+    suspend fun isHomeCacheStale(providerName: String, staleHoursThreshold: Long = 6): Boolean {
+        val ts = homeCacheRepository.getCacheTimestamp(providerName)
+        return (System.currentTimeMillis() - ts) / (60 * 60 * 1000L) >= staleHoursThreshold
+    }
+
     fun shutdown() {
         cleanupJob?.cancel()
         cleanupJob = null
@@ -62,6 +71,10 @@ class ContentRepository @Inject constructor(
 
     suspend fun getTrendsForGrid(): List<Movie> {
         val provider = providerManager.activeProvider.value
+        val cacheKey = provider.name
+
+        trendsCache.get(cacheKey)?.let { return it }
+
         val cachedSections = homeCacheRepository.getHomeCache(provider.name)
         val cachedItems = cachedSections?.firstOrNull()?.items.orEmpty()
 
@@ -79,6 +92,7 @@ class ContentRepository @Inject constructor(
             .take(100)
 
         homeCacheRepository.saveHomeCache(provider.name, listOf(HomeSection("Main", merged)))
+        trendsCache.put(cacheKey, merged)
         return merged
     }
 
@@ -123,8 +137,8 @@ class ContentRepository @Inject constructor(
     fun search(query: String): Flow<Result<List<Movie>>> =
         searchSource.search(query)
 
-    fun getDetails(id: String, url: String): Flow<Result<MovieDetail>> =
-        detailSource.getDetails(id, url)
+    fun getDetails(id: String, url: String, alternateUrl: String? = null): Flow<Result<MovieDetail>> =
+        detailSource.getDetails(id, url, alternateUrl)
 
     suspend fun getStream(url: String, season: Int?, episode: Int?): StreamResolutionResult? {
         PerformanceMonitor.begin("ContentRepo.getStream")

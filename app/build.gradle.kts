@@ -15,8 +15,8 @@ android {
         applicationId = "ua.ukrtv.app"
         minSdk = 23
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
     }
 
     buildFeatures {
@@ -99,6 +99,9 @@ dependencies {
     ksp(libs.hilt.compiler)
     ksp(libs.kotlin.metadata.jvm)
     implementation(libs.hilt.navigation.compose)
+    implementation(libs.hilt.work)
+    ksp(libs.hilt.work.compiler)
+    implementation(libs.work.runtime)
     
     // Network & Parsing
     implementation(libs.okhttp)

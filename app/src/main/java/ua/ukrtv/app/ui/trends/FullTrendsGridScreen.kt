@@ -4,19 +4,23 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -27,6 +31,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.ColorPainter
 import ua.ukrtv.app.ui.theme.PlaceholderDark
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -43,15 +48,33 @@ import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.home.components.HomeBackground
+import ua.ukrtv.app.ui.theme.Background
+import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
+import ua.ukrtv.app.ui.theme.PhoneCardDefaults
+import ua.ukrtv.app.ui.theme.PhoneGridDefaults
 import ua.ukrtv.app.ui.theme.SurfaceVariant
 import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.util.DeviceClass
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun FullTrendsGridScreen(
+    viewModel: FullTrendsGridViewModel = hiltViewModel(),
+    onMovieClick: (Movie) -> Unit,
+    onBack: () -> Unit
+) {
+    val formFactor = LocalFormFactor.current
+    when (formFactor) {
+        FormFactor.TV -> TvFullTrendsGridScreen(viewModel, onMovieClick, onBack)
+        FormFactor.PHONE, FormFactor.TABLET -> PhoneFullTrendsGridScreen(viewModel, onMovieClick, onBack)
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvFullTrendsGridScreen(
     viewModel: FullTrendsGridViewModel = hiltViewModel(),
     onMovieClick: (Movie) -> Unit,
     onBack: () -> Unit
@@ -334,5 +357,115 @@ private fun CompactGridCard(
                 .fillMaxWidth()
                 .padding(top = 6.dp, start = 2.dp, end = 2.dp)
         )
+    }
+}
+
+@Composable
+private fun PhoneFullTrendsGridScreen(
+    viewModel: FullTrendsGridViewModel = hiltViewModel(),
+    onMovieClick: (Movie) -> Unit,
+    onBack: () -> Unit
+) {
+    val items by viewModel.items.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+    val brandColorLong by viewModel.brandColor.collectAsState()
+    val providerColor = remember(brandColorLong) { Color(brandColorLong) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+    ) {
+        // Top bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF0A0A0A))
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
+            }
+            Spacer(Modifier.width(8.dp))
+            Text("Всі тренди", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            if (!isLoading) {
+                Spacer(Modifier.width(8.dp))
+                Text("(${items.size})", color = Color.White.copy(alpha = 0.5f), fontSize = 14.sp)
+            }
+        }
+
+        when {
+            isLoading -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = providerColor)
+                }
+            }
+            error != null && items.isEmpty() -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(error!!, color = Color.White.copy(alpha = 0.6f), fontSize = 14.sp)
+                        Spacer(Modifier.height(12.dp))
+                        androidx.compose.material3.Button(onClick = { viewModel.retry() }, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = providerColor)) {
+                            Text("Повторити")
+                        }
+                    }
+                }
+            }
+            else -> {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(PhoneGridDefaults.columns),
+                    horizontalArrangement = Arrangement.spacedBy(PhoneGridDefaults.columnSpacing),
+                    verticalArrangement = Arrangement.spacedBy(PhoneGridDefaults.rowSpacing),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    items(items, key = { it.pageUrl }) { movie ->
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onMovieClick(movie) }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(2f / 3f)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF141414))
+                            ) {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(movie.poster)
+                                        .size(PhoneCardDefaults.posterWidth.value.toInt(), PhoneCardDefaults.posterHeight.value.toInt())
+                                        .build(),
+                                    contentDescription = movie.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)),
+                                    placeholder = ColorPainter(Color(0xFF1A1A1D)),
+                                    error = ColorPainter(Color(0xFF1A1A1D))
+                                )
+                                if (movie.provider != null) {
+                                    val pColor = when (movie.provider) {
+                                        "Uakino" -> Color(0xFFFF6B35)
+                                        "Eneyida" -> Color(0xFF4ECDC4)
+                                        else -> Color(0xFF888888)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(3.dp)
+                                            .background(pColor.copy(alpha = 0.85f), RoundedCornerShape(3.dp))
+                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(movie.provider.uppercase(), color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp, maxLines = 1)
+                                    }
+                                }
+                            }
+                            Text(movie.title, color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp, start = 2.dp, end = 2.dp))
+                        }
+                    }
+                }
+            }
+        }
     }
 }

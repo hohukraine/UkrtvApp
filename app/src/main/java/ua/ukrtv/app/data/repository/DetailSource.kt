@@ -22,55 +22,17 @@ internal class DetailSource(
     private val detailFetchScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val pendingDetailFetches = ConcurrentHashMap<String, Deferred<MovieDetail>>()
 
-    fun getDetails(id: String, url: String): Flow<Result<MovieDetail>> = flow<Result<MovieDetail>> {
+    fun getDetails(id: String, url: String, alternateUrl: String? = null): Flow<Result<MovieDetail>> = flow<Result<MovieDetail>> {
         val getT = System.currentTimeMillis()
         try {
             PerformanceMonitor.begin("DetailSource.getDetails")
-            val targetProvider = providerManager.getProviderForUrl(url) ?: providerManager.activeProvider.value
-            val providerName = targetProvider.name
-            AppLogger.d("ContentRepo", "Routing detail request for $url to provider: $providerName")
-
-            val cacheKey = "details_pure|$providerName|$url"
-
-            navigationCache.get(cacheKey)?.let {
-                AppLogger.d("ContentRepository", "Detail cache HIT (nav) for $url")
-                emit(Result.success(it))
+            val result = fetchDetails(url)
+            if (result.isSuccess || alternateUrl == null) {
+                emit(result)
                 return@flow
             }
-
-            metadataCache.get(cacheKey)?.let {
-                AppLogger.d("ContentRepository", "Detail cache HIT (meta) for $url")
-                emit(Result.success(it))
-                navigationCache.put(cacheKey, it)
-                return@flow
-            }
-
-            if (url.isEmpty()) {
-                emit(Result.failure<MovieDetail>(Exception("URL порожній")))
-                return@flow
-            }
-
-            AppLogger.d("ContentRepository", "Fetching details directly from provider ($providerName): $url")
-            val fetchT = System.currentTimeMillis()
-
-            val deferred = pendingDetailFetches[cacheKey] ?: synchronized(pendingDetailFetches) {
-                pendingDetailFetches[cacheKey] ?: detailFetchScope.async(CoroutineName("detail-fetch-$url")) {
-                    targetProvider.getMovieDetails(url)
-                }.also { pendingDetailFetches[cacheKey] = it }
-            }
-            val detail = try {
-                deferred.await()
-            } catch (e: Exception) {
-                pendingDetailFetches.remove(cacheKey)
-                throw e
-            }
-            pendingDetailFetches.remove(cacheKey)
-
-            AppLogger.perf("ContentRepository", "getMovieDetails parse", fetchT)
-
-            metadataCache.put(cacheKey, detail)
-            navigationCache.put(cacheKey, detail)
-            emit(Result.success(detail))
+            AppLogger.d("ContentRepo", "Primary provider failed for $url, trying alternate: $alternateUrl")
+            emit(fetchDetails(alternateUrl))
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             AppLogger.e("ContentRepository", "Fatal error in getDetails: ${e.message}", e)
@@ -80,6 +42,51 @@ internal class DetailSource(
         }
         AppLogger.perf("ContentRepository", "getDetails total ($url)", getT)
     }.flowOn(Dispatchers.IO)
+
+    private suspend fun fetchDetails(url: String): Result<MovieDetail> {
+        val targetProvider = providerManager.getProviderForUrl(url) ?: providerManager.activeProvider.value
+        val providerName = targetProvider.name
+        AppLogger.d("ContentRepo", "Routing detail request for $url to provider: $providerName")
+
+        val cacheKey = "details_pure|$providerName|$url"
+
+        navigationCache.get(cacheKey)?.let {
+            AppLogger.d("ContentRepository", "Detail cache HIT (nav) for $url")
+            return Result.success(it)
+        }
+
+        metadataCache.get(cacheKey)?.let {
+            AppLogger.d("ContentRepository", "Detail cache HIT (meta) for $url")
+            navigationCache.put(cacheKey, it)
+            return Result.success(it)
+        }
+
+        if (url.isEmpty()) {
+            return Result.failure(Exception("URL порожній"))
+        }
+
+        AppLogger.d("ContentRepository", "Fetching details directly from provider ($providerName): $url")
+        val fetchT = System.currentTimeMillis()
+
+        val deferred = pendingDetailFetches[cacheKey] ?: synchronized(pendingDetailFetches) {
+            pendingDetailFetches[cacheKey] ?: detailFetchScope.async(CoroutineName("detail-fetch-$url")) {
+                targetProvider.getMovieDetails(url)
+            }.also { pendingDetailFetches[cacheKey] = it }
+        }
+        val detail = try {
+            deferred.await()
+        } catch (e: Exception) {
+            pendingDetailFetches.remove(cacheKey)
+            throw e
+        }
+        pendingDetailFetches.remove(cacheKey)
+
+        AppLogger.perf("ContentRepository", "getMovieDetails parse", fetchT)
+
+        metadataCache.put(cacheKey, detail)
+        navigationCache.put(cacheKey, detail)
+        return Result.success(detail)
+    }
 
     suspend fun enrichSeasons(url: String, detail: MovieDetail): MovieDetail {
         val providerName = providerManager.getProviderForUrl(url)?.name ?: providerManager.activeProvider.value.name

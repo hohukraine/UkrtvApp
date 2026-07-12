@@ -18,5 +18,7 @@ data class Top200Movie(
     val backdropUrl: String = "",
     val accentColor: String = "#08121c",
     val onAccentColor: String = "#ffffff", // Колір тексту (білий або чорний для контрасту)
+    val uakinoUrl: String = "",
+    val eneyidaUrl: String = "",
     val searchQueries: List<String> = emptyList()
 )

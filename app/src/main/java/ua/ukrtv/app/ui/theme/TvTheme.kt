@@ -1,19 +1,23 @@
 package ua.ukrtv.app.ui.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme as PhoneMaterialTheme
+import androidx.compose.material3.darkColorScheme as phoneDarkColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.material3.MaterialTheme
-import androidx.tv.material3.darkColorScheme
+import androidx.tv.material3.MaterialTheme as TvMaterialTheme
+import androidx.tv.material3.darkColorScheme as tvDarkColorScheme
 import ua.ukrtv.app.UkrtvApplication
 import ua.ukrtv.app.util.PerformancePreferences
 import ua.ukrtv.app.util.resolveDeviceClass
 import ua.ukrtv.app.util.hasMediatekChipset
 
-private val TvColorScheme = darkColorScheme(
+private val TvColorScheme = tvDarkColorScheme(
     primary = BrandBlue,
     onPrimary = OnBackground,
     secondary = BrandBlueLight,
@@ -84,9 +88,87 @@ val TvTypography = androidx.tv.material3.Typography(
     )
 )
 
+private val PhoneColorScheme = phoneDarkColorScheme(
+    primary = BrandBlue,
+    onPrimary = OnBackground,
+    secondary = BrandBlueLight,
+    background = Background,
+    surface = Surface,
+    surfaceVariant = SurfaceVariant,
+    onSurface = OnSurface,
+    onSurfaceVariant = OnSurfaceVariant,
+    error = Error,
+)
+
+private val PhoneTypography = androidx.compose.material3.Typography(
+    headlineLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Black,
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+        letterSpacing = 1.sp
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.5.sp
+    ),
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp
+    ),
+    titleMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.3.sp
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.2.sp
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.2.sp
+    ),
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 1.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.5.sp
+    )
+)
+
+val PhoneShapes = androidx.compose.material3.Shapes(
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp)
+)
+
 @Composable
 fun UkrtvTheme(
     performancePreferences: PerformancePreferences,
+    formFactor: FormFactor = FormFactor.TV,
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
@@ -101,12 +183,25 @@ fun UkrtvTheme(
 
     CompositionLocalProvider(
         LocalDeviceClass provides deviceClass,
-        LocalIsMediatek provides isMediatek
+        LocalIsMediatek provides isMediatek,
+        LocalFormFactor provides formFactor
     ) {
-        MaterialTheme(
-            colorScheme = TvColorScheme,
-            typography = TvTypography,
-            content = content
-        )
+        when (formFactor) {
+            FormFactor.TV -> {
+                TvMaterialTheme(
+                    colorScheme = TvColorScheme,
+                    typography = TvTypography,
+                    content = content
+                )
+            }
+            FormFactor.PHONE, FormFactor.TABLET -> {
+                PhoneMaterialTheme(
+                    colorScheme = PhoneColorScheme,
+                    typography = PhoneTypography,
+                    shapes = PhoneShapes,
+                    content = content
+                )
+            }
+        }
     }
 }

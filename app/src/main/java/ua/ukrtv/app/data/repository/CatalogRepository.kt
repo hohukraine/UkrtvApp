@@ -66,7 +66,7 @@ class CatalogRepository @Inject constructor(
                     val obj = arr.getJSONObject(i)
                     items.add(CatalogIndexEntity(
                         url = obj.optString("url", ""),
-                        title = obj.optString("title", ""),
+                        title = obj.optString("title", "").lowercase(),
                         titleEn = obj.optString("titleEn", ""),
                         poster = obj.optString("poster", ""),
                         provider = obj.optString("provider", "Uakino"),
@@ -108,21 +108,33 @@ class CatalogRepository @Inject constructor(
 
             if (!s.uakinoReady) {
                 _state.value = _state.value.copy(progress = "Building Uakino index...")
-                val result = builder.buildForProvider(UakinoProfile, CatalogIndexBuilder.UakinoSources)
-                AppLogger.i("CatalogRepository", "Uakino index: ${result.itemsInserted} items, ${result.pagesScanned} pages, ${result.errors} errors")
+                val result = if (s.uakinoCount > 0) {
+                    val existingUrls = catalogDao.getUrlsByProvider("Uakino").toSet()
+                    builder.buildForProviderIncremental(UakinoProfile, CatalogIndexBuilder.UakinoSources, existingUrls)
+                } else {
+                    builder.buildForProvider(UakinoProfile, CatalogIndexBuilder.UakinoSources)
+                }
+                val newTotal = s.uakinoCount + result.itemsInserted
+                AppLogger.i("CatalogRepository", "Uakino: +${result.itemsInserted} new items, ${result.pagesScanned} pages, ${result.errors} errors")
                 _state.value = _state.value.copy(
-                    uakinoReady = result.itemsInserted > 1000,
-                    uakinoCount = result.itemsInserted
+                    uakinoReady = newTotal > 1000,
+                    uakinoCount = newTotal
                 )
             }
 
             if (!s.eneyidaReady) {
                 _state.value = _state.value.copy(progress = "Building Eneyida index...")
-                val result = builder.buildForProvider(EneyidaProfile, CatalogIndexBuilder.EneyidaSources)
-                AppLogger.i("CatalogRepository", "Eneyida index: ${result.itemsInserted} items, ${result.pagesScanned} pages, ${result.errors} errors")
+                val result = if (s.eneyidaCount > 0) {
+                    val existingUrls = catalogDao.getUrlsByProvider("Eneyida").toSet()
+                    builder.buildForProviderIncremental(EneyidaProfile, CatalogIndexBuilder.EneyidaSources, existingUrls)
+                } else {
+                    builder.buildForProvider(EneyidaProfile, CatalogIndexBuilder.EneyidaSources)
+                }
+                val newTotal = s.eneyidaCount + result.itemsInserted
+                AppLogger.i("CatalogRepository", "Eneyida: +${result.itemsInserted} new items, ${result.pagesScanned} pages, ${result.errors} errors")
                 _state.value = _state.value.copy(
-                    eneyidaReady = result.itemsInserted > 1000,
-                    eneyidaCount = result.itemsInserted
+                    eneyidaReady = newTotal > 1000,
+                    eneyidaCount = newTotal
                 )
             }
 
@@ -146,6 +158,37 @@ class CatalogRepository @Inject constructor(
             "Eneyida" -> s.eneyidaReady
             else -> false
         }
+    }
+
+    suspend fun updateCatalogSuspend() {
+        if (_state.value.isBuilding) return
+        _state.value = _state.value.copy(isBuilding = true)
+
+        try {
+            val uCount = catalogDao.countByProvider("Uakino")
+            if (uCount > 0) {
+                val existingUrls = catalogDao.getUrlsByProvider("Uakino").toSet()
+                val result = builder.buildForProviderIncremental(UakinoProfile, CatalogIndexBuilder.UakinoSources, existingUrls)
+                val newTotal = uCount + result.itemsInserted
+                _state.value = _state.value.copy(uakinoReady = newTotal > 1000, uakinoCount = newTotal)
+            }
+        } catch (e: Exception) {
+            AppLogger.w("CatalogRepository", "Uakino incremental update failed: ${e.message}")
+        }
+
+        try {
+            val eCount = catalogDao.countByProvider("Eneyida")
+            if (eCount > 0) {
+                val existingUrls = catalogDao.getUrlsByProvider("Eneyida").toSet()
+                val result = builder.buildForProviderIncremental(EneyidaProfile, CatalogIndexBuilder.EneyidaSources, existingUrls)
+                val newTotal = eCount + result.itemsInserted
+                _state.value = _state.value.copy(eneyidaReady = newTotal > 1000, eneyidaCount = newTotal)
+            }
+        } catch (e: Exception) {
+            AppLogger.w("CatalogRepository", "Eneyida incremental update failed: ${e.message}")
+        }
+
+        _state.value = _state.value.copy(isBuilding = false, progress = "")
     }
 
     fun rebuild() {

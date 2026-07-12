@@ -1,7 +1,10 @@
 package ua.ukrtv.app.ui.top200
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -10,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,7 +35,9 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import ua.ukrtv.app.ui.theme.Background
+import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.Gold
+import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
 import ua.ukrtv.app.ui.theme.OnSurface
@@ -56,9 +62,22 @@ class Top200ViewModel @Inject constructor(
     val movies = repository.getTop200()
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun Top200Screen(
+    viewModel: Top200ViewModel = hiltViewModel(),
+    onMovieClick: (Top200Movie) -> Unit,
+    onBack: () -> Unit
+) {
+    val formFactor = LocalFormFactor.current
+    when (formFactor) {
+        FormFactor.TV -> TvTop200Screen(viewModel, onMovieClick, onBack)
+        FormFactor.PHONE, FormFactor.TABLET -> PhoneTop200Screen(viewModel, onMovieClick, onBack)
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvTop200Screen(
     viewModel: Top200ViewModel = hiltViewModel(),
     onMovieClick: (Top200Movie) -> Unit,
     onBack: () -> Unit
@@ -233,6 +252,100 @@ fun Top200Screen(
                             Spacer(modifier = Modifier.width(16.dp))
                             RatingCircle(rating = movie.rating)
                             Spacer(modifier = Modifier.width(16.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PhoneTop200Screen(
+    viewModel: Top200ViewModel = hiltViewModel(),
+    onMovieClick: (Top200Movie) -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+    ) {
+        // Top bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF0A0A0A))
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
+            }
+            Spacer(Modifier.width(8.dp))
+            Column {
+                Text("ТОП 200", color = Color(0xFFFFD700), fontSize = 18.sp, fontWeight = FontWeight.Black)
+                Text("За версією каналу Що подивитися", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
+            }
+        }
+
+        LazyColumn(
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(viewModel.movies, key = { it.rank }) { movie ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onMovieClick(movie) }
+                        .background(Color(0xFF1A1A1D), RoundedCornerShape(8.dp))
+                        .padding(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Poster with rank badge
+                        Box(modifier = Modifier.width(60.dp).height(90.dp)) {
+                            AsyncImage(
+                                model = ImageRequest.Builder(LocalContext.current)
+                                    .data(movie.posterUrl.ifEmpty { null })
+                                    .size(120, 180)
+                                    .build(),
+                                contentDescription = movie.title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)),
+                                placeholder = ColorPainter(Color(0xFF2A2A2A)),
+                                error = ColorPainter(Color(0xFF2A2A2A))
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(3.dp)
+                                    .background(Color(0xFFFFD700), RoundedCornerShape(3.dp))
+                                    .padding(horizontal = 3.dp, vertical = 1.dp)
+                            ) {
+                                Text("#${movie.rank}", color = Color.Black, fontSize = 8.sp, fontWeight = FontWeight.Black)
+                            }
+                        }
+
+                        Spacer(Modifier.width(12.dp))
+
+                        Column(Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(movie.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                if (movie.year.isNotEmpty()) {
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("(${movie.year})", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
+                                }
+                            }
+                            if (movie.originalTitle.isNotEmpty() && movie.originalTitle != movie.title) {
+                                Text(movie.originalTitle, color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(movie.comment, color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 16.sp)
+                        }
+
+                        if (movie.rating > 0) {
+                            Spacer(Modifier.width(8.dp))
+                            RatingCircle(rating = movie.rating)
                         }
                     }
                 }

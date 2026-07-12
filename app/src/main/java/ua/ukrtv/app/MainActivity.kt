@@ -1,5 +1,6 @@
 package ua.ukrtv.app
 
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -12,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import ua.ukrtv.app.ui.theme.detectFormFactor
+import ua.ukrtv.app.ui.theme.FormFactor
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -50,8 +53,15 @@ class MainActivity : ComponentActivity() {
         if (ua.ukrtv.app.BuildConfig.DEBUG) {
             AppLogger.d("Startup", "Activity super.onCreate: ${(System.nanoTime() - t0) / 1_000_000}ms")
         }
+        val formFactor = detectFormFactor(this)
+        isTv = formFactor == FormFactor.TV
+        requestedOrientation = if (isTv) {
+            ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
         setContent {
-            UkrtvTheme(performancePreferences = performancePreferences) {
+            UkrtvTheme(performancePreferences = performancePreferences, formFactor = formFactor) {
                 UkrtvTVApp()
             }
         }
@@ -68,6 +78,8 @@ class MainActivity : ComponentActivity() {
             AppLogger.d("Startup", "setContent done: ${(System.nanoTime() - t0) / 1_000_000}ms")
         }
     }
+
+    private var isTv: Boolean = false
 
     override fun onStart() {
         super.onStart()
@@ -97,7 +109,7 @@ fun UkrtvTVApp() {
         { movie: ua.ukrtv.app.domain.model.Movie ->
             ua.ukrtv.app.util.Perf.start("nav:home2detail")
             ua.ukrtv.app.util.AppLogger.d("Navigation", "home→detail: movie=${movie.title} url=${movie.pageUrl?.take(40)}")
-            navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
+            navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl))
         }
     }
     val onContinueWatchingClick = remember(navController) {
@@ -153,7 +165,11 @@ fun UkrtvTVApp() {
             composable(AppNavigation.TOP_200) {
                 Top200Screen(
                     onMovieClick = { movie ->
-                        navController.navigate(AppNavigation.searchRoute(movie.originalTitle.ifEmpty { movie.title }))
+                        navController.navigate(
+                            AppNavigation.searchRoute(
+                                movie.searchQueries.firstOrNull() ?: movie.title
+                            )
+                        )
                     },
                     onBack = { navController.popBackStack() }
                 )
@@ -164,7 +180,7 @@ fun UkrtvTVApp() {
             ) {
                 SearchScreen(
                     onMovieClick = { movie ->
-                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
+                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl))
                     }
                 )
             }
@@ -172,7 +188,8 @@ fun UkrtvTVApp() {
                 route = AppNavigation.DETAIL,
                 arguments = listOf(
                     navArgument("id") { type = NavType.StringType },
-                    navArgument("url") { type = NavType.StringType }
+                    navArgument("url") { type = NavType.StringType },
+                    navArgument("alternate") { type = NavType.StringType; defaultValue = "" }
                 )
             ) {
                 DetailScreen(
@@ -196,7 +213,7 @@ fun UkrtvTVApp() {
             composable(AppNavigation.TRENDS_GRID) {
                 FullTrendsGridScreen(
                     onMovieClick = { movie: ua.ukrtv.app.domain.model.Movie ->
-                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl))
+                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl))
                     },
                     onBack = { navController.popBackStack() }
                 )

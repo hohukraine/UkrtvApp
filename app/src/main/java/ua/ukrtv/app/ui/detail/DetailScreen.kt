@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
@@ -12,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
@@ -23,10 +25,12 @@ import kotlin.math.sin
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -57,6 +61,13 @@ import ua.ukrtv.app.ui.components.RatingCircle
 import ua.ukrtv.app.ui.components.parseRating
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.PosterColorCache
+import ua.ukrtv.app.util.PerformanceProfile
+import ua.ukrtv.app.ui.theme.FormFactor
+import ua.ukrtv.app.ui.theme.LocalFormFactor
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import coil.compose.rememberAsyncImagePainter
+import ua.ukrtv.app.ui.theme.PhoneCardDefaults
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
@@ -67,6 +78,7 @@ fun DetailScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val launchState by viewModel.launchState.collectAsState()
+    val formFactor = LocalFormFactor.current
 
     LaunchedEffect(launchState) {
         if (launchState is MediaLaunchState.Ready) {
@@ -85,15 +97,28 @@ fun DetailScreen(
                 DetailSkeleton()
             }
             is DetailState.Success -> {
-                DetailContent(
-                    state = s,
-                    launchState = launchState,
-                    isInWatchlist = viewModel.isInWatchlist.collectAsState().value,
-                    onWatchClick = { viewModel.watchContent() },
-                    onEpisodeClick = { s_num, ep -> viewModel.watchContent(season = s_num, episode = ep.number) },
-                    onBackClick = onBackClick,
-                    onToggleWatchlist = { viewModel.toggleWatchlist() }
-                )
+                if (formFactor == FormFactor.PHONE) {
+                    PhoneDetailContent(
+                        state = s,
+                        launchState = launchState,
+                        isInWatchlist = viewModel.isInWatchlist.collectAsState().value,
+                        performanceProfile = viewModel.performanceProfile.collectAsState().value,
+                        onWatchClick = { viewModel.watchContent() },
+                        onEpisodeClick = { s_num, ep -> viewModel.watchContent(season = s_num, episode = ep.number) },
+                        onBackClick = onBackClick,
+                        onToggleWatchlist = { viewModel.toggleWatchlist() }
+                    )
+                } else {
+                    DetailContent(
+                        state = s,
+                        launchState = launchState,
+                        isInWatchlist = viewModel.isInWatchlist.collectAsState().value,
+                        onWatchClick = { viewModel.watchContent() },
+                        onEpisodeClick = { s_num, ep -> viewModel.watchContent(season = s_num, episode = ep.number) },
+                        onBackClick = onBackClick,
+                        onToggleWatchlist = { viewModel.toggleWatchlist() }
+                    )
+                }
             }
             is DetailState.Error -> {
                 Column(
@@ -658,6 +683,261 @@ private fun MetaRow(label: String, values: List<String>, brandColor: Color) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+@Composable
+private fun PhoneDetailContent(
+    state: DetailState.Success,
+    launchState: MediaLaunchState,
+    isInWatchlist: Boolean,
+    performanceProfile: PerformanceProfile,
+    onWatchClick: () -> Unit,
+    onEpisodeClick: (Int, Episode) -> Unit,
+    onBackClick: () -> Unit,
+    onToggleWatchlist: () -> Unit
+) {
+    val detail = state.detail
+    val context = LocalContext.current
+    val brandColor = remember(detail.brandColor) {
+        try { Color(android.graphics.Color.parseColor(detail.brandColor)) } catch (_: Exception) { BrandBlue }
+    }
+
+    val isPerformanceMode = performanceProfile == PerformanceProfile.PERFORMANCE
+    val shouldBlur = !isPerformanceMode
+
+    val posterRequest = remember(detail.poster) {
+        ImageRequest.Builder(context)
+            .data(detail.poster)
+            .size(480, 720)
+            .crossfade(true)
+            .build()
+    }
+
+    var showFullDescription by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+            .statusBarsPadding()
+    ) {
+        // Hero banner — poster with gradient overlay
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+        ) {
+            // Poster as background
+            AsyncImage(
+                model = posterRequest,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (shouldBlur) Modifier.blur(20.dp, 20.dp) else Modifier)
+            )
+
+            // Dark gradient overlay
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.3f),
+                                Color.Transparent,
+                                Background.copy(alpha = 0.95f)
+                            )
+                        )
+                    )
+            )
+
+            // Back button
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Назад",
+                tint = Color.White,
+                modifier = Modifier
+                    .padding(12.dp)
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(4.dp)
+                    .clickable { onBackClick() }
+            )
+
+            // Title at bottom of hero
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+            ) {
+                Text(
+                    text = detail.title,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 30.sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    RatingCircle(rating = parseRating(detail.rating))
+                    if (!detail.year.isNullOrEmpty()) {
+                        Text(detail.year, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                    }
+                    if (!detail.duration.isNullOrEmpty()) {
+                        Text(detail.duration, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+
+        // Scrollable content
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Action buttons
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val isResolving = launchState is MediaLaunchState.Resolving
+                Button(
+                    onClick = onWatchClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = brandColor,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(50),
+                    contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isResolving) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("ЗАВАНТАЖЕННЯ...", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        } else {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("ДИВИТИСЯ", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onToggleWatchlist,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (isInWatchlist) brandColor else OnSurface.copy(alpha = 0.7f)
+                    ),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(
+                        brush = SolidColor(if (isInWatchlist) brandColor else OnSurface.copy(alpha = 0.3f))
+                    ),
+                    shape = RoundedCornerShape(50),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = if (isInWatchlist) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text("ОБРАНЕ", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                }
+            }
+
+            // Genre chips
+            if (detail.genres.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    detail.genres.take(4).forEach { genre ->
+                        Box(
+                            modifier = Modifier
+                                .clip(Shapes.chip)
+                                .background(Color.White.copy(alpha = 0.1f))
+                                .padding(horizontal = 12.dp, vertical = 5.dp)
+                        ) {
+                            Text(genre, color = OnSurface, fontSize = 12.sp)
+                        }
+                    }
+                }
+            }
+
+            // Meta info
+            if (detail.country.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                MetaRow(label = "Країна", values = detail.country, brandColor = brandColor)
+            }
+            if (detail.director.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                MetaRow(label = "Режисер", values = detail.director, brandColor = brandColor)
+            }
+            if (detail.actors.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                MetaRow(label = "Актори", values = detail.actors.take(5), brandColor = brandColor)
+            }
+
+            // Description
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = detail.description.ifEmpty { "Опис відсутній" },
+                fontSize = 14.sp,
+                color = OnSurface.copy(alpha = 0.8f),
+                maxLines = if (showFullDescription) Int.MAX_VALUE else 4,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 22.sp
+            )
+            if (detail.description.length > 200) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (showFullDescription) "Згорнути" else "Розгорнути",
+                    color = brandColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { showFullDescription = !showFullDescription }
+                )
+            }
+
+            // Seasons
+            if (!detail.seasons.isNullOrEmpty()) {
+                Spacer(modifier = Modifier.height(24.dp))
+                SeasonEpisodePicker(
+                    seasons = detail.seasons,
+                    onEpisodeClick = onEpisodeClick,
+                    accentColor = brandColor
+                )
+            }
+
+            // Comments
+            if (detail.comments.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(24.dp))
+                CommentsSection(
+                    comments = detail.comments,
+                    providerName = detail.providerName,
+                    accentColor = brandColor
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
     }
 }
 

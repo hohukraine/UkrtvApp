@@ -165,15 +165,8 @@ object SearchScorer {
 
         if (bestMovie != null && bestConfidence >= threshold) return bestMovie
 
-        val slugFallback = results.firstOrNull { movie ->
-            val slugLatin = slugFromUrlLatin(movie.pageUrl)
-            queryVariants.any { qv ->
-                if (qv.length < 3) return@any false
-                if (slugLatin.contains(qv)) return@any true
-                val qvWords = qv.split(" ").filter { it.length >= 3 }
-                qvWords.any { word -> slugLatin.contains(word) }
-            }
-        }
-        return slugFallback
+        if (bestMovie != null && bestConfidence >= 0.4f) return bestMovie
+
+        return null
     }
 }

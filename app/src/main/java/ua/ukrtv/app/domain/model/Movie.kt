@@ -20,7 +20,8 @@ data class Movie(
     val season: Int? = null,
     val episode: Int? = null,
     val brandColor: String? = null,
-    val provider: String? = null
+    val provider: String? = null,
+    val alternatePageUrl: String? = null
 )
 
 @Stable

@@ -171,6 +171,18 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    val trendingLabel: StateFlow<String> = currentProviderId
+        .map { provider ->
+            val period = when (provider) {
+                "Eneyida" -> "за весь час"
+                "Uakino" -> "2026"
+                else -> ""
+            }
+            if (period.isNotEmpty()) "Тренди · $provider · $period" else "Тренди"
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "Тренди")
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val top200: StateFlow<List<Top200Movie>> = _top200
         .stateIn(viewModelScope, SharingStarted.Eagerly, top200Repository.getRandom5())
 
@@ -227,7 +239,8 @@ class HomeViewModel @Inject constructor(
 
     fun onTop200BannerClick(movie: Top200Movie) {
         viewModelScope.launch {
-            _navigateToSearch.emit(movie.originalTitle.ifEmpty { movie.title })
+            val query = movie.searchQueries.firstOrNull() ?: movie.title
+            _navigateToSearch.emit(query)
         }
     }
 }

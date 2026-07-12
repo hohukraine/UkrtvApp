@@ -29,7 +29,6 @@ class EneyidaProvider(
 ) : MediaProvider {
 
     private val parser = DleParser(EneyidaProfile)
-    private val detailCache = TtlLruCache<String, MovieDetail>(50, Constants.METADATA_CACHE_TTL_MS)
     private val pageHtmlCache = TtlLruCache<String, String>(20, 30 * 60 * 1000L)
     private var sessionUserHash: String = ""
 
@@ -148,12 +147,11 @@ class EneyidaProvider(
     }
 
     override suspend fun getMovieDetails(url: String): MovieDetail = withContext(Dispatchers.IO) {
-        detailCache.get(url)?.let { return@withContext it }
         PerformanceMonitor.begin("EneyidaProvider.getMovieDetails")
         try {
             htmlHttpClient.getHtml(url, baseUrl)?.let { html ->
                 pageHtmlCache.put(url, html)
-                parser.parseDetail(html, url).also { detailCache.put(url, it) }
+                parser.parseDetail(html, url)
             } ?: throw Exception("Empty response")
         } catch (e: Exception) {
             throw Exception("Failed to load details for $url: ${e.message}")
@@ -366,7 +364,7 @@ class EneyidaProvider(
     private fun resolveOtherSeasons(doc: org.jsoup.nodes.Document, pageUrl: String): List<Pair<Int, String>> =
         DleResolutionUtils.resolveOtherSeasons(doc, pageUrl, "$name:OtherSeasons")
 
-    override fun clearCache(url: String?) { detailCache.clear(); pageHtmlCache.clear() }
+    override fun clearCache(url: String?) { pageHtmlCache.clear() }
 
     private fun absoluteUrl(href: String): String =
         if (href.startsWith("http")) href else baseUrl.trimEnd('/') + "/" + href.trimStart('/')

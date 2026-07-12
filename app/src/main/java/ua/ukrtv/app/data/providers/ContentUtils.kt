@@ -12,7 +12,6 @@ object ContentUtils {
     private val TECHNICAL_SUFFIX_REGEX = Regex("""(?:\s+\d+[-\s]*\d*)?\s*(?:сезон|серія|серії|серій|season|episode|sezon|seria|seriya|IMDB|голосів|рейтинг|rating|votes|переглядів|дивитися|онлайн).*$""", RegexOption.IGNORE_CASE)
 
     private val START_SERIES_PREFIX_REGEX = Regex("""^\d*[-\s]*\d*\s*(?:сезон|серія|серії|серій|season|episode|sezon|seria|seriya)\s*""", RegexOption.IGNORE_CASE)
-    private val START_NUMERIC_PREFIX_REGEX = Regex("""^\d{1,8}\s+""")
 
     private val TRAILING_JUNK_REGEX = Regex("""\s+[воуіа]\b\s*$""", RegexOption.IGNORE_CASE)
     private val HTML_TAGS_REGEX = Regex("<[^>]*>")
@@ -39,7 +38,6 @@ object ContentUtils {
 
         clean = clean.replace(TECHNICAL_SUFFIX_REGEX, "")
         clean = clean.replace(START_SERIES_PREFIX_REGEX, "")
-        clean = clean.replace(START_NUMERIC_PREFIX_REGEX, "")
 
         clean = org.jsoup.parser.Parser.unescapeEntities(clean, false)
             .replace(HTML_TAGS_REGEX, "").replace("+", " ").replace("_", " ")

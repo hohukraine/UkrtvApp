@@ -56,3 +56,28 @@ object FocusDefaults {
     val cardScale = 1.1f
     val buttonScale = 1.1f
 }
+
+// ── Phone-specific sizes ──
+object PhoneCardDefaults {
+    val posterWidth = 120.dp
+    val posterHeight = 180.dp
+    val compactWidth = 140.dp
+    val compactHeight = 210.dp
+    val wideWidth = 240.dp
+    val wideHeight = 135.dp
+    val heroPosterWidth = 160.dp
+    val heroPosterHeight = 240.dp
+}
+
+object PhoneGridDefaults {
+    val columns = 3
+    val horizontalPadding = 14.dp
+    val rowSpacing = 14.dp
+    val columnSpacing = 10.dp
+    val contentBottomPadding = 24.dp
+}
+
+object PhoneHeroDefaults {
+    val height = 260.dp
+    val horizontalPadding = 14.dp
+}

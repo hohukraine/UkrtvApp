@@ -38,6 +38,7 @@ fun PlayerReadyContent(
     isShowingControls: Boolean,
     brandColor: Color = BrandBlue,
     heldSeekDir: SeekDirection? = null,
+    showOverlay: Boolean = true,
     onSeek: (Long) -> Unit
 ) {
     var endedCountdown by remember { mutableStateOf<Int?>(null) }
@@ -65,6 +66,21 @@ fun PlayerReadyContent(
         videoSize.width > 0 && (videoSize.width.toFloat() / videoSize.height.toFloat()) * videoSize.pixelWidthHeightRatio <= 16f / 9f + 0.01f
     }
 
+    var surfaceRef by remember { mutableStateOf<SurfaceView?>(null) }
+    var surfaceAttached by remember { mutableStateOf(false) }
+    var appliedScaleMode by remember { mutableStateOf<ScaleMode?>(null) }
+    var appliedZoomFactor by remember { mutableStateOf(0f) }
+    val surfaceModifier = remember(scaleMode, videoSize) {
+        if (scaleMode == ScaleMode.FIT) {
+            val ratio = if (videoSize.width > 0 && videoSize.height > 0) {
+                (videoSize.width.toFloat() / videoSize.height.toFloat()) * videoSize.pixelWidthHeightRatio
+            } else 16f / 9f
+            Modifier.aspectRatio(ratio)
+        } else {
+            Modifier.fillMaxSize()
+        }
+    }
+
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         AndroidView<SurfaceView>(
             factory = { ctx ->
@@ -73,29 +89,32 @@ fun PlayerReadyContent(
                 }
             },
             update = { surfaceView ->
-                if (readyStatus != null) {
-                    player.setVideoSurfaceView(surfaceView)
+                if (surfaceRef !== surfaceView) {
+                    surfaceRef = surfaceView
+                    surfaceAttached = false
                 }
-                player.setVideoScalingMode(
-                    when (scaleMode) {
-                        ScaleMode.FIT -> C.VIDEO_SCALING_MODE_SCALE_TO_FIT
-                        ScaleMode.ZOOM -> C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
-                    }
-                )
-                val factor = if (scaleMode == ScaleMode.ZOOM && needsManualScale) zoomScale else 1.0f
-                surfaceView.scaleX = factor
-                surfaceView.scaleY = factor
-                surfaceView.pivotX = (surfaceView.width / 2f).coerceAtLeast(0f)
-                surfaceView.pivotY = (surfaceView.height / 2f).coerceAtLeast(0f)
+                if (!surfaceAttached && readyStatus != null) {
+                    AppLogger.d("PlayerViewport", "setVideoSurfaceView called")
+                    player.setVideoSurfaceView(surfaceView)
+                    surfaceAttached = true
+                }
+                val newFactor = if (scaleMode == ScaleMode.ZOOM && needsManualScale) zoomScale else 1.0f
+                if (appliedScaleMode != scaleMode || appliedZoomFactor != newFactor) {
+                    player.setVideoScalingMode(
+                        when (scaleMode) {
+                            ScaleMode.FIT -> C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+                            ScaleMode.ZOOM -> C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
+                        }
+                    )
+                    surfaceView.scaleX = newFactor
+                    surfaceView.scaleY = newFactor
+                    surfaceView.pivotX = (surfaceView.width / 2f).coerceAtLeast(0f)
+                    surfaceView.pivotY = (surfaceView.height / 2f).coerceAtLeast(0f)
+                    appliedScaleMode = scaleMode
+                    appliedZoomFactor = newFactor
+                }
             },
-            modifier = if (scaleMode == ScaleMode.FIT) {
-                val ratio = if (videoSize.width > 0 && videoSize.height > 0) {
-                    (videoSize.width.toFloat() / videoSize.height.toFloat()) * videoSize.pixelWidthHeightRatio
-                } else 16f / 9f
-                Modifier.aspectRatio(ratio)
-            } else {
-                Modifier.fillMaxSize()
-            }
+            modifier = surfaceModifier
         )
 
         val isPlaying = player.isPlaying
@@ -218,41 +237,43 @@ fun PlayerReadyContent(
                 } == true
             }
 
-            PlayerOverlay(
-                visible = isShowingControls,
-                brandColor = brandColor,
-                title = title,
-                isPlaying = isPlaying,
-                positionMs = currentPosition,
-                durationMs = duration,
-                bufferedPositionMs = bufferedPosition,
-                showSkipIntro = showSkipIntro,
-                onSkipIntro = { player.seekTo(player.currentPosition + SKIP_INTRO_STEP_MS) },
-                nextCountdown = endedCountdown,
-                countdownEpisode = countdownEpisode,
-                countdownSeason = playerState.currentSeason,
-                onPlayPauseToggle = { viewModel.togglePlay() },
-                onSeekBackward = { player.seekTo(maxOf(0L, player.currentPosition - SEEK_STEP_MS)) },
-                onSeekForward = { player.seekTo(player.currentPosition + SEEK_STEP_MS) },
-                onSeek = { ratio -> player.seekTo((ratio * player.duration).toLong()) },
-                hasEpisodes = hasEpisodes,
-                hasNextEpisode = viewModel.hasNextEpisode(),
-                onNextEpisode = {
-                    viewModel.saveProgress(currentPosition, duration)
-                    viewModel.navigateToNextEpisode()
-                },
-                heldSeekDir = heldSeekDir,
-                season = playerState.currentSeason,
-                episode = playerState.currentEpisode,
-                showSeasonEpisode = !allEpisodesAreOne,
-                playFocusRequester = playButtonFocusRequester,
-                pickerColumns = playerState.pickerColumns,
-                pickerFocusedIndex = playerState.pickerFocusedIndex,
-                onPickerColumnFocused = { viewModel.onPickerColumnFocused(it) },
-                onPickerValueChange = { viewModel.onPickerValueChange(it) },
-                onPickerCommit = { viewModel.onPickerCommit() },
-                modifier = Modifier.fillMaxSize()
-            )
+            if (showOverlay) {
+                PlayerOverlay(
+                    visible = isShowingControls,
+                    brandColor = brandColor,
+                    title = title,
+                    isPlaying = isPlaying,
+                    positionMs = currentPosition,
+                    durationMs = duration,
+                    bufferedPositionMs = bufferedPosition,
+                    showSkipIntro = showSkipIntro,
+                    onSkipIntro = { player.seekTo(player.currentPosition + SKIP_INTRO_STEP_MS) },
+                    nextCountdown = endedCountdown,
+                    countdownEpisode = countdownEpisode,
+                    countdownSeason = playerState.currentSeason,
+                    onPlayPauseToggle = { viewModel.togglePlay() },
+                    onSeekBackward = { player.seekTo(maxOf(0L, player.currentPosition - SEEK_STEP_MS)) },
+                    onSeekForward = { player.seekTo(player.currentPosition + SEEK_STEP_MS) },
+                    onSeek = { ratio -> player.seekTo((ratio * player.duration).toLong()) },
+                    hasEpisodes = hasEpisodes,
+                    hasNextEpisode = viewModel.hasNextEpisode(),
+                    onNextEpisode = {
+                        viewModel.saveProgress(currentPosition, duration)
+                        viewModel.navigateToNextEpisode()
+                    },
+                    heldSeekDir = heldSeekDir,
+                    season = playerState.currentSeason,
+                    episode = playerState.currentEpisode,
+                    showSeasonEpisode = !allEpisodesAreOne,
+                    playFocusRequester = playButtonFocusRequester,
+                    pickerColumns = playerState.pickerColumns,
+                    pickerFocusedIndex = playerState.pickerFocusedIndex,
+                    onPickerColumnFocused = { viewModel.onPickerColumnFocused(it) },
+                    onPickerValueChange = { viewModel.onPickerValueChange(it) },
+                    onPickerCommit = { viewModel.onPickerCommit() },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
 
             LaunchedEffect(endedCountdown) {
                 endedCountdown?.let { countdown ->

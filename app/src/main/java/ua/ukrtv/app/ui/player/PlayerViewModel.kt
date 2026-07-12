@@ -27,6 +27,10 @@ import ua.ukrtv.app.player.PlaybackErrorHandler
 import ua.ukrtv.app.player.PlayerWarmupManager
 import ua.ukrtv.app.player.ThermalMonitor
 import ua.ukrtv.app.util.PerformanceMonitor
+import ua.ukrtv.app.util.PlayerPreferences
+import ua.ukrtv.app.domain.model.StreamType
+import android.content.Intent
+import android.widget.Toast
 import javax.inject.Inject
 
 @HiltViewModel
@@ -39,7 +43,8 @@ class PlayerViewModel @Inject constructor(
     private val thermalMonitor: ThermalMonitor,
     private val warmupManager: PlayerWarmupManager,
     private val audioEngine: AudioEngine,
-    private val providerManager: ProviderManager
+    private val providerManager: ProviderManager,
+    private val playerPreferences: PlayerPreferences
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PlayerState())
@@ -75,6 +80,8 @@ class PlayerViewModel @Inject constructor(
     private var selectedCodecMime: String? = null
 
     val trackManager = TrackManager()
+
+    val playerType: StateFlow<ua.ukrtv.app.util.PlayerType> = playerPreferences.playerType
 
     init {
         viewModelScope.launch {
@@ -330,6 +337,13 @@ class PlayerViewModel @Inject constructor(
             ))
         }
 
+        cols.add(PickerColumn(
+            id = "external_player",
+            label = "VLC",
+            value = "Відкрити",
+            needsCommit = true
+        ))
+
         _state.update { it.copy(pickerColumns = cols) }
     }
 
@@ -356,6 +370,9 @@ class PlayerViewModel @Inject constructor(
         val col = _state.value.pickerColumns.getOrNull(idx) ?: return
         if (!col.needsCommit) return
         when (col.id) {
+            "external_player" -> {
+                openInExternalPlayer()
+            }
             "season", "episode", "voiceover" -> {
                 val seasons = _state.value.availableSeasons ?: return
                 val s = pendingSeason ?: this.season ?: seasons.first().number
@@ -648,6 +665,41 @@ class PlayerViewModel @Inject constructor(
 
     fun getDataSourceFactory(): DataSource.Factory {
         return OkHttpDataSource.Factory(okHttpClient).setUserAgent(ua.ukrtv.app.Constants.USER_AGENT)
+    }
+
+    fun openInExternalPlayer(): Boolean {
+        val status = _state.value.status as? PlayerStatus.Ready ?: return false
+        val ctx = appContext
+        val mime = when (status.streamType) {
+            StreamType.HLS -> "application/x-mpegURL"
+            StreamType.MPD -> "application/dash+xml"
+            StreamType.MP4 -> "video/mp4"
+            else -> "video/*"
+        }
+        val uri = android.net.Uri.parse(status.url)
+
+        val vlcIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mime)
+            setPackage("org.videolan.vlc")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        val intent = if (vlcIntent.resolveActivity(ctx.packageManager) != null) {
+            vlcIntent
+        } else {
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mime)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
+
+        return try {
+            ctx.startActivity(intent)
+            true
+        } catch (e: android.content.ActivityNotFoundException) {
+            Toast.makeText(ctx, "Не знайдено зовнішній плеєр (VLC)", Toast.LENGTH_LONG).show()
+            false
+        }
     }
 
     override fun onCleared() {

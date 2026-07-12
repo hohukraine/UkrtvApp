@@ -31,7 +31,7 @@ data class ProviderConfig(
 )
 
 private val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-private val MAX_PAGES = 300
+private val MAX_PAGES = 9999
 private val TIMEOUT_MS = 15_000
 
 private val httpClient = OkHttpClient.Builder()
@@ -109,7 +109,7 @@ private fun fetchPage(url: String): String? {
 
 private fun buildPageUrl(baseUrl: String, path: String, page: Int): String {
     val cleanBase = baseUrl.trimEnd('/')
-    return if (page <= 1) "$cleanBase/$path" else "$cleanBase/$path/page/$page/"
+    return "$cleanBase/$path/page/$page/"
 }
 
 private fun parseUakinoItem(el: Element, baseUrl: String, contentType: String): CatalogItem? {
@@ -289,13 +289,12 @@ fun main(args: Array<String>) {
     val startTime = System.currentTimeMillis()
 
     val uakinoItems = scrapeProvider("Uakino", "https://uakino.best/", listOf(
-        "filmy/" to "movie",
-        "seriesss/" to "series"
+        "find/year/" to "unknown"
     ))
     println("Uakino: ${uakinoItems.size} items")
 
     val eneyidaItems = scrapeProvider("Eneyida", "https://eneyida.tv/", listOf(
-        "f/sort=rating/order=desc" to "unknown"
+        "f/sort=new/order=desc" to "unknown"
     ))
     println("Eneyida: ${eneyidaItems.size} items")
 

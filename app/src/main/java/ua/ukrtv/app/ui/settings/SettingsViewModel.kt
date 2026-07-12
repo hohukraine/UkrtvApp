@@ -12,6 +12,8 @@ import ua.ukrtv.app.data.repository.UpdateRepository
 import ua.ukrtv.app.domain.model.UpdateInfo
 import ua.ukrtv.app.util.PerformancePreferences
 import ua.ukrtv.app.util.PerformanceProfile
+import ua.ukrtv.app.util.PlayerPreferences
+import ua.ukrtv.app.util.PlayerType
 import javax.inject.Inject
 
 sealed class UpdateState {
@@ -27,10 +29,13 @@ sealed class UpdateState {
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val performancePreferences: PerformancePreferences,
+    private val playerPreferences: PlayerPreferences,
     private val updateRepository: UpdateRepository
 ) : ViewModel() {
 
     val performanceProfile: StateFlow<PerformanceProfile> = performancePreferences.profile
+
+    val playerType: StateFlow<PlayerType> = playerPreferences.playerType
 
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
@@ -39,6 +44,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setPerformanceProfile(profile: PerformanceProfile) {
         performancePreferences.setProfile(profile)
+    }
+
+    fun setPlayerType(type: PlayerType) {
+        playerPreferences.setPlayerType(type)
     }
 
     fun checkForUpdates() {

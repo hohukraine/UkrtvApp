@@ -2,6 +2,7 @@ package ua.ukrtv.app.ui.home
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -27,6 +28,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import android.view.Choreographer
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
@@ -42,15 +51,38 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import ua.ukrtv.app.ui.home.components.ContentRow
 import ua.ukrtv.app.ui.home.components.HeroCarousel
+import ua.ukrtv.app.ui.home.components.PhoneHeroSection
+import ua.ukrtv.app.ui.home.components.PhoneProviderSwitcher
 import ua.ukrtv.app.ui.home.components.Top200SignatureHero
 import ua.ukrtv.app.ui.home.components.TopBar
 import ua.ukrtv.app.ui.home.components.HomeBackground
 import ua.ukrtv.app.ui.components.ShimmerBox
 import ua.ukrtv.app.ui.theme.*
 import ua.ukrtv.app.ui.home.components.TrendsTrailingButton
+import ua.ukrtv.app.ui.home.MovieCard
 
 @Composable
 fun HomeScreen(
+    viewModel: HomeViewModel = hiltViewModel(),
+    onMovieClick: (Movie) -> Unit,
+    onContinueWatchingClick: (Movie) -> Unit = onMovieClick,
+    onSearchClick: () -> Unit,
+    onSearchQueryClick: (String) -> Unit = { onSearchClick() },
+    onTop200Click: () -> Unit,
+    onTop200ItemClick: (Top200Movie) -> Unit = {},
+    onSeeAllTrendsClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {}
+) {
+    val formFactor = LocalFormFactor.current
+    when (formFactor) {
+        FormFactor.TV -> TvHomeScreen(viewModel, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onTop200ItemClick, onSeeAllTrendsClick, onSettingsClick)
+        FormFactor.PHONE, FormFactor.TABLET -> PhoneHomeScreen(viewModel, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onSettingsClick, onSeeAllTrendsClick)
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+private fun TvHomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
     onMovieClick: (Movie) -> Unit,
     onContinueWatchingClick: (Movie) -> Unit = onMovieClick,
@@ -74,6 +106,7 @@ fun HomeScreen(
     val currentProviderId by viewModel.currentProviderId.collectAsState()
     val brandColorLong by viewModel.brandColor.collectAsState()
     val focusColor by viewModel.focusColor.collectAsState()
+    val trendingLabel by viewModel.trendingLabel.collectAsState()
 
     val deviceClass = LocalDeviceClass.current
     val bannerFocusRequester = remember { FocusRequester() }
@@ -112,6 +145,7 @@ fun HomeScreen(
         continueWatching = continueWatching,
         watchlist = watchlist,
         homeTrending = homeTrending,
+        trendingLabel = trendingLabel,
         activeBannerMovie = activeBannerMovie,
         providerColor = providerColor,
         focusColor = focusColor,
@@ -144,6 +178,7 @@ private fun HomeScreenContent(
     continueWatching: List<Movie>,
     watchlist: List<Movie>,
     homeTrending: List<Movie>,
+    trendingLabel: String = "Тренди",
     activeBannerMovie: Top200Movie?,
     providerColor: Color,
     focusColor: Color,
@@ -309,7 +344,7 @@ private fun HomeScreenContent(
                 if (homeTrending.isNotEmpty()) {
                     item(key = "trending") {
                         ContentRow(
-                            title = "Тренди",
+                            title = trendingLabel,
                             items = homeTrending,
                             brandColor = providerColor,
                             onItemClick = onMovieClick,
@@ -478,5 +513,176 @@ private fun AutoRestoreFocus(focusRequester: FocusRequester, top200: List<Top200
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+}
+
+// ── PHONE HOME SCREEN ──
+
+@Composable
+private fun PhoneHomeScreen(
+    viewModel: HomeViewModel = hiltViewModel(),
+    onMovieClick: (Movie) -> Unit,
+    onContinueWatchingClick: (Movie) -> Unit = onMovieClick,
+    onSearchClick: () -> Unit,
+    onSearchQueryClick: (String) -> Unit = { onSearchClick() },
+    onTop200Click: () -> Unit,
+    onSettingsClick: () -> Unit = {},
+    onSeeAllTrendsClick: () -> Unit = {},
+) {
+    val gridState = rememberLazyListState()
+    val density = LocalDensity.current
+    val top200Banners by viewModel.top200.collectAsState()
+    val isOnline by viewModel.isOnline.collectAsState()
+    val rawHomeTrending by viewModel.homeTrending.collectAsState()
+    val rawContinueWatching by viewModel.continueWatching.collectAsState()
+    val rawWatchlist by viewModel.watchlist.collectAsState()
+    val currentProviderId by viewModel.currentProviderId.collectAsState()
+    val brandColorLong by viewModel.brandColor.collectAsState()
+    val providerColor = remember(brandColorLong) { Color(brandColorLong) }
+    val providers = remember { viewModel.providers }
+    val trendingLabel by viewModel.trendingLabel.collectAsState()
+    var activeTop200Movie by remember { mutableStateOf<Top200Movie?>(null) }
+
+    val maxItems = 12
+    val continueWatching = remember(rawContinueWatching) { rawContinueWatching.take(maxItems) }
+    val watchlist = remember(rawWatchlist) { rawWatchlist.take(maxItems) }
+    val homeTrending = remember(rawHomeTrending) { rawHomeTrending.take(maxItems) }
+
+    val screenHeightDp = with(LocalDensity.current) {
+        androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+    }
+
+    val scrollFraction by remember {
+        val hPx = with(density) { (50 * screenHeightDp / 100).dp.toPx() }
+        derivedStateOf {
+            if (gridState.firstVisibleItemIndex > 0) 1f
+            else (gridState.firstVisibleItemScrollOffset / hPx).coerceIn(0f, 1f)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+            .statusBarsPadding()
+    ) {
+        // TopBar: UKRTV logo + Search + Settings
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Background)
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("UKR", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                Text("TV", color = providerColor, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .background(Color(0xFF1A1A1D), RoundedCornerShape(8.dp))
+                        .clickable(onClick = onSearchClick)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Пошук...", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp)
+                    }
+                }
+            }
+        }
+
+        // Sticky provider segmented control
+        PhoneProviderSwitcher(
+            providers = providers,
+            currentProviderId = currentProviderId,
+            brandColor = providerColor,
+            onProviderClick = { viewModel.switchProvider(it) }
+        )
+
+        // Scrollable content — fills remaining space below header
+        LazyColumn(
+            state = gridState,
+            modifier = Modifier.weight(1f)
+        ) {
+            // Hero section (Top 200 carousel)
+            item(key = "hero") {
+                if (top200Banners.isNotEmpty()) {
+                    PhoneHeroSection(
+                        items = top200Banners,
+                        brandColor = providerColor,
+                        onItemClick = { movie -> onSearchQueryClick(movie.title) },
+                        onActiveMovieChange = { activeTop200Movie = it },
+                        scrollFraction = scrollFraction,
+                        screenHeightDp = screenHeightDp.toFloat()
+                    )
+                }
+            }
+
+            if (!isOnline) {
+                item(key = "offline") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().background(Color(0xFFE53935)).padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("\u26A0 Немає підключення", color = Color.White, fontSize = 13.sp)
+                    }
+                }
+            }
+
+            // Content rows
+            if (continueWatching.isNotEmpty()) {
+                item(key = "continue") {
+                    ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, useWideCards = true)
+                }
+            }
+
+            if (watchlist.isNotEmpty()) {
+                item(key = "watchlist") {
+                    ContentRow("Мій список", watchlist, providerColor, onMovieClick)
+                }
+            }
+
+            if (homeTrending.isNotEmpty()) {
+                item(key = "trending") {
+                    ContentRow(
+                        trendingLabel,
+                        homeTrending,
+                        providerColor,
+                        onMovieClick,
+                        useLargeCards = true,
+                        trailingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .width(PhoneCardDefaults.posterWidth)
+                                    .height(PhoneCardDefaults.posterHeight)
+                                    .clip(Shapes.card)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .clickable { onSeeAllTrendsClick() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Усі тренди",
+                                    tint = Color.White.copy(alpha = 0.6f),
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
+                item {
+                    Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = providerColor)
+                    }
+                }
+            }
+        }
     }
 }

@@ -13,6 +13,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.local.AppDatabase
 import ua.ukrtv.app.data.local.dao.CatalogIndexDao
@@ -55,6 +57,7 @@ object Modules {
     @Provides @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(context, AppDatabase::class.java, "ukrtv_db")
+            .addMigrations(MIGRATION_10_11)
             .fallbackToDestructiveMigrationOnDowngrade().build()
     }
 
@@ -240,9 +243,18 @@ object Modules {
     fun providePerformancePreferences(@ApplicationContext context: Context): ua.ukrtv.app.util.PerformancePreferences = ua.ukrtv.app.util.PerformancePreferences(context)
 
     @Provides @Singleton
+    fun providePlayerPreferences(@ApplicationContext context: Context): ua.ukrtv.app.util.PlayerPreferences = ua.ukrtv.app.util.PlayerPreferences(context)
+
+    @Provides @Singleton
     fun provideUpdateRepository(
         @ApplicationContext context: Context,
         okHttpClient: OkHttpClient,
         json: kotlinx.serialization.json.Json
     ): ua.ukrtv.app.data.repository.UpdateRepository = ua.ukrtv.app.data.repository.UpdateRepository(context, okHttpClient, json)
+}
+
+private val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DELETE FROM catalog_index")
+    }
 }

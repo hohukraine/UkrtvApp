@@ -81,26 +81,26 @@ object PlayerBufferConfig {
     fun forDevice(deviceClass: DeviceClass, isMediatek: Boolean): BufferParams {
         val base = when (deviceClass) {
             DeviceClass.LOW -> BufferParams(
-                minBufferMs = 30_000,
-                maxBufferMs = 60_000,
+                minBufferMs = 45_000,
+                maxBufferMs = 120_000,
                 bufferForPlaybackMs = 2_500,
-                bufferForPlaybackAfterRebufferMs = 5_000,
+                bufferForPlaybackAfterRebufferMs = 6_000,
                 maxVideoBitrate = 10_000_000,
                 maxVideoSize = 1280,
             )
             DeviceClass.MID -> BufferParams(
-                minBufferMs = 50_000,
-                maxBufferMs = 100_000,
+                minBufferMs = 60_000,
+                maxBufferMs = 180_000,
                 bufferForPlaybackMs = 2_000,
-                bufferForPlaybackAfterRebufferMs = 4_000,
+                bufferForPlaybackAfterRebufferMs = 5_000,
                 maxVideoBitrate = 15_000_000,
                 maxVideoSize = 1920,
             )
             DeviceClass.HIGH -> BufferParams(
-                minBufferMs = 60_000,
-                maxBufferMs = 150_000,
+                minBufferMs = 90_000,
+                maxBufferMs = 300_000,
                 bufferForPlaybackMs = 1_500,
-                bufferForPlaybackAfterRebufferMs = 3_000,
+                bufferForPlaybackAfterRebufferMs = 4_000,
                 maxVideoBitrate = 20_000_000,
                 maxVideoSize = 1920,
             )
@@ -108,8 +108,8 @@ object PlayerBufferConfig {
 
         if (isMediatek) {
             return base.copy(
-                minBufferMs = base.minBufferMs.coerceAtLeast(35_000),
-                bufferForPlaybackAfterRebufferMs = base.bufferForPlaybackAfterRebufferMs.coerceAtLeast(4_000),
+                minBufferMs = base.minBufferMs.coerceAtLeast(45_000),
+                bufferForPlaybackAfterRebufferMs = base.bufferForPlaybackAfterRebufferMs.coerceAtLeast(6_000),
             )
         }
 

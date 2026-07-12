@@ -6,6 +6,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,13 +53,97 @@ import ua.ukrtv.app.ui.components.ShimmerBox
 import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.GridDefaults
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
+import ua.ukrtv.app.ui.theme.PhoneCardDefaults
+import ua.ukrtv.app.ui.theme.PhoneGridDefaults
+import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.Shapes
 import ua.ukrtv.app.util.DeviceClass
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
 fun ContentRow(
+    title: String,
+    items: List<Movie>,
+    brandColor: Color,
+    onItemClick: (Movie) -> Unit,
+    onItemDismiss: ((Movie) -> Unit)? = null,
+    onItemFocused: ((Movie) -> Unit)? = null,
+    useWideCards: Boolean = false,
+    useLargeCards: Boolean = false,
+    trailingContent: @Composable (() -> Unit)? = null
+) {
+    val formFactor = LocalFormFactor.current
+    when (formFactor) {
+        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useWideCards, useLargeCards, trailingContent)
+        FormFactor.PHONE, FormFactor.TABLET -> PhoneContentRow(title, items, brandColor, onItemClick, useWideCards, trailingContent)
+    }
+}
+
+@Composable
+private fun PhoneContentRow(
+    title: String,
+    items: List<Movie>,
+    brandColor: Color,
+    onItemClick: (Movie) -> Unit,
+    useWideCards: Boolean = false,
+    trailingContent: @Composable (() -> Unit)? = null,
+) {
+    val titleColor = remember(brandColor) { brandColor.copy(alpha = 0.7f) }
+
+    Column(modifier = Modifier.padding(bottom = 16.dp)) {
+        if (title.isNotEmpty()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = PhoneGridDefaults.horizontalPadding, bottom = 8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(14.dp)
+                        .background(brandColor, RoundedCornerShape(2.dp))
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = title.uppercase(),
+                    color = titleColor,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp
+                )
+            }
+        }
+
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = PhoneGridDefaults.horizontalPadding),
+            horizontalArrangement = Arrangement.spacedBy(PhoneGridDefaults.columnSpacing)
+        ) {
+            itemsIndexed(
+                items = items,
+                key = { _, it -> it.pageUrl },
+                contentType = { _, _ -> if (useWideCards) "wide" else "movie" }
+            ) { _, item ->
+                val onClick = remember(item) { { onItemClick(item) } }
+                if (useWideCards) {
+                    ContinueWatchingCard(movie = item, onClick = onClick)
+                } else {
+                    MovieCard(movie = item, onClick = onClick)
+                }
+            }
+
+            if (trailingContent != null) {
+                item(key = "__trailing") {
+                    trailingContent()
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+@Composable
+private fun TvContentRow(
     title: String,
     items: List<Movie>,
     brandColor: Color,

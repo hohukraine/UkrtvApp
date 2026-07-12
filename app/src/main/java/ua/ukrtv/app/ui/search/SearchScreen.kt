@@ -3,7 +3,10 @@ package ua.ukrtv.app.ui.search
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -25,6 +28,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -57,6 +62,7 @@ import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.data.repository.ContentRepository
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.ui.home.MovieCard
+import ua.ukrtv.app.ui.theme.PlaceholderDark
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
 import ua.ukrtv.app.util.DeviceClass
@@ -64,11 +70,22 @@ import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.Error
 import ua.ukrtv.app.ui.theme.GridDefaults
 import ua.ukrtv.app.ui.theme.OnSurface
+import ua.ukrtv.app.ui.theme.OnSurfaceDim
 import ua.ukrtv.app.ui.theme.OnSurfaceVariant
 import ua.ukrtv.app.ui.theme.OverlayLight
 import ua.ukrtv.app.ui.theme.Surface
 import ua.ukrtv.app.ui.theme.SurfaceFocus
 import ua.ukrtv.app.ui.theme.SurfaceVariant
+import ua.ukrtv.app.ui.theme.FormFactor
+import ua.ukrtv.app.ui.theme.LocalFormFactor
+import ua.ukrtv.app.ui.theme.PhoneCardDefaults
+import ua.ukrtv.app.ui.theme.PhoneGridDefaults
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import ua.ukrtv.app.ui.theme.Shapes
 
 import javax.inject.Inject
 
@@ -93,7 +110,11 @@ class SearchViewModel @Inject constructor(
     private val _state = MutableStateFlow<SearchState>(SearchState.Idle)
     val state: StateFlow<SearchState> = _state
 
-    private val initialQ = savedStateHandle.get<String>("q") ?: ""
+    private val initialQ = try {
+        java.net.URLDecoder.decode(savedStateHandle.get<String>("q") ?: "", "UTF-8")
+    } catch (_: Exception) {
+        savedStateHandle.get<String>("q") ?: ""
+    }
     private val _query = MutableStateFlow(initialQ)
     val query: StateFlow<String> = _query
 
@@ -217,9 +238,12 @@ fun SearchScreen(
     val keyboardController = LocalSoftwareKeyboardController.current
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    val searchBarFocusRequester = remember { FocusRequester() }
 
     val brandColorLong by viewModel.brandColor.collectAsState()
     val providerColor = remember(brandColorLong) { Color(brandColorLong) }
+    val formFactor = LocalFormFactor.current
+    val isPhone = formFactor == FormFactor.PHONE
 
     // Entrance animations
     var trendingShown by remember { mutableStateOf(false) }
@@ -236,11 +260,6 @@ fun SearchScreen(
         label = "resultsAlpha"
     )
 
-    LaunchedEffect(Unit) {
-        withFrameNanos { }
-        focusRequester.requestFocus()
-    }
-
     HomeBackground(
         brandColor = providerColor,
         focusedColor = providerColor,
@@ -249,8 +268,12 @@ fun SearchScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = GridDefaults.horizontalPadding, vertical = 24.dp)
+                .padding(horizontal = if (isPhone) PhoneGridDefaults.horizontalPadding else GridDefaults.horizontalPadding, vertical = 24.dp)
         ) {
+        LaunchedEffect(Unit) {
+            searchBarFocusRequester.requestFocus()
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
@@ -266,7 +289,8 @@ fun SearchScreen(
             androidx.tv.material3.Surface(
                 onClick = { focusRequester.requestFocus(); keyboardController?.show() },
                 modifier = Modifier
-                    .weight(1f),
+                    .weight(1f)
+                    .focusRequester(searchBarFocusRequester),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
                 shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
                 colors = ClickableSurfaceDefaults.colors(
@@ -310,8 +334,8 @@ fun SearchScreen(
                         if (query.isEmpty()) {
                             Text(
                                 text = "Введіть назву фільму або серіалу...",
-                                color = OnSurfaceVariant,
-                                fontSize = 18.sp
+                                color = OnSurfaceDim,
+                                fontSize = 16.sp
                             )
                         }
                         innerTextField()
@@ -349,8 +373,8 @@ fun SearchScreen(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 "ПІДКАЗКИ",
-                                color = OnSurfaceVariant,
-                                fontSize = 12.sp,
+                                color = OnSurface,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 2.sp,
                                 modifier = Modifier.padding(bottom = 8.dp)
@@ -402,89 +426,115 @@ fun SearchScreen(
                             }
                         }
 
-                        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 32.dp)
+                        ) {
                             if (history.isNotEmpty()) {
-                                Text(
-                                    "ОСТАННІ ЗАПИТИ",
-                                    color = OnSurfaceVariant,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 2.sp,
-                                    modifier = Modifier.padding(bottom = 12.dp)
-                                )
-                                LazyRow(
-                                    modifier = Modifier
-                                        .padding(bottom = 32.dp)
-                                        .fillMaxWidth()
-                                        .focusProperties {
-                                            @Suppress("DEPRECATION")
-                                            @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
-                                            exit = { FocusRequester.Default }
-                                        },
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    contentPadding = PaddingValues(horizontal = 2.dp)
-                                ) {
-                                    items(history) { item ->
-                                        Surface(
-                                            onClick = {
-                                                viewModel.search(item)
-                                                keyboardController?.hide()
-                                            },
-                                            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
-                                            colors = ClickableSurfaceDefaults.colors(
-                                                containerColor = SurfaceVariant,
-                                                contentColor = OnSurface
-                                            )
-                                        ) {
-                                            Text(
-                                                item,
-                                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                                                fontSize = 14.sp
-                                            )
-                                        }
-                                    }
+                                item(key = "history_label") {
+                                    Text(
+                                        "ОСТАННІ ЗАПИТИ",
+                                        color = OnSurface,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 2.sp,
+                                        modifier = Modifier.padding(bottom = 12.dp)
+                                    )
                                 }
-                            }
-
-                            if (trending.isNotEmpty()) {
-                                Column(modifier = Modifier.graphicsLayer { alpha = trendingAlpha }) {
-                                Text(
-                                        "ПОПУЛЯРНЕ ЗАРАЗ",
-                                    color = OnSurfaceVariant,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 2.sp,
-                                    modifier = Modifier.padding(bottom = 16.dp)
-                                )
-                                
-                                val rows = trending.take(12).chunked(GridDefaults.columns)
-                                Column(verticalArrangement = Arrangement.spacedBy(GridDefaults.rowSpacing)) {
-                                    rows.forEach { rowItems ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(GridDefaults.columnSpacing)
-                                        ) {
-                                            rowItems.forEach { movie ->
-                                                MovieCard(
-                                                    movie = movie,
-                                                    width = CardDefaults.posterWidth,
-                                                    height = CardDefaults.posterHeight,
-                                                    onClick = {
-                                                        viewModel.saveToHistory(movie.title)
-                                                        onMovieClick(movie)
+                                item(key = "history_row") {
+                                    LazyRow(
+                                        modifier = Modifier
+                                            .padding(bottom = 32.dp)
+                                            .fillMaxWidth()
+                                            .focusProperties {
+                                                @Suppress("DEPRECATION")
+                                                @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+                                                enter = { searchBarFocusRequester }
+                                                @Suppress("DEPRECATION")
+                                                @OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+                                                exit = {
+                                                    if (it == FocusDirection.Up) searchBarFocusRequester
+                                                    else FocusRequester.Default
+                                                }
+                                            },
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 2.dp)
+                                    ) {
+                                        items(history) { item ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(50))
+                                                    .background(Color(0xFF2A2A2A))
+                                                    .border(1.dp, Color(0xFF3A3A3A), RoundedCornerShape(50))
+                                                    .clickable {
+                                                        viewModel.search(item)
+                                                        keyboardController?.hide()
                                                     }
+                                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                            ) {
+                                                Text(
+                                                    item,
+                                                    color = Color.White.copy(alpha = 0.9f),
+                                                    fontSize = 14.sp
                                                 )
                                             }
                                         }
                                     }
                                 }
                             }
+
+                            if (trending.isNotEmpty()) {
+                                item(key = "trending_label") {
+                                    Text(
+                                        "ПОПУЛЯРНЕ ЗАРАЗ",
+                                        color = OnSurface,
+                                        fontSize = if (isPhone) 11.sp else 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 2.sp,
+                                        modifier = Modifier
+                                            .graphicsLayer { alpha = trendingAlpha }
+                                            .padding(bottom = if (isPhone) 12.dp else 16.dp)
+                                    )
                                 }
-else if (history.isEmpty()) {
-                                Text(
-                                    "Почніть вводити назву для пошуку",
-                                    color = OnSurfaceVariant
-                                )
+
+                                val columns = if (isPhone) PhoneGridDefaults.columns else GridDefaults.columns
+                                val cardWidth = if (isPhone) PhoneCardDefaults.posterWidth else CardDefaults.posterWidth
+                                val cardHeight = if (isPhone) PhoneCardDefaults.posterHeight else CardDefaults.posterHeight
+                                val colSpacing = if (isPhone) PhoneGridDefaults.columnSpacing else GridDefaults.columnSpacing
+                                val rowSpacing = if (isPhone) PhoneGridDefaults.rowSpacing else GridDefaults.rowSpacing
+
+                                val rows = trending.take(if (isPhone) 9 else 12).chunked(columns)
+                                items(rows.size) { rowIndex ->
+                                    val rowItems = rows[rowIndex]
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .graphicsLayer { alpha = trendingAlpha }
+                                            .padding(bottom = rowSpacing),
+                                        horizontalArrangement = Arrangement.spacedBy(colSpacing)
+                                    ) {
+                                        rowItems.forEach { movie ->
+                                            MovieCard(
+                                                movie = movie,
+                                                width = cardWidth,
+                                                height = cardHeight,
+                                                onClick = {
+                                                    viewModel.saveToHistory(movie.title)
+                                                    onMovieClick(movie)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (history.isEmpty() && trending.isEmpty()) {
+                                item(key = "empty_state") {
+                                    Text(
+                                        "Почніть вводити назву для пошуку",
+                                        color = OnSurfaceDim
+                                    )
+                                }
                             }
                         }
                     }
@@ -500,23 +550,40 @@ else if (history.isEmpty()) {
                         LaunchedEffect(Unit) {
                             resultsShown = true
                         }
-                        LazyVerticalGrid(
-                            modifier = Modifier.graphicsLayer { alpha = resultsAlpha },
-                            columns = GridCells.Fixed(GridDefaults.columns),
-                            horizontalArrangement = Arrangement.spacedBy(GridDefaults.columnSpacing),
-                            verticalArrangement = Arrangement.spacedBy(GridDefaults.rowSpacing),
-                            contentPadding = PaddingValues(bottom = 32.dp)
-                        ) {
-                            items(s.results, key = { it.id + it.pageUrl }) { movie ->
-                                MovieCard(
-                                    movie = movie,
-                                    width = CardDefaults.posterWidth,
-                                    height = CardDefaults.posterHeight,
-                                    onClick = {
-                                        viewModel.saveToHistory(query)
-                                        onMovieClick(movie)
-                                    }
-                                )
+                        if (isPhone) {
+                            LazyColumn(
+                                modifier = Modifier.graphicsLayer { alpha = resultsAlpha },
+                                contentPadding = PaddingValues(bottom = 32.dp)
+                            ) {
+                                items(s.results, key = { it.id + it.pageUrl }) { movie ->
+                                    SearchRow(
+                                        movie = movie,
+                                        onClick = {
+                                            viewModel.saveToHistory(query)
+                                            onMovieClick(movie)
+                                        }
+                                    )
+                                }
+                            }
+                        } else {
+                            LazyVerticalGrid(
+                                modifier = Modifier.graphicsLayer { alpha = resultsAlpha },
+                                columns = GridCells.Fixed(GridDefaults.columns),
+                                horizontalArrangement = Arrangement.spacedBy(GridDefaults.columnSpacing),
+                                verticalArrangement = Arrangement.spacedBy(GridDefaults.rowSpacing),
+                                contentPadding = PaddingValues(bottom = 32.dp)
+                            ) {
+                                items(s.results, key = { it.id + it.pageUrl }) { movie ->
+                                    MovieCard(
+                                        movie = movie,
+                                        width = CardDefaults.posterWidth,
+                                        height = CardDefaults.posterHeight,
+                                        onClick = {
+                                            viewModel.saveToHistory(query)
+                                            onMovieClick(movie)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -539,5 +606,95 @@ else if (history.isEmpty()) {
             }
         }
     }
+    }
+}
+
+@Composable
+private fun SearchRow(
+    movie: Movie,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Poster thumbnail
+        Box(
+            modifier = Modifier
+                .width(56.dp)
+                .height(80.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF141414))
+        ) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(movie.poster)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = movie.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                placeholder = PlaceholderDark,
+                error = PlaceholderDark
+            )
+        }
+
+        // Metadata
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = movie.title,
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                lineHeight = 18.sp
+            )
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (movie.year != null) {
+                    Text(
+                        text = movie.year.toString(),
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 12.sp
+                    )
+                }
+                if (!movie.rating.isNullOrEmpty()) {
+                    Text(
+                        text = "\u2605 ${movie.rating}",
+                        color = Color(0xFFDAA520),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                if (!movie.quality.isNullOrEmpty()) {
+                    Text(
+                        text = movie.quality.uppercase(),
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            if (!movie.contentType.isNullOrEmpty()) {
+                Text(
+                    text = movie.contentType,
+                    color = Color.White.copy(alpha = 0.4f),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }

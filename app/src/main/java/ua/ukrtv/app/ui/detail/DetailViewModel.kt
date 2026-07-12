@@ -9,14 +9,18 @@ import kotlinx.coroutines.flow.*
 import ua.ukrtv.app.domain.model.MovieDetail
 import ua.ukrtv.app.domain.model.MediaLaunchState
 import ua.ukrtv.app.domain.model.Movie
+import ua.ukrtv.app.data.TtlLruCache
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.data.repository.ContentRepository
 import ua.ukrtv.app.data.repository.WatchProgressRepository
 import ua.ukrtv.app.data.repository.WatchlistRepository
 import ua.ukrtv.app.data.streaming.StreamResolver
+import ua.ukrtv.app.domain.model.StreamResolutionResult
 import ua.ukrtv.app.player.PlayerWarmupManager
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.PerformanceMonitor
+import ua.ukrtv.app.util.PerformancePreferences
+import ua.ukrtv.app.util.PerformanceProfile
 import javax.inject.Inject
 
 sealed class DetailState {
@@ -37,8 +41,11 @@ class DetailViewModel @Inject constructor(
     private val streamResolver: StreamResolver,
     private val warmupManager: PlayerWarmupManager,
     private val okHttpClient: okhttp3.OkHttpClient,
-    private val providerManager: ProviderManager
+    private val providerManager: ProviderManager,
+    private val performancePreferences: PerformancePreferences
 ) : ViewModel() {
+
+    val performanceProfile: StateFlow<PerformanceProfile> = performancePreferences.profile
 
     private val _state = MutableStateFlow<DetailState>(DetailState.Loading)
     val state: StateFlow<DetailState> = _state
@@ -51,15 +58,17 @@ class DetailViewModel @Inject constructor(
 
     private var currentDetail: MovieDetail? = null
     private var preWarmJob: Job? = null
+    private val preWarmCache = TtlLruCache<String, StreamResolutionResult>(maxSize = 10, ttlMs = 5 * 60 * 1000L)
 
     init {
         val id = savedStateHandle.get<String>("id")
         val url = savedStateHandle.get<String>("url")
-        AppLogger.d("DetailVM", "init id=$id url=${url?.take(40)}")
+        val alternate = savedStateHandle.get<String>("alternate")
+        AppLogger.d("DetailVM", "init id=$id url=${url?.take(40)} alternate=${alternate?.take(40)}")
         ua.ukrtv.app.util.Perf.start("detail:load")
 
         if (id != null && url != null) {
-            loadDetail(id, url)
+            loadDetail(id, url, alternate)
         } else {
             _state.value = DetailState.Error("Відсутні дані для завантаження")
         }
@@ -68,12 +77,13 @@ class DetailViewModel @Inject constructor(
     fun retry() {
         val id = savedStateHandle.get<String>("id")
         val url = savedStateHandle.get<String>("url")
+        val alternate = savedStateHandle.get<String>("alternate")
         if (id != null && url != null) {
-            loadDetail(id, url)
+            loadDetail(id, url, alternate)
         }
     }
 
-    private fun loadDetail(id: String, url: String) {
+    private fun loadDetail(id: String, url: String, alternateUrl: String? = null) {
         viewModelScope.launch {
             PerformanceMonitor.begin("DetailVM.loadDetail")
             _state.value = DetailState.Loading
@@ -81,7 +91,7 @@ class DetailViewModel @Inject constructor(
             
             val progress = watchProgressRepository.getProgress(id)
 
-            mediaRepository.getDetails(id, url).first().onSuccess { detail ->
+            mediaRepository.getDetails(id, url, alternateUrl).first().onSuccess { detail ->
                 ua.ukrtv.app.util.Perf.end("detail:load", "DetailVM")
                 AppLogger.d("DetailVM", "Detail loaded: ${detail.title} actors=${detail.actors.size} seasons=${detail.seasons?.size} in ${System.currentTimeMillis() - loadT}ms")
                 currentDetail = detail
@@ -147,7 +157,10 @@ class DetailViewModel @Inject constructor(
                     episode = targetEpisode,
                     isDeep = !isSeries
                 )
-                if (result == null) {
+                if (result != null) {
+                    val cacheKey = "${detail.pageUrl}|${targetSeason}|${targetEpisode}"
+                    preWarmCache.put(cacheKey, result)
+                } else {
                     val otherProvider = when {
                         detail.pageUrl.contains("uakino") -> providerManager.eneyidaProvider
                         detail.pageUrl.contains("eneyida") -> providerManager.uakinoProvider
@@ -157,12 +170,16 @@ class DetailViewModel @Inject constructor(
                         AppLogger.d("DetailVM", "Pre-warm primary failed, trying ${otherProvider.name} fallback for ${detail.title}")
                         val match = otherProvider.search(detail.title, limit = 5).firstOrNull()
                         if (match != null) {
-                            streamResolver.resolve(
+                            val fallbackResult = streamResolver.resolve(
                                 url = match.url,
                                 season = targetSeason,
                                 episode = targetEpisode,
                                 isDeep = !isSeries
                             )
+                            if (fallbackResult != null) {
+                                val cacheKey = "${match.url}|${targetSeason}|${targetEpisode}"
+                                preWarmCache.put(cacheKey, fallbackResult)
+                            }
                         }
                     }
                 }
@@ -177,7 +194,10 @@ class DetailViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val res = withContext(Dispatchers.IO) {
+                val cacheKey = "${detail.pageUrl}|${season}|${episode}"
+                val cachedRes = preWarmCache.get(cacheKey)
+
+                val res = cachedRes ?: withContext(Dispatchers.IO) {
                     streamResolver.resolve(
                         url = detail.pageUrl,
                         referer = "",
