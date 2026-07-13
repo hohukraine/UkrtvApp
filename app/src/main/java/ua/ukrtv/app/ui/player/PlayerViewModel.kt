@@ -371,7 +371,7 @@ class PlayerViewModel @Inject constructor(
         if (!col.needsCommit) return
         when (col.id) {
             "external_player" -> {
-                openInExternalPlayer()
+                _state.update { it.copy(shouldLaunchVlc = true) }
             }
             "season", "episode", "voiceover" -> {
                 val seasons = _state.value.availableSeasons ?: return
@@ -381,6 +381,10 @@ class PlayerViewModel @Inject constructor(
                 onEpisodeSelected(s, e, pendingVoiceover)
             }
         }
+    }
+
+    fun clearVlcLaunchEvent() {
+        _state.update { it.copy(shouldLaunchVlc = false) }
     }
 
     private fun changePendingSeason(direction: Int) {
@@ -667,8 +671,8 @@ class PlayerViewModel @Inject constructor(
         return OkHttpDataSource.Factory(okHttpClient).setUserAgent(ua.ukrtv.app.Constants.USER_AGENT)
     }
 
-    fun openInExternalPlayer(): Boolean {
-        val status = _state.value.status as? PlayerStatus.Ready ?: return false
+    fun createVlcIntent(): Intent? {
+        val status = _state.value.status as? PlayerStatus.Ready ?: return null
         val ctx = appContext
         val mime = when (status.streamType) {
             StreamType.HLS -> "application/x-mpegURL"
@@ -677,28 +681,51 @@ class PlayerViewModel @Inject constructor(
             else -> "video/*"
         }
         val uri = android.net.Uri.parse(status.url)
+        val displayTitle = status.title
 
         val vlcIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, mime)
             setPackage("org.videolan.vlc")
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            putExtra("title", displayTitle)
+            putExtra("position", player?.currentPosition ?: 0L)
+            putExtra("extra_duration", player?.duration ?: 0L)
+            putExtra("from_start", false)
         }
 
-        val intent = if (vlcIntent.resolveActivity(ctx.packageManager) != null) {
+        return if (vlcIntent.resolveActivity(ctx.packageManager) != null) {
             vlcIntent
         } else {
             Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, mime)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                putExtra("title", displayTitle)
+                putExtra("position", player?.currentPosition ?: 0L)
+                putExtra("extra_duration", player?.duration ?: 0L)
+                putExtra("from_start", false)
             }
         }
+    }
 
+    fun openInExternalPlayer(): Boolean {
+        val intent = createVlcIntent() ?: return false
+        val ctx = appContext
         return try {
             ctx.startActivity(intent)
             true
         } catch (e: android.content.ActivityNotFoundException) {
             Toast.makeText(ctx, "Не знайдено зовнішній плеєр (VLC)", Toast.LENGTH_LONG).show()
             false
+        }
+    }
+
+    fun handleVlcResult(resultCode: Int, data: Intent?) {
+        if (data == null) return
+        val pos = data.getLongExtra("extra_position", 0L)
+        val dur = data.getLongExtra("extra_duration", 0L)
+        if (dur > 0) {
+            saveProgress(pos, dur)
+            AppLogger.d("PlayerVM", "VLC result: position=$pos duration=$dur")
         }
     }
 

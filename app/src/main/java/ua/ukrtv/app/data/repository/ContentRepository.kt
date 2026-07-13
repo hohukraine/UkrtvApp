@@ -109,7 +109,7 @@ class ContentRepository @Inject constructor(
             allProgress
                 .filter { it.progressPercentage in 1..94 }
                 .sortedByDescending { it.timestamp }
-                .distinctBy { ContentUtils.cleanTitle(it.title).lowercase() }
+                .distinctBy { it.pageUrl }
                 .mapNotNull { progress ->
                     val pUrl = progress.pageUrl
                     if (pUrl.isEmpty()) return@mapNotNull null

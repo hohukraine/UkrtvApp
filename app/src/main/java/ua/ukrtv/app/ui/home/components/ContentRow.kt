@@ -121,7 +121,7 @@ private fun PhoneContentRow(
         ) {
             itemsIndexed(
                 items = items,
-                key = { _, it -> it.pageUrl },
+                key = { _, it -> "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" },
                 contentType = { _, _ -> if (useWideCards) "wide" else "movie" }
             ) { _, item ->
                 val onClick = remember(item) { { onItemClick(item) } }
@@ -248,7 +248,7 @@ private fun TvContentRow(
 
             itemsIndexed(
                 items = items,
-                key = { _, it -> it.pageUrl },
+                key = { _, it -> "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" },
                 contentType = { _, _ -> if (useWideCards) "wide" else "movie" }
             ) { index, item ->
                 val isFirst = index == 0

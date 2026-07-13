@@ -206,7 +206,7 @@ private fun TvFullTrendsGridScreen(
                         }
                     }
                 }
-                itemsIndexed(items, key = { _, movie -> movie.pageUrl }) { index, movie ->
+                itemsIndexed(items, key = { _, movie -> "${movie.pageUrl}_${movie.season ?: ""}_${movie.episode ?: ""}" }) { index, movie ->
                     CompactGridCard(
                         movie = movie,
                         onClick = { onMovieClick(movie) },
@@ -420,7 +420,7 @@ private fun PhoneFullTrendsGridScreen(
                     verticalArrangement = Arrangement.spacedBy(PhoneGridDefaults.rowSpacing),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    items(items, key = { it.pageUrl }) { movie ->
+                    items(items, key = { "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" }) { movie ->
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()

@@ -307,7 +307,9 @@ private fun VoiceoverBadge(voiceover: String, brandColor: Color) {
             color = brandColor,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            letterSpacing = 0.5.sp
+            letterSpacing = 0.5.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }

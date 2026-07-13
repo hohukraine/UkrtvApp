@@ -32,7 +32,8 @@ data class PlayerState(
     val pickerColumns: List<PickerColumn> = emptyList(),
     val pickerFocusedIndex: Int = 0,
     val currentCodecDisplay: String = "",
-    val availableCodecs: List<CodecInfo> = emptyList()
+    val availableCodecs: List<CodecInfo> = emptyList(),
+    val shouldLaunchVlc: Boolean = false
 )
 
 sealed class PlayerStatus {

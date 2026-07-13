@@ -2,6 +2,7 @@ package ua.ukrtv.app.ui.player
 
 import android.view.KeyEvent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -12,6 +13,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Border
@@ -58,6 +60,7 @@ fun PlayerPickerRow(
                 ),
                 scale = ClickableSurfaceDefaults.scale(focusedScale = 1f),
                 modifier = Modifier
+                    .widthIn(max = 140.dp)
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) onColumnFocused(index)
                     }
@@ -87,7 +90,9 @@ fun PlayerPickerRow(
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         letterSpacing = 1.sp,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
@@ -95,7 +100,9 @@ fun PlayerPickerRow(
                         color = if (isFocused) Color.White else Color(0xFFE1E1E1).copy(alpha = 0.8f),
                         fontSize = 14.sp,
                         fontWeight = if (isFocused) FontWeight.Bold else FontWeight.Medium,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

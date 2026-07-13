@@ -50,6 +50,8 @@ import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -85,6 +87,12 @@ fun PlayerScreen(
     val dataSourceFactory = remember { viewModel.getDataSourceFactory() }
     val player = remember { viewModel.getOrCreatePlayer(context, dataSourceFactory) }
 
+    val vlcLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        viewModel.handleVlcResult(result.resultCode, result.data)
+    }
+
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
     DisposableEffect(player, lifecycleOwner) {
@@ -116,7 +124,9 @@ fun PlayerScreen(
             !externalHandoffDone
         ) {
             externalHandoffDone = true
-            if (viewModel.openInExternalPlayer()) {
+            val intent = viewModel.createVlcIntent()
+            if (intent != null) {
+                vlcLauncher.launch(intent)
                 onBack()
             }
         }
@@ -130,7 +140,8 @@ fun PlayerScreen(
             viewModel = viewModel,
             brandColor = brandColor,
             onBack = onBack,
-            title = title
+            title = title,
+            vlcLauncher = vlcLauncher
         )
         FormFactor.PHONE, FormFactor.TABLET -> PhonePlayerContent(
             state = state,
@@ -151,7 +162,8 @@ private fun TvPlayerContent(
     viewModel: PlayerViewModel,
     brandColor: Color = BrandBlue,
     onBack: () -> Unit,
-    title: String
+    title: String,
+    vlcLauncher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>
 ) {
     val playFocusRequester = remember { FocusRequester() }
     val playButtonFocusRequester = remember { FocusRequester() }
@@ -181,6 +193,10 @@ private fun TvPlayerContent(
                     break
                 }
             }
+        } else {
+            try {
+                playFocusRequester.requestFocus()
+            } catch (_: Exception) {}
         }
     }
 
@@ -195,6 +211,16 @@ private fun TvPlayerContent(
                 viewModel.seekTo(minOf(player.duration, pos + SEEK_STEP_MS))
             } else {
                 viewModel.seekTo(maxOf(0L, pos - SEEK_STEP_MS))
+            }
+        }
+    }
+
+    LaunchedEffect(state.shouldLaunchVlc) {
+        if (state.shouldLaunchVlc) {
+            viewModel.clearVlcLaunchEvent()
+            val intent = viewModel.createVlcIntent()
+            if (intent != null) {
+                vlcLauncher.launch(intent)
             }
         }
     }
@@ -259,7 +285,8 @@ private fun TvPlayerContent(
                         viewModel.togglePlay()
                         return@onKeyEvent true
                     }
-                    android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
+                    android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+                    android.view.KeyEvent.KEYCODE_MEDIA_SKIP_BACKWARD -> {
                         if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
                         if (!viewModel.hasPreviousEpisode()) return@onKeyEvent false
                         lastInteractionTime = System.currentTimeMillis()
@@ -267,7 +294,8 @@ private fun TvPlayerContent(
                         viewModel.navigateToPreviousEpisode()
                         return@onKeyEvent true
                     }
-                    android.view.KeyEvent.KEYCODE_MEDIA_NEXT -> {
+                    android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
+                    android.view.KeyEvent.KEYCODE_MEDIA_SKIP_FORWARD -> {
                         if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
                         if (!viewModel.hasNextEpisode()) return@onKeyEvent false
                         lastInteractionTime = System.currentTimeMillis()
@@ -275,12 +303,32 @@ private fun TvPlayerContent(
                         viewModel.navigateToNextEpisode()
                         return@onKeyEvent true
                     }
+                    android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
+                        lastInteractionTime = System.currentTimeMillis()
+                        viewModel.setShowControls(true)
+                        heldSeekDir = HeldSeekDir.FORWARD
+                        viewModel.seekTo(player.currentPosition + SEEK_STEP_MS)
+                        return@onKeyEvent true
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
+                        lastInteractionTime = System.currentTimeMillis()
+                        viewModel.setShowControls(true)
+                        heldSeekDir = HeldSeekDir.BACKWARD
+                        viewModel.seekTo(maxOf(0L, player.currentPosition - SEEK_STEP_MS))
+                        return@onKeyEvent true
+                    }
                     android.view.KeyEvent.KEYCODE_BACK -> {
                         if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
                         onBack()
                         return@onKeyEvent true
                     }
-                    else -> {}
+                    else -> {
+                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
+                            AppLogger.d("PlayerScreen", "Unhandled key: keyCode=${ke.keyCode}")
+                        }
+                    }
                 }
                 false
             }
