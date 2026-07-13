@@ -1,6 +1,6 @@
 {
-  "versionCode": 3,
-  "versionName": "1.1.1",
-  "changelog": "Виправлення механізму оновлення: кнопка \"Перевірити оновлення\" тепер працює. З цього релізу оновлення можна встановлювати прямо з програми.",
-  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.1.1.apk"
+  "versionCode": 4,
+  "versionName": "1.2.0",
+  "changelog": "Виправлення крашу 'Key was already used' в релізі. Виправлення переповнення тексту в меню плеєра. Працюючі кнопки пульта (FF/RW/skip). Покращена VLC інтеграція з передачею позиції та назви.",
+  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.2.0.apk"
 }
