@@ -10,6 +10,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import ua.ukrtv.app.BuildConfig
 import ua.ukrtv.app.domain.model.UpdateInfo
 import ua.ukrtv.app.util.AppLogger
 import java.io.File
@@ -23,7 +24,7 @@ class UpdateRepository @Inject constructor(
     private val okHttpClient: OkHttpClient,
     private val json: Json
 ) {
-    private val updateUrl = "https://raw.githubusercontent.com/alex/UkrtvApp/main/update.json"
+    private val updateUrl = BuildConfig.UPDATE_URL
     private val tag = "UpdateRepository"
 
     suspend fun checkUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
