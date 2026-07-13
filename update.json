@@ -1,6 +1,6 @@
 {
-  "versionCode": 5,
-  "versionName": "1.2.1",
-  "changelog": "Виправлення кнопок перемотування: одне натискання тепер рухає на ±10 секунд, а не на весь фільм.",
-  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.2.1.apk"
+  "versionCode": 6,
+  "versionName": "1.2.2",
+  "changelog": "Виправлення встановлення оновлень: додано дозвіл REQUEST_INSTALL_PACKAGES. Якщо дозвіл відсутній, додаток відкриє налаштування 'Невідомі джерела'.",
+  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.2.2.apk"
 }

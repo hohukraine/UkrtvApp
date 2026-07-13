@@ -3,6 +3,8 @@ package ua.ukrtv.app.data.repository
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.core.content.FileProvider
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +19,12 @@ import java.io.File
 import java.io.FileOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
+
+sealed class InstallResult {
+    data object Success : InstallResult()
+    data object PermissionRequired : InstallResult()
+    data class Error(val message: String) : InstallResult()
+}
 
 @Singleton
 class UpdateRepository @Inject constructor(
@@ -47,17 +55,17 @@ class UpdateRepository @Inject constructor(
             val request = Request.Builder().url(url).build()
             okHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext null
-                
+
                 val body = response.body ?: return@withContext null
                 val contentLength = body.contentLength()
                 val apkFile = File(context.cacheDir, "update.apk")
-                
+
                 body.byteStream().use { inputStream ->
                     FileOutputStream(apkFile).use { outputStream ->
                         val buffer = ByteArray(8192)
                         var bytesRead: Int
                         var totalBytesRead = 0L
-                        
+
                         while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                             outputStream.write(buffer, 0, bytesRead)
                             totalBytesRead += bytesRead
@@ -75,8 +83,27 @@ class UpdateRepository @Inject constructor(
         null
     }
 
-    fun installApk(file: File) {
-        try {
+    fun canInstall(): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            return context.packageManager.canRequestPackageInstalls()
+        }
+        return true
+    }
+
+    fun openInstallPermissionSettings() {
+        val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+            data = Uri.parse("package:${context.packageName}")
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    }
+
+    fun installApk(file: File): InstallResult {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !context.packageManager.canRequestPackageInstalls()) {
+            AppLogger.w(tag, "Install permission not granted, opening settings")
+            return InstallResult.PermissionRequired
+        }
+        return try {
             val uri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",
@@ -88,8 +115,10 @@ class UpdateRepository @Inject constructor(
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
+            InstallResult.Success
         } catch (e: Exception) {
             AppLogger.e(tag, "Failed to launch installer", e)
+            InstallResult.Error(e.message ?: "Unknown error")
         }
     }
 }

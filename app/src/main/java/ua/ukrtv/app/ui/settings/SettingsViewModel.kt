@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import ua.ukrtv.app.BuildConfig
+import ua.ukrtv.app.data.repository.InstallResult
 import ua.ukrtv.app.data.repository.UpdateRepository
 import ua.ukrtv.app.domain.model.UpdateInfo
 import ua.ukrtv.app.util.PerformancePreferences
@@ -23,6 +24,7 @@ sealed class UpdateState {
     object UpToDate : UpdateState()
     data class Downloading(val progress: Float) : UpdateState()
     object ReadyToInstall : UpdateState()
+    object PermissionRequired : UpdateState()
     data class Error(val message: String) : UpdateState()
 }
 
@@ -83,8 +85,21 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun installUpdate() {
-        downloadedApk?.let {
-            updateRepository.installApk(it)
+        val file = downloadedApk ?: return
+        when (val result = updateRepository.installApk(file)) {
+            is InstallResult.Success -> {
+                _updateState.value = UpdateState.Idle
+            }
+            is InstallResult.PermissionRequired -> {
+                _updateState.value = UpdateState.PermissionRequired
+            }
+            is InstallResult.Error -> {
+                _updateState.value = UpdateState.Error(result.message)
+            }
         }
+    }
+
+    fun openInstallPermissionSettings() {
+        updateRepository.openInstallPermissionSettings()
     }
 }

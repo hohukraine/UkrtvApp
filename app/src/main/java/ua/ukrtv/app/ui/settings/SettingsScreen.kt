@@ -95,6 +95,8 @@ private fun TvSettingsScreen(
                     viewModel.checkForUpdates()
                 } else if (updateState is UpdateState.NewVersionAvailable) {
                     viewModel.downloadAndInstallUpdate((updateState as UpdateState.NewVersionAvailable).info)
+                } else if (updateState is UpdateState.PermissionRequired) {
+                    viewModel.openInstallPermissionSettings()
                 } else if (updateState is UpdateState.ReadyToInstall) {
                     viewModel.installUpdate()
                 }
@@ -144,6 +146,9 @@ private fun TvSettingsScreen(
                         }
                         is UpdateState.ReadyToInstall -> {
                             Text("Готово до встановлення", color = Color(0xFF8AB4F8), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                        is UpdateState.PermissionRequired -> {
+                            Text("Дозвольте встановлення — натисніть щоб відкрити налаштування", color = Color(0xFFFFA726), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                         is UpdateState.Error -> {
                             Text(state.message, color = Color.Red.copy(alpha = 0.7f), fontSize = 14.sp)
@@ -352,6 +357,8 @@ private fun PhoneSettingsScreen(
                             viewModel.checkForUpdates()
                         } else if (updateState is UpdateState.NewVersionAvailable) {
                             viewModel.downloadAndInstallUpdate((updateState as UpdateState.NewVersionAvailable).info)
+                        } else if (updateState is UpdateState.PermissionRequired) {
+                            viewModel.openInstallPermissionSettings()
                         } else if (updateState is UpdateState.ReadyToInstall) {
                             viewModel.installUpdate()
                         }
@@ -371,6 +378,7 @@ private fun PhoneSettingsScreen(
                         is UpdateState.UpToDate -> Text("Оновлень немає", color = Color(0xFF4CAF50), fontSize = 13.sp)
                         is UpdateState.Downloading -> Text("Завантаження: ${(state.progress * 100).toInt()}%", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
                         is UpdateState.ReadyToInstall -> Text("Готово до встановлення", color = Color(0xFF8AB4F8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        is UpdateState.PermissionRequired -> Text("Дозвольте встановлення", color = Color(0xFFFFA726), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         is UpdateState.Error -> Text(state.message, color = Color(0xFFE53935), fontSize = 13.sp)
                     }
                 }
