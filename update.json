@@ -1,6 +1,6 @@
 {
-  "versionCode": 4,
-  "versionName": "1.2.0",
-  "changelog": "Виправлення крашу 'Key was already used' в релізі. Виправлення переповнення тексту в меню плеєра. Працюючі кнопки пульта (FF/RW/skip). Покращена VLC інтеграція з передачею позиції та назви.",
-  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.2.0.apk"
+  "versionCode": 5,
+  "versionName": "1.2.1",
+  "changelog": "Виправлення кнопок перемотування: одне натискання тепер рухає на ±10 секунд, а не на весь фільм.",
+  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.2.1.apk"
 }
