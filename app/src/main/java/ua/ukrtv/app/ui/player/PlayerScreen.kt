@@ -307,7 +307,6 @@ private fun TvPlayerContent(
                         if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
                         lastInteractionTime = System.currentTimeMillis()
                         viewModel.setShowControls(true)
-                        heldSeekDir = HeldSeekDir.FORWARD
                         viewModel.seekTo(player.currentPosition + SEEK_STEP_MS)
                         return@onKeyEvent true
                     }
@@ -315,7 +314,6 @@ private fun TvPlayerContent(
                         if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
                         lastInteractionTime = System.currentTimeMillis()
                         viewModel.setShowControls(true)
-                        heldSeekDir = HeldSeekDir.BACKWARD
                         viewModel.seekTo(maxOf(0L, player.currentPosition - SEEK_STEP_MS))
                         return@onKeyEvent true
                     }
