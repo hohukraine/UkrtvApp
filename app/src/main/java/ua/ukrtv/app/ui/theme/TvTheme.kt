@@ -4,6 +4,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme as PhoneMaterialTheme
 import androidx.compose.material3.darkColorScheme as phoneDarkColorScheme
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -172,7 +173,7 @@ fun UkrtvTheme(
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
-    val profile by performancePreferences.profile.collectAsState()
+    val profile by performancePreferences.profile.collectAsStateWithLifecycle()
     val deviceClass = remember(context, profile) { resolveDeviceClass(context, profile) }
     val isMediatek = remember { hasMediatekChipset() }
 

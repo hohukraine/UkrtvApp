@@ -3014,4 +3014,8 @@ class Top200Repository @Inject constructor() {
     fun getRandom5(): List<Top200Movie> {
         return getTop200().shuffled().take(5)
     }
+
+    fun getRandom5Flow(): kotlinx.coroutines.flow.Flow<List<Top200Movie>> = kotlinx.coroutines.flow.flow {
+        emit(getRandom5())
+    }
 }

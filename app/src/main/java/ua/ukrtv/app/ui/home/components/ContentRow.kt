@@ -193,6 +193,13 @@ private fun TvContentRow(
         }
     }
 
+    val rowHeight = remember(useWideCards, useLargeCards, cardScale) {
+        val baseHeight = if (useWideCards) CardDefaults.wideHeight
+        else if (useLargeCards) CardDefaults.posterHeight * 1.15f
+        else CardDefaults.posterHeight
+        (baseHeight * cardScale) + 32.dp // Fixed height to prevent remeasure
+    }
+
     Column(modifier = Modifier.padding(bottom = 24.dp)) {
         if (title.isNotEmpty()) {
             Row(
@@ -218,6 +225,7 @@ private fun TvContentRow(
 
         LazyRow(
             modifier = Modifier
+                .height(rowHeight) // 2.1 Fixed height
                 .fillMaxWidth()
                 .focusRequester(rowFocus)
                 .onFocusChanged { state ->
@@ -269,41 +277,39 @@ private fun TvContentRow(
                     if (state.isFocused) {
                         onItemFocused?.invoke(item)
                         val now = System.currentTimeMillis()
-                        if (now - lastSoundTime.longValue > 80L) {
+                        // 3.3 Increased throttle for sound effect
+                        if (now - lastSoundTime.longValue > 150L) {
                             lastSoundTime.longValue = now
                             audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
                         }
                     }
                 }
 
-                // Entrance animation
-                val enterAlpha = remember { Animatable(if (enterAnimated) 0f else 1f) }
-                val enterScale = remember { Animatable(enterStartScale) }
+                // 2.3/6 Conditional Animatable creation
+                val enterAlpha = if (enterAnimated) remember { Animatable(0f) } else null
+                val enterScale = if (enterAnimated) remember { Animatable(enterStartScale) } else null
                 val density = LocalDensity.current
                 val translateYPx = remember(enterTranslateYDp) { with(density) { enterTranslateYDp.dp.toPx() } }
-                val enterTranslateY = remember { Animatable(translateYPx) }
+                val enterTranslateY = if (enterAnimated && translateYPx > 0f) remember { Animatable(translateYPx) } else null
+                
                 val animated = remember { mutableStateOf(!enterAnimated) }
                 LaunchedEffect(animated.value) {
-                    if (!animated.value) {
+                    if (!animated.value && enterAnimated) {
                         delay(index * staggerMs.toLong())
-                        launch {
-                            enterScale.animateTo(1f, tween(animDuration))
-                        }
+                        launch { enterScale?.animateTo(1f, tween(animDuration)) }
                         if (translateYPx > 0f) {
-                            launch {
-                                enterTranslateY.animateTo(0f, tween(animDuration))
-                            }
+                            launch { enterTranslateY?.animateTo(0f, tween(animDuration)) }
                         }
-                        enterAlpha.animateTo(1f, tween(animDuration))
+                        enterAlpha?.animateTo(1f, tween(animDuration))
                         animated.value = true
                     }
                 }
 
                 val entranceMod = focusMod
-                    .alpha(enterAlpha.value)
-                    .scale(enterScale.value)
+                    .then(if (enterAnimated && enterAlpha != null) Modifier.alpha(enterAlpha.value) else Modifier)
+                    .then(if (enterAnimated && enterScale != null) Modifier.scale(enterScale.value) else Modifier)
                     .then(
-                        if (translateYPx > 0f)
+                        if (enterAnimated && enterTranslateY != null)
                             Modifier.graphicsLayer { translationY = enterTranslateY.value }
                         else Modifier
                     )

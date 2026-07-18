@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlin.math.sin
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,8 +77,8 @@ fun DetailScreen(
     onBackClick: () -> Unit,
     viewModel: DetailViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
-    val launchState by viewModel.launchState.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val launchState by viewModel.launchState.collectAsStateWithLifecycle()
     val formFactor = LocalFormFactor.current
 
     LaunchedEffect(launchState) {
@@ -101,8 +102,8 @@ fun DetailScreen(
                     PhoneDetailContent(
                         state = s,
                         launchState = launchState,
-                        isInWatchlist = viewModel.isInWatchlist.collectAsState().value,
-                        performanceProfile = viewModel.performanceProfile.collectAsState().value,
+                        isInWatchlist = viewModel.isInWatchlist.collectAsStateWithLifecycle().value,
+                        performanceProfile = viewModel.performanceProfile.collectAsStateWithLifecycle().value,
                         onWatchClick = { viewModel.watchContent() },
                         onEpisodeClick = { s_num, ep, vo -> viewModel.watchContent(season = s_num, episode = ep.number, voiceover = vo) },
                         onBackClick = onBackClick,
@@ -112,7 +113,7 @@ fun DetailScreen(
                     DetailContent(
                         state = s,
                         launchState = launchState,
-                        isInWatchlist = viewModel.isInWatchlist.collectAsState().value,
+                        isInWatchlist = viewModel.isInWatchlist.collectAsStateWithLifecycle().value,
                         onWatchClick = { viewModel.watchContent() },
                         onEpisodeClick = { s_num, ep, vo -> viewModel.watchContent(season = s_num, episode = ep.number, voiceover = vo) },
                         onBackClick = onBackClick,

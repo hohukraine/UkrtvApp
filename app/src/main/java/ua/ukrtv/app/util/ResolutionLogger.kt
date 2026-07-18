@@ -25,4 +25,15 @@ class ResolutionLogger @Inject constructor() {
         val prefix = if (isError) "❌" else "✅"
         AppLogger.d("ResolutionAudit", "$prefix [$strategy] $url: $message")
     }
+
+    fun getEntries(): List<LogEntry> = logs.toList()
+
+    fun getFormattedLogs(): String = logs.joinToString("\n") { entry ->
+        val prefix = if (entry.isError) "❌" else "✅"
+        "$prefix [${entry.strategy}] ${entry.url}: ${entry.message}"
+    }
+
+    fun clearLogs() {
+        logs.clear()
+    }
 }

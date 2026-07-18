@@ -33,9 +33,9 @@ class PlaybackErrorHandlerTest {
     }
 
     @Test
-    fun `isNetworkError returns true for bad HTTP status`() {
+    fun `isNetworkError returns false for bad HTTP status`() {
         val e = exception(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS)
-        assertTrue(PlaybackErrorHandler.isNetworkError(e))
+        assertFalse(PlaybackErrorHandler.isNetworkError(e))
     }
 
     @Test

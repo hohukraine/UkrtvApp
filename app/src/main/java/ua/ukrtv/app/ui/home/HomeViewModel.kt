@@ -12,6 +12,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -23,7 +25,6 @@ import ua.ukrtv.app.data.repository.Top200Repository
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.Provider
 import ua.ukrtv.app.domain.model.Top200Movie
-import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.HomePreferences
 import ua.ukrtv.app.util.HomeLayout
 import ua.ukrtv.app.util.PosterColorCache
@@ -39,9 +40,27 @@ class HomeViewModel @Inject constructor(
     private val homePreferences: HomePreferences
 ) : ViewModel() {
 
-    val homeLayout: StateFlow<HomeLayout> = homePreferences.layout
+    data class HomeUiState(
+        val isLoading: Boolean = true,
+        val gridError: String? = null,
+        val isOnline: Boolean = true,
+        val homeTrending: List<Movie> = emptyList(),
+        val continueWatching: List<Movie> = emptyList(),
+        val watchlist: List<Movie> = emptyList(),
+        val bannerMovies: List<Movie> = emptyList(),
+        val top200Banners: List<Top200Movie> = emptyList(),
+        val brandColor: Long = 0xFF6E85B7,
+        val currentProviderId: String = "",
+        val trendingLabel: String = "Тренди",
+        val homeLayout: HomeLayout = HomeLayout(),
+        val categoryMovies: List<Movie> = emptyList(),
+        val categorySeries: List<Movie> = emptyList(),
+        val categoryAnime: List<Movie> = emptyList(),
+        val categoryCartoons: List<Movie> = emptyList(),
+        val categoryCartoonSeries: List<Movie> = emptyList(),
+    )
 
-    val isOnline: StateFlow<Boolean> = callbackFlow {
+    private val isOnline: Flow<Boolean> = callbackFlow {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         fun currentStatus(): Boolean {
             val net = cm.activeNetwork ?: return false
@@ -59,31 +78,20 @@ class HomeViewModel @Inject constructor(
         val request = NetworkRequest.Builder().build()
         cm.registerNetworkCallback(request, callback)
         awaitClose { cm.unregisterNetworkCallback(callback) }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    }
 
     private val _dismissedIds = MutableStateFlow<Set<String>>(emptySet())
-
     private val _focusedMovie = MutableStateFlow<Movie?>(null)
-
     private val _focusColor = MutableStateFlow(Color(0xFF1A1A1A))
+    private val _gridError = MutableStateFlow<String?>(null)
+    private val _retryTrigger = MutableStateFlow(0L)
+    private val _isLoading = MutableStateFlow(true)
 
     private val _navigateToDetail = MutableSharedFlow<Movie>()
     val navigateToDetail: SharedFlow<Movie> = _navigateToDetail.asSharedFlow()
 
     private val _navigateToSearch = MutableSharedFlow<String>()
     val navigateToSearch: SharedFlow<String> = _navigateToSearch.asSharedFlow()
-
-    private val _top200 = MutableStateFlow(top200Repository.getRandom5())
-
-    private val _gridError = MutableStateFlow<String?>(null)
-    val gridError: StateFlow<String?> = _gridError
-
-    private val _retryTrigger = MutableStateFlow(0L)
-
-    private val _isLoading = MutableStateFlow(true)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
-
-    private var cachedColor: Long = 0xFF6E85B7
 
     @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
     private val providerConfig: Flow<Pair<Long, String>> = providerManager.activeProvider
@@ -92,14 +100,9 @@ class HomeViewModel @Inject constructor(
             (colorInt.toLong() and 0xFFFFFFFFL) to provider.name
         }
         .distinctUntilChanged()
-        .onStart {
-            val p = providerManager.activeProvider.value
-            val colorInt = try { android.graphics.Color.parseColor(p.brandColor) } catch(_: Exception) { 0xFF6E85B7.toInt() }
-            emit((colorInt.toLong() and 0xFFFFFFFFL) to p.name)
-        }
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val grid: StateFlow<List<Movie>> = combine(
+    private val grid: Flow<List<Movie>> = combine(
         providerManager.activeProvider,
         _retryTrigger
     ) { provider, _ -> provider }
@@ -113,163 +116,116 @@ class HomeViewModel @Inject constructor(
                 }
         }
         .onEach { if (it.isNotEmpty()) _isLoading.value = false }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private var stableTrending: List<Movie> = emptyList()
     private var stableTrendingIds: Set<String> = emptySet()
 
     private fun stabilizeTrending(list: List<Movie>): List<Movie> {
         val ids = list.map { it.pageUrl }.toSet()
-        if (ids == stableTrendingIds) {
-            if (ua.ukrtv.app.BuildConfig.DEBUG) {
-                ua.ukrtv.app.util.AppLogger.d("HomeVM", "stabilizeTrending: SAME ids, returning stable ref @${System.identityHashCode(stableTrending)}")
-            }
-            return stableTrending
-        }
+        if (ids == stableTrendingIds) return stableTrending
         stableTrendingIds = ids
         val result = if (list.size > 15) list.shuffled().take(15) else list
         stableTrending = result
-        if (ua.ukrtv.app.BuildConfig.DEBUG) {
-            ua.ukrtv.app.util.AppLogger.d("HomeVM", "stabilizeTrending: NEW ids, created ${result.size} items @${System.identityHashCode(result)}")
-        }
         return result
     }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val homeTrending: StateFlow<List<Movie>> = grid
-        .onEach { if (ua.ukrtv.app.BuildConfig.DEBUG) ua.ukrtv.app.util.AppLogger.d("HomeVM", "grid emitted ${it.size} items @${System.identityHashCode(it)}") }
+    private val homeTrending: Flow<List<Movie>> = grid
         .map { list -> stabilizeTrending(list) }
         .distinctUntilChanged()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .onEach { list ->
+            // 3.1 Pre-warm colors
+            viewModelScope.launch { list.forEach { PosterColorCache.getColor(context, it.poster) } }
+        }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val continueWatching: StateFlow<List<Movie>> = mediaRepository.getContinueWatching()
+    private val continueWatching: Flow<List<Movie>> = mediaRepository.getContinueWatching()
         .combine(_dismissedIds) { list, dismissed ->
             list.filter { it.id !in dismissed }
         }
         .map { it.take(20) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+        .onEach { list ->
+            viewModelScope.launch { list.forEach { PosterColorCache.getColor(context, it.poster) } }
+        }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val watchlist: StateFlow<List<Movie>> = watchlistRepository.getAllWatchlistAsMovies()
+    private val watchlist: Flow<List<Movie>> = watchlistRepository.getAllWatchlistAsMovies()
         .onStart { emit(emptyList()) }
         .catch { emit(emptyList()) }
         .map { it.take(20) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val banner: StateFlow<List<Movie>> = combine(
+    private val bannerMovies: Flow<List<Movie>> = combine(
         continueWatching,
         grid
     ) { cw, grid ->
         if (cw.isNotEmpty()) cw.take(5) else grid.take(5)
     }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val brandColor: StateFlow<Long> = providerConfig
-        .map { it.first }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0xFF6E85B7)
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val currentProviderId: StateFlow<String> = providerConfig
-        .map { it.second }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val trendingLabel: StateFlow<String> = currentProviderId
-        .map { provider ->
-            val period = when (provider) {
+    private val trendingLabel: Flow<String> = providerConfig
+        .map { (_, providerName) ->
+            val period = when (providerName) {
                 "Eneyida" -> "за весь час"
                 "Uakino" -> "2026"
                 else -> ""
             }
-            if (period.isNotEmpty()) "Тренди · $provider · $period" else "Тренди"
+            if (period.isNotEmpty()) "Тренди · $providerName · $period" else "Тренди"
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "Тренди")
 
+    // 3.2 Combined categories request — parallel fetching
     @OptIn(ExperimentalCoroutinesApi::class)
-    val top200: StateFlow<List<Top200Movie>> = _top200
-        .stateIn(viewModelScope, SharingStarted.Eagerly, top200Repository.getRandom5())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val focusedMovie: StateFlow<Movie?> = _focusedMovie
-        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val focusColor: StateFlow<Color> = _focusColor
-        .stateIn(viewModelScope, SharingStarted.Eagerly, Color(0xFF1A1A1A))
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val categoryMovies: StateFlow<List<Movie>> = providerManager.activeProvider
+    private val categories: Flow<Map<ContentCategory, List<Movie>>> = providerManager.activeProvider
         .flatMapLatest { provider ->
             flow {
-                try {
-                    val items = provider.getMoviesByCategory(ContentCategory.MOVIES, 1)
-                    emit(items)
-                } catch (_: Exception) {
-                    emit(emptyList())
+                val cats = listOf(
+                    ContentCategory.MOVIES, ContentCategory.SERIES, ContentCategory.ANIME,
+                    ContentCategory.CARTOONS, ContentCategory.CARTOON_SERIES
+                )
+                val results = kotlinx.coroutines.coroutineScope {
+                    cats.map { cat ->
+                        async {
+                            cat to try { provider.getMoviesByCategory(cat, 1) } catch (_: Exception) { emptyList() }
+                        }
+                    }.awaitAll().toMap()
+                }
+                emit(results)
+            }
+        }
+        .onEach { map ->
+            // Pre-warm colors for all new items
+            viewModelScope.launch {
+                map.values.flatten().forEach { movie ->
+                    PosterColorCache.getColor(context, movie.poster)
                 }
             }
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val categorySeries: StateFlow<List<Movie>> = providerManager.activeProvider
-        .flatMapLatest { provider ->
-            flow {
-                try {
-                    val items = provider.getMoviesByCategory(ContentCategory.SERIES, 1)
-                    emit(items)
-                } catch (_: Exception) {
-                    emit(emptyList())
-                }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val uiState: StateFlow<HomeUiState> = combine(
+        _isLoading, _gridError, isOnline, homeTrending, continueWatching, watchlist,
+        bannerMovies, top200Repository.getRandom5Flow(), providerConfig, trendingLabel,
+        homePreferences.layout, categories
+    ) { args ->
+        val cats = args[11] as Map<ContentCategory, List<Movie>>
+        HomeUiState(
+            isLoading = args[0] as Boolean,
+            gridError = args[1] as? String,
+            isOnline = args[2] as Boolean,
+            homeTrending = args[3] as List<Movie>,
+            continueWatching = args[4] as List<Movie>,
+            watchlist = args[5] as List<Movie>,
+            bannerMovies = args[6] as List<Movie>,
+            top200Banners = args[7] as List<Top200Movie>,
+            brandColor = (args[8] as Pair<Long, String>).first,
+            currentProviderId = (args[8] as Pair<Long, String>).second,
+            trendingLabel = args[9] as String,
+            homeLayout = args[10] as HomeLayout,
+            categoryMovies = cats[ContentCategory.MOVIES] ?: emptyList(),
+            categorySeries = cats[ContentCategory.SERIES] ?: emptyList(),
+            categoryAnime = cats[ContentCategory.ANIME] ?: emptyList(),
+            categoryCartoons = cats[ContentCategory.CARTOONS] ?: emptyList(),
+            categoryCartoonSeries = cats[ContentCategory.CARTOON_SERIES] ?: emptyList()
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val categoryAnime: StateFlow<List<Movie>> = providerManager.activeProvider
-        .flatMapLatest { provider ->
-            flow {
-                try {
-                    val items = provider.getMoviesByCategory(ContentCategory.ANIME, 1)
-                    emit(items)
-                } catch (_: Exception) {
-                    emit(emptyList())
-                }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val categoryCartoons: StateFlow<List<Movie>> = providerManager.activeProvider
-        .flatMapLatest { provider ->
-            flow {
-                try {
-                    val items = provider.getMoviesByCategory(ContentCategory.CARTOONS, 1)
-                    emit(items)
-                } catch (_: Exception) {
-                    emit(emptyList())
-                }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val categoryCartoonSeries: StateFlow<List<Movie>> = providerManager.activeProvider
-        .flatMapLatest { provider ->
-            flow {
-                try {
-                    val items = provider.getMoviesByCategory(ContentCategory.CARTOON_SERIES, 1)
-                    emit(items)
-                } catch (_: Exception) {
-                    emit(emptyList())
-                }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
+    val focusColor: StateFlow<Color> = _focusColor.asStateFlow()
+    val focusedMovie: StateFlow<Movie?> = _focusedMovie.asStateFlow()
     val providers: List<Provider> = providerManager.getProviders()
 
     private var lastDismissTime = 0L

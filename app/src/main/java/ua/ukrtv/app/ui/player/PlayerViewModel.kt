@@ -268,6 +268,15 @@ class PlayerViewModel @Inject constructor(
             val newSeasons = deepRes?.seasons
             if (newSeasons != null && newSeasons.isNotEmpty() && deepJob?.isActive == true) {
                 this@PlayerViewModel.seasons = newSeasons
+                if (this@PlayerViewModel.season == null && this@PlayerViewModel.episode == null) {
+                    val firstSeason = newSeasons.first()
+                    this@PlayerViewModel.season = firstSeason.number
+                    this@PlayerViewModel.episode = firstSeason.episodes.firstOrNull()?.number ?: 1
+                    this@PlayerViewModel.episodeId = "s${this@PlayerViewModel.season}e${this@PlayerViewModel.episode}"
+                    savedStateHandle[KEY_SEASON] = this@PlayerViewModel.season
+                    savedStateHandle[KEY_EPISODE] = this@PlayerViewModel.episode
+                    AppLogger.d("PickerVM", "Deep resolution defaulted to S${this@PlayerViewModel.season}E${this@PlayerViewModel.episode}")
+                }
                 _state.update { it.copy(availableSeasons = newSeasons) }
                 updateNavigationState()
                 rebuildPickerColumns()
@@ -993,7 +1002,6 @@ class PlayerViewModel @Inject constructor(
             val ready = state.status as? PlayerStatus.Ready ?: return@update state
             state.copy(status = ready.copy(positionMs = positionMs, loadTrigger = System.currentTimeMillis()))
         }
-        playerPreferences.setPlayerType(ua.ukrtv.app.util.PlayerType.BUILTIN)
     }
 
     fun advanceToNextEpisodeFromExternalPlayer() {

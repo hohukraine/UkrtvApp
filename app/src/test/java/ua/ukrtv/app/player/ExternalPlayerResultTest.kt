@@ -104,4 +104,66 @@ class ExternalPlayerResultTest {
         assertEquals(1338962L, result.positionMs)
         assertEquals(0L, result.durationMs)
     }
+
+    @Test
+    fun `position greater than duration - not finished below threshold`() {
+        val result = ExternalPlayerLauncher.parseResult(800L, 1000L, null)
+        assertFalse(result.isFinished)
+    }
+
+    @Test
+    fun `very large duration and position - VLC long episode`() {
+        val dur = 7200000L
+        val pos = 7000000L
+        val result = ExternalPlayerLauncher.parseResult(pos, dur, null)
+        assertTrue(result.isFinished)
+        assertEquals(pos, result.positionMs)
+        assertEquals(dur, result.durationMs)
+    }
+
+    @Test
+    fun `negative position treated as zero`() {
+        val result = ExternalPlayerLauncher.parseResult(-1000L, 1200000L, null)
+        assertFalse(result.isFinished)
+        assertEquals(-1000L, result.positionMs)
+        assertEquals(1200000L, result.durationMs)
+    }
+
+    @Test
+    fun `negative duration treated as zero`() {
+        val result = ExternalPlayerLauncher.parseResult(5000L, -1000L, null)
+        assertFalse(result.isFinished)
+        assertEquals(5000L, result.positionMs)
+        assertEquals(0L, result.durationMs)
+    }
+
+    @Test
+    fun `playback_completion with position and duration - finished regardless of ratio`() {
+        val result = ExternalPlayerLauncher.parseResult(100L, 1200000L, "playback_completion")
+        assertTrue(result.isFinished)
+    }
+
+    @Test
+    fun `exit with high ratio still not finished`() {
+        val result = ExternalPlayerLauncher.parseResult(1190000L, 1200000L, "exit")
+        assertFalse(result.isFinished)
+    }
+
+    @Test
+    fun `empty end_by string falls through to threshold`() {
+        val result = ExternalPlayerLauncher.parseResult(1100000L, 1200000L, "")
+        assertTrue(result.isFinished)
+    }
+
+    @Test
+    fun `null end_by with exact 89 percent - not finished`() {
+        val result = ExternalPlayerLauncher.parseResult(890L, 1000L, null)
+        assertFalse(result.isFinished)
+    }
+
+    @Test
+    fun `null end_by with 100 percent - finished`() {
+        val result = ExternalPlayerLauncher.parseResult(1000L, 1000L, null)
+        assertTrue(result.isFinished)
+    }
 }

@@ -152,7 +152,8 @@ fun PlayerScreen(
             viewModel = viewModel,
             brandColor = brandColor,
             onBack = onBack,
-            title = title
+            title = title,
+            poster = poster
         )
         FormFactor.PHONE, FormFactor.TABLET -> PhonePlayerContent(
             state = state,
@@ -160,7 +161,8 @@ fun PlayerScreen(
             viewModel = viewModel,
             brandColor = brandColor,
             onBack = onBack,
-            title = title
+            title = title,
+            poster = poster
         )
     }
 }
@@ -173,7 +175,8 @@ private fun TvPlayerContent(
     viewModel: PlayerViewModel,
     brandColor: Color = BrandBlue,
     onBack: () -> Unit,
-    title: String
+    title: String,
+    poster: String = ""
 ) {
     val playFocusRequester = remember { FocusRequester() }
     val playButtonFocusRequester = remember { FocusRequester() }
@@ -367,9 +370,12 @@ private fun TvPlayerContent(
 
         val currentStatus = state.status
         if (currentStatus is PlayerStatus.Loading) {
-            Box(Modifier.fillMaxSize().background(Color.Black), Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFF6E85B7))
-            }
+            EpisodeLoadingOverlay(
+                poster = poster,
+                season = state.currentSeason,
+                episode = state.currentEpisode,
+                brandColor = brandColor
+            )
         }
 
         if (currentStatus is PlayerStatus.Error) {
@@ -416,7 +422,8 @@ private fun PhonePlayerContent(
     viewModel: PlayerViewModel,
     brandColor: Color = BrandBlue,
     onBack: () -> Unit,
-    title: String
+    title: String,
+    poster: String = ""
 ) {
     var lastInteractionTime by remember { mutableStateOf(System.currentTimeMillis()) }
     var currentPosition by remember(engine) { mutableStateOf(engine?.currentPosition ?: 0L) }
@@ -716,9 +723,12 @@ private fun PhonePlayerContent(
 
         val currentStatus = state.status
         if (currentStatus is PlayerStatus.Loading) {
-            Box(Modifier.fillMaxSize().background(Color.Black), Alignment.Center) {
-                CircularProgressIndicator(color = brandColor)
-            }
+            EpisodeLoadingOverlay(
+                poster = poster,
+                season = state.currentSeason,
+                episode = state.currentEpisode,
+                brandColor = brandColor
+            )
         }
 
         if (currentStatus is PlayerStatus.Error) {
@@ -736,6 +746,57 @@ private fun PhonePlayerContent(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EpisodeLoadingOverlay(
+    poster: String,
+    season: Int?,
+    episode: Int?,
+    brandColor: Color
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (poster.isNotBlank()) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(poster)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .width(200.dp)
+                        .height(280.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.height(20.dp))
+            }
+            Text(
+                "Наступна серія",
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(4.dp))
+            if (season != null && episode != null) {
+                Text(
+                    "Сезон $season, Серія $episode",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 14.sp
+                )
+                Spacer(Modifier.height(16.dp))
+            }
+            CircularProgressIndicator(color = brandColor)
+            Spacer(Modifier.height(8.dp))
+            Text("Завантаження...", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
         }
     }
 }
@@ -772,11 +833,8 @@ private fun ExternalPlayerScreen(
             is ua.ukrtv.app.ui.player.ExternalPlayerReturnResult.Advanced -> {
                 playerLaunched = false
             }
-            is ua.ukrtv.app.ui.player.ExternalPlayerReturnResult.NotFinished -> {
-                viewModel.switchToBuiltInPlayer(returnResult.positionMs)
-            }
             else -> {
-                viewModel.switchToBuiltInPlayer(0L)
+                onBack()
             }
         }
     }
@@ -829,43 +887,12 @@ private fun ExternalPlayerScreen(
                 }
             }
             currentStatus is PlayerStatus.Loading -> {
-                val currentSeason = state.currentSeason
-                val currentEpisode = state.currentEpisode
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (poster.isNotBlank()) {
-                        AsyncImage(
-                            model = ImageRequest.Builder(LocalContext.current)
-                                .data(poster)
-                                .crossfade(true)
-                                .build(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .width(200.dp)
-                                .height(280.dp)
-                                .clip(RoundedCornerShape(12.dp)),
-                            contentScale = ContentScale.Crop
-                        )
-                        Spacer(Modifier.height(20.dp))
-                    }
-                    Text(
-                        "Наступна серія",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    if (currentSeason != null && currentEpisode != null) {
-                        Text(
-                            "Сезон $currentSeason, Серія $currentEpisode",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 14.sp
-                        )
-                        Spacer(Modifier.height(16.dp))
-                    }
-                    CircularProgressIndicator(color = Color(0xFF6E85B7))
-                    Spacer(Modifier.height(8.dp))
-                    Text("Завантаження...", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
-                }
+                EpisodeLoadingOverlay(
+                    poster = poster,
+                    season = state.currentSeason,
+                    episode = state.currentEpisode,
+                    brandColor = Color(0xFF6E85B7)
+                )
             }
             currentStatus is PlayerStatus.Ready && playerLaunched -> {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

@@ -342,7 +342,6 @@ private fun MetaBadge(
     item: Movie,
     deviceClass: DeviceClass
 ) {
-    val showAnimation = deviceClass == DeviceClass.HIGH
     val metaItems = remember(item) {
         buildList {
             if (!item.rating.isNullOrEmpty()) add("IMDb ${item.rating}")
@@ -352,37 +351,32 @@ private fun MetaBadge(
         }
     }
 
-    AnimatedVisibility(
-        visible = true,
-        enter = fadeIn(animationSpec = tween(if (showAnimation) 400 else 0))
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = Modifier.padding(vertical = if (deviceClass == DeviceClass.HIGH) 16.dp else 10.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            modifier = Modifier.padding(vertical = if (deviceClass == DeviceClass.HIGH) 16.dp else 10.dp)
-        ) {
-            if (!item.rating.isNullOrEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .background(Gold, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(
-                        text = "\u2605 ${item.rating}",
-                        color = Color.Black,
-                        fontSize = if (deviceClass == DeviceClass.HIGH) 15.sp else 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            metaItems.drop(1).forEach { text ->
+        if (!item.rating.isNullOrEmpty()) {
+            Box(
+                modifier = Modifier
+                    .background(Gold, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
                 Text(
-                    text = text,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = if (deviceClass == DeviceClass.HIGH) 15.sp else 14.sp
+                    text = "\u2605 ${item.rating}",
+                    color = Color.Black,
+                    fontSize = if (deviceClass == DeviceClass.HIGH) 15.sp else 13.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
+        }
+
+        metaItems.drop(1).forEach { text ->
+            Text(
+                text = text,
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = if (deviceClass == DeviceClass.HIGH) 15.sp else 14.sp
+            )
         }
     }
 }

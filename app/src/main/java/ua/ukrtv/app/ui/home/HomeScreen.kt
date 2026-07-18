@@ -27,6 +27,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import android.view.Choreographer
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -96,45 +97,27 @@ private fun TvHomeScreen(
     onSeeAllCategoryClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {}
 ) {
-    val grid by viewModel.grid.collectAsState()
-    val gridError by viewModel.gridError.collectAsState()
-    val isOnline by viewModel.isOnline.collectAsState()
-    val rawHomeTrending by viewModel.homeTrending.collectAsState()
-    val rawContinueWatching by viewModel.continueWatching.collectAsState()
-    val rawWatchlist by viewModel.watchlist.collectAsState()
-    val rawBannerMovies by viewModel.banner.collectAsState()
-    val top200Banners by viewModel.top200.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-
-    val currentProviderId by viewModel.currentProviderId.collectAsState()
-    val brandColorLong by viewModel.brandColor.collectAsState()
-    val focusColor by viewModel.focusColor.collectAsState()
-    val trendingLabel by viewModel.trendingLabel.collectAsState()
-
-    val homeLayout by viewModel.homeLayout.collectAsState()
-    val rawCategoryMovies by viewModel.categoryMovies.collectAsState()
-    val rawCategorySeries by viewModel.categorySeries.collectAsState()
-    val rawCategoryAnime by viewModel.categoryAnime.collectAsState()
-    val rawCategoryCartoons by viewModel.categoryCartoons.collectAsState()
-    val rawCategoryCartoonSeries by viewModel.categoryCartoonSeries.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val focusColor by viewModel.focusColor.collectAsStateWithLifecycle()
 
     val deviceClass = LocalDeviceClass.current
     val bannerFocusRequester = remember { FocusRequester() }
     var activeBannerMovie by remember { mutableStateOf<Top200Movie?>(null) }
-    val providerColor = remember(brandColorLong) { Color(brandColorLong) }
+    val providerColor = remember(uiState.brandColor) { Color(uiState.brandColor) }
 
     val maxGridItems = remember(deviceClass) { when (deviceClass) { DeviceClass.LOW -> 8; DeviceClass.MID -> 15; DeviceClass.HIGH -> 30 } }
     val maxContinueItems = remember(deviceClass) { when (deviceClass) { DeviceClass.LOW -> 5; DeviceClass.MID -> 10; DeviceClass.HIGH -> 20 } }
     val maxBannerItems = remember(deviceClass) { when (deviceClass) { DeviceClass.LOW -> 3; DeviceClass.MID -> 5; DeviceClass.HIGH -> 8 } }
-    val homeTrending = remember(rawHomeTrending, maxGridItems) { rawHomeTrending.take(maxGridItems) }
-    val continueWatching = remember(rawContinueWatching, maxContinueItems) { rawContinueWatching.take(maxContinueItems) }
-    val watchlist = remember(rawWatchlist, maxContinueItems) { rawWatchlist.take(maxContinueItems) }
-    val bannerMovies = remember(rawBannerMovies, maxBannerItems) { rawBannerMovies.take(maxBannerItems) }
-    val categoryMovies = remember(rawCategoryMovies, maxGridItems) { rawCategoryMovies.take(maxGridItems) }
-    val categorySeries = remember(rawCategorySeries, maxGridItems) { rawCategorySeries.take(maxGridItems) }
-    val categoryAnime = remember(rawCategoryAnime, maxGridItems) { rawCategoryAnime.take(maxGridItems) }
-    val categoryCartoons = remember(rawCategoryCartoons, maxGridItems) { rawCategoryCartoons.take(maxGridItems) }
-    val categoryCartoonSeries = remember(rawCategoryCartoonSeries, maxGridItems) { rawCategoryCartoonSeries.take(maxGridItems) }
+
+    val homeTrending = remember(uiState.homeTrending, maxGridItems) { uiState.homeTrending.take(maxGridItems) }
+    val continueWatching = remember(uiState.continueWatching, maxContinueItems) { uiState.continueWatching.take(maxContinueItems) }
+    val watchlist = remember(uiState.watchlist, maxContinueItems) { uiState.watchlist.take(maxContinueItems) }
+    val bannerMovies = remember(uiState.bannerMovies, maxBannerItems) { uiState.bannerMovies.take(maxBannerItems) }
+    val categoryMovies = remember(uiState.categoryMovies, maxGridItems) { uiState.categoryMovies.take(maxGridItems) }
+    val categorySeries = remember(uiState.categorySeries, maxGridItems) { uiState.categorySeries.take(maxGridItems) }
+    val categoryAnime = remember(uiState.categoryAnime, maxGridItems) { uiState.categoryAnime.take(maxGridItems) }
+    val categoryCartoons = remember(uiState.categoryCartoons, maxGridItems) { uiState.categoryCartoons.take(maxGridItems) }
+    val categoryCartoonSeries = remember(uiState.categoryCartoonSeries, maxGridItems) { uiState.categoryCartoonSeries.take(maxGridItems) }
 
     if (ua.ukrtv.app.BuildConfig.DEBUG) JankMonitor()
 
@@ -151,17 +134,17 @@ private fun TvHomeScreen(
     val top200ItemHandler = remember { { movie: Top200Movie -> viewModel.onTop200BannerClick(movie) } }
 
     HomeScreenContent(
-        isLoading = isLoading,
-        gridError = gridError,
-        isOnline = isOnline,
+        isLoading = uiState.isLoading,
+        gridError = uiState.gridError,
+        isOnline = uiState.isOnline,
         onRetryGrid = viewModel::retryGrid,
-        top200Banners = top200Banners,
+        top200Banners = uiState.top200Banners,
         bannerMovies = bannerMovies,
         continueWatching = continueWatching,
         watchlist = watchlist,
         homeTrending = homeTrending,
-        trendingLabel = trendingLabel,
-        homeLayout = homeLayout,
+        trendingLabel = uiState.trendingLabel,
+        homeLayout = uiState.homeLayout,
         categoryMovies = categoryMovies,
         categorySeries = categorySeries,
         categoryAnime = categoryAnime,
@@ -172,7 +155,7 @@ private fun TvHomeScreen(
         focusColor = focusColor,
         bannerFocusRequester = bannerFocusRequester,
         providers = viewModel.providers,
-        currentProviderId = currentProviderId,
+        currentProviderId = uiState.currentProviderId,
         onSearchClick = onSearchClick,
         onMovieClick = onMovieClick,
         onContinueWatchingClick = onContinueWatchingClick,
@@ -643,33 +626,21 @@ private fun PhoneHomeScreen(
 ) {
     val gridState = rememberLazyListState()
     val density = LocalDensity.current
-    val top200Banners by viewModel.top200.collectAsState()
-    val isOnline by viewModel.isOnline.collectAsState()
-    val rawHomeTrending by viewModel.homeTrending.collectAsState()
-    val rawContinueWatching by viewModel.continueWatching.collectAsState()
-    val rawWatchlist by viewModel.watchlist.collectAsState()
-    val currentProviderId by viewModel.currentProviderId.collectAsState()
-    val brandColorLong by viewModel.brandColor.collectAsState()
-    val providerColor = remember(brandColorLong) { Color(brandColorLong) }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    val providerColor = remember(uiState.brandColor) { Color(uiState.brandColor) }
     val providers = remember { viewModel.providers }
-    val trendingLabel by viewModel.trendingLabel.collectAsState()
-    val homeLayout by viewModel.homeLayout.collectAsState()
-    val rawCategoryMovies by viewModel.categoryMovies.collectAsState()
-    val rawCategorySeries by viewModel.categorySeries.collectAsState()
-    val rawCategoryAnime by viewModel.categoryAnime.collectAsState()
-    val rawCategoryCartoons by viewModel.categoryCartoons.collectAsState()
-    val rawCategoryCartoonSeries by viewModel.categoryCartoonSeries.collectAsState()
     var activeTop200Movie by remember { mutableStateOf<Top200Movie?>(null) }
 
     val maxItems = 12
-    val continueWatching = remember(rawContinueWatching) { rawContinueWatching.take(maxItems) }
-    val watchlist = remember(rawWatchlist) { rawWatchlist.take(maxItems) }
-    val homeTrending = remember(rawHomeTrending) { rawHomeTrending.take(maxItems) }
-    val categoryMovies = remember(rawCategoryMovies) { rawCategoryMovies.take(maxItems) }
-    val categorySeries = remember(rawCategorySeries) { rawCategorySeries.take(maxItems) }
-    val categoryAnime = remember(rawCategoryAnime) { rawCategoryAnime.take(maxItems) }
-    val categoryCartoons = remember(rawCategoryCartoons) { rawCategoryCartoons.take(maxItems) }
-    val categoryCartoonSeries = remember(rawCategoryCartoonSeries) { rawCategoryCartoonSeries.take(maxItems) }
+    val continueWatching = remember(uiState.continueWatching) { uiState.continueWatching.take(maxItems) }
+    val watchlist = remember(uiState.watchlist) { uiState.watchlist.take(maxItems) }
+    val homeTrending = remember(uiState.homeTrending) { uiState.homeTrending.take(maxItems) }
+    val categoryMovies = remember(uiState.categoryMovies) { uiState.categoryMovies.take(maxItems) }
+    val categorySeries = remember(uiState.categorySeries) { uiState.categorySeries.take(maxItems) }
+    val categoryAnime = remember(uiState.categoryAnime) { uiState.categoryAnime.take(maxItems) }
+    val categoryCartoons = remember(uiState.categoryCartoons) { uiState.categoryCartoons.take(maxItems) }
+    val categoryCartoonSeries = remember(uiState.categoryCartoonSeries) { uiState.categoryCartoonSeries.take(maxItems) }
 
     val screenHeightDp = with(LocalDensity.current) {
         androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
@@ -721,7 +692,7 @@ private fun PhoneHomeScreen(
         // Sticky provider segmented control
         PhoneProviderSwitcher(
             providers = providers,
-            currentProviderId = currentProviderId,
+            currentProviderId = uiState.currentProviderId,
             brandColor = providerColor,
             onProviderClick = { viewModel.switchProvider(it) }
         )
@@ -733,9 +704,9 @@ private fun PhoneHomeScreen(
         ) {
             // Hero section (Top 200 carousel)
             item(key = "hero") {
-                if (top200Banners.isNotEmpty()) {
+                if (uiState.top200Banners.isNotEmpty()) {
                     PhoneHeroSection(
-                        items = top200Banners,
+                        items = uiState.top200Banners,
                         brandColor = providerColor,
                         onItemClick = { movie -> onSearchQueryClick(movie.title) },
                         onActiveMovieChange = { activeTop200Movie = it },
@@ -745,7 +716,7 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (!isOnline) {
+            if (!uiState.isOnline) {
                 item(key = "offline") {
                     Box(
                         modifier = Modifier.fillMaxWidth().background(Color(0xFFE53935)).padding(8.dp),
@@ -757,22 +728,22 @@ private fun PhoneHomeScreen(
             }
 
             // Content rows
-            if (homeLayout.showContinueWatching && continueWatching.isNotEmpty()) {
+            if (uiState.homeLayout.showContinueWatching && continueWatching.isNotEmpty()) {
                 item(key = "continue") {
                     ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, useWideCards = true)
                 }
             }
 
-            if (homeLayout.showWatchlist && watchlist.isNotEmpty()) {
+            if (uiState.homeLayout.showWatchlist && watchlist.isNotEmpty()) {
                 item(key = "watchlist") {
                     ContentRow("Мій список", watchlist, providerColor, onMovieClick)
                 }
             }
 
-            if (homeLayout.showTrends && homeTrending.isNotEmpty()) {
+            if (uiState.homeLayout.showTrends && homeTrending.isNotEmpty()) {
                 item(key = "trending") {
                     ContentRow(
-                        trendingLabel,
+                        uiState.trendingLabel,
                         homeTrending,
                         providerColor,
                         onMovieClick,
@@ -799,7 +770,7 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (homeLayout.showMovies && categoryMovies.isNotEmpty()) {
+            if (uiState.homeLayout.showMovies && categoryMovies.isNotEmpty()) {
                 item(key = "cat_movies") {
                     ContentRow(
                         "Фільми", categoryMovies, providerColor, onMovieClick,
@@ -820,7 +791,7 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (homeLayout.showSeries && categorySeries.isNotEmpty()) {
+            if (uiState.homeLayout.showSeries && categorySeries.isNotEmpty()) {
                 item(key = "cat_series") {
                     ContentRow(
                         "Серіали", categorySeries, providerColor, onMovieClick,
@@ -841,7 +812,7 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (homeLayout.showAnime && categoryAnime.isNotEmpty()) {
+            if (uiState.homeLayout.showAnime && categoryAnime.isNotEmpty()) {
                 item(key = "cat_anime") {
                     ContentRow(
                         "Аніме", categoryAnime, providerColor, onMovieClick,
@@ -862,7 +833,7 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (homeLayout.showCartoons && categoryCartoons.isNotEmpty()) {
+            if (uiState.homeLayout.showCartoons && categoryCartoons.isNotEmpty()) {
                 item(key = "cat_cartoons") {
                     ContentRow(
                         "Мультфільми", categoryCartoons, providerColor, onMovieClick,
@@ -883,7 +854,7 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (homeLayout.showCartoonSeries && categoryCartoonSeries.isNotEmpty()) {
+            if (uiState.homeLayout.showCartoonSeries && categoryCartoonSeries.isNotEmpty()) {
                 item(key = "cat_cartoon_series") {
                     ContentRow(
                         "Мультсеріали", categoryCartoonSeries, providerColor, onMovieClick,
