@@ -104,7 +104,7 @@ fun DetailScreen(
                         isInWatchlist = viewModel.isInWatchlist.collectAsState().value,
                         performanceProfile = viewModel.performanceProfile.collectAsState().value,
                         onWatchClick = { viewModel.watchContent() },
-                        onEpisodeClick = { s_num, ep -> viewModel.watchContent(season = s_num, episode = ep.number) },
+                        onEpisodeClick = { s_num, ep, vo -> viewModel.watchContent(season = s_num, episode = ep.number, voiceover = vo) },
                         onBackClick = onBackClick,
                         onToggleWatchlist = { viewModel.toggleWatchlist() }
                     )
@@ -114,7 +114,7 @@ fun DetailScreen(
                         launchState = launchState,
                         isInWatchlist = viewModel.isInWatchlist.collectAsState().value,
                         onWatchClick = { viewModel.watchContent() },
-                        onEpisodeClick = { s_num, ep -> viewModel.watchContent(season = s_num, episode = ep.number) },
+                        onEpisodeClick = { s_num, ep, vo -> viewModel.watchContent(season = s_num, episode = ep.number, voiceover = vo) },
                         onBackClick = onBackClick,
                         onToggleWatchlist = { viewModel.toggleWatchlist() }
                     )
@@ -125,7 +125,7 @@ fun DetailScreen(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(s.message, color = Error)
+                    Text(s.error.message, color = Error)
                     Spacer(modifier = Modifier.height(24.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         androidx.tv.material3.Button(onClick = { viewModel.retry() }) {
@@ -148,7 +148,7 @@ fun DetailContent(
     launchState: MediaLaunchState,
     isInWatchlist: Boolean,
     onWatchClick: () -> Unit,
-    onEpisodeClick: (Int, Episode) -> Unit,
+    onEpisodeClick: (Int, Episode, String?) -> Unit,
     onBackClick: () -> Unit,
     onToggleWatchlist: () -> Unit
 ) {
@@ -413,8 +413,8 @@ fun DetailContent(
                         ) {
                             RatingCircle(rating = parseRating(detail.rating))
 
-                            if (!detail.year.isNullOrEmpty()) {
-                                Text(detail.year, color = OnSurface.copy(alpha = 0.7f), fontSize = 16.sp)
+                            if (detail.year != null) {
+                                Text(detail.year.toString(), color = OnSurface.copy(alpha = 0.7f), fontSize = 16.sp)
                             }
 
                             if (!detail.duration.isNullOrEmpty()) {
@@ -693,7 +693,7 @@ private fun PhoneDetailContent(
     isInWatchlist: Boolean,
     performanceProfile: PerformanceProfile,
     onWatchClick: () -> Unit,
-    onEpisodeClick: (Int, Episode) -> Unit,
+    onEpisodeClick: (Int, Episode, String?) -> Unit,
     onBackClick: () -> Unit,
     onToggleWatchlist: () -> Unit
 ) {
@@ -790,8 +790,8 @@ private fun PhoneDetailContent(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     RatingCircle(rating = parseRating(detail.rating))
-                    if (!detail.year.isNullOrEmpty()) {
-                        Text(detail.year, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
+                    if (detail.year != null) {
+                        Text(detail.year.toString(), color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)
                     }
                     if (!detail.duration.isNullOrEmpty()) {
                         Text(detail.duration, color = Color.White.copy(alpha = 0.8f), fontSize = 14.sp)

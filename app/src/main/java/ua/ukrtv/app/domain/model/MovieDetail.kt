@@ -42,7 +42,7 @@ data class MovieDetail(
     val title: String,
     val poster: String,
     val description: String,
-    val year: String?,
+    val year: Int?,
     val genres: List<String>,
     val pageUrl: String,
     val providerName: String,

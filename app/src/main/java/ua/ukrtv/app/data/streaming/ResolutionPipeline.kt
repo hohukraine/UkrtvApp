@@ -27,6 +27,7 @@ class ResolutionChain(
         val sectionName = "ResolutionChain.${context.isDeep}"
         PerformanceMonitor.begin(sectionName)
         logger.log(url, "Chain", "Starting resolution (deep=${context.isDeep})")
+        var lastError: Exception? = null
         try {
             for (strategy in strategies) {
                 try {
@@ -41,10 +42,12 @@ class ResolutionChain(
                         }
                     }
                 } catch (e: Exception) {
+                    lastError = e
                     logger.log(url, strategy.name, "Error: ${e.message}", isError = true)
                 }
             }
             logger.log(url, "Chain", "Resolution failed for all strategies", isError = true)
+            lastError?.let { throw it }
             return null
         } finally {
             PerformanceMonitor.end()

@@ -24,7 +24,7 @@ class StreamResolver @Inject constructor(
 
     private val streamResolutionCache = ua.ukrtv.app.data.TtlLruCache<String, StreamResolutionResult?>(
         maxSize = 100,
-        ttlMs = 2 * 60 * 1000L
+        ttlMs = ua.ukrtv.app.Constants.STREAM_RESOLUTION_CACHE_TTL_MS
     )
 
     private val inflightMutexes = ConcurrentHashMap<String, Mutex>()
@@ -121,5 +121,6 @@ class StreamResolver @Inject constructor(
 
     fun clearCache(url: String) {
         streamManager.clearCache(url)
+        streamResolutionCache.invalidateIf { it.contains(url) }
     }
 }

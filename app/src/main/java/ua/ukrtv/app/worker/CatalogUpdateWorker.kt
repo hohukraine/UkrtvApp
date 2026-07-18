@@ -24,7 +24,11 @@ class CatalogUpdateWorker @AssistedInject constructor(
             Result.success()
         } catch (e: Exception) {
             AppLogger.w("CatalogUpdateWorker", "Catalog update failed: ${e.message}")
-            Result.retry()
+            if (runAttemptCount >= 3) {
+                Result.failure()
+            } else {
+                Result.retry()
+            }
         }
     }
 }

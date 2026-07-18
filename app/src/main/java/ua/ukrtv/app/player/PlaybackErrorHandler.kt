@@ -7,8 +7,7 @@ object PlaybackErrorHandler {
     fun isNetworkError(error: PlaybackException): Boolean {
         val code = error.errorCode
         return code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-            code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-            code == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+            code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT
     }
 
     fun isUnsupportedFormat(error: PlaybackException): Boolean {
@@ -37,25 +36,23 @@ object PlaybackErrorHandler {
 
     fun isDecodingError(error: PlaybackException): Boolean {
         val code = error.errorCode
-        val msg = (error.message ?: "").lowercase()
         return code == PlaybackException.ERROR_CODE_DECODING_FAILED ||
             code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
             code == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
-            code == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ||
-            // Mediatek-specific: black screen but no error code
-            (code == PlaybackException.ERROR_CODE_REMOTE_ERROR && msg.contains("codec")) ||
-            msg.contains("c2.mtk.hevc") && msg.contains("init")
+            code == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED
     }
 
     fun isFatalCodecDeath(error: PlaybackException): Boolean {
+        val code = error.errorCode
         val msg = (error.message ?: "").lowercase()
-        return msg.contains("codec") && msg.contains("died")
+        return code == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+            (msg.contains("codec") && msg.contains("died"))
     }
 
     fun isMediatekBlackScreen(error: PlaybackException): Boolean {
-        // Mediatek HEVC decoders sometimes freeze without throwing explicit errors.
-        // Detect via frame-drop pattern in CodecHealthMonitor instead.
-        return false
+        val msg = (error.message ?: "").lowercase()
+        return (msg.contains("c2.mtk.hevc") || msg.contains("omx.mtk.")) &&
+            (msg.contains("black") || msg.contains("freeze") || msg.contains("stuck"))
     }
 
     fun isBlockedStream(error: PlaybackException): Boolean {
@@ -83,16 +80,17 @@ object PlaybackErrorHandler {
 
     fun shouldRetry(error: PlaybackException): Boolean {
         if (isNotFound(error)) return false
-        return isNetworkError(error) || isTimeout(error)
+        return isNetworkError(error) || isTimeout(error) ||
+            error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
     }
 
     fun getErrorCategory(error: PlaybackException): ErrorCategory {
         return when {
+            isBlockedStream(error) || isNotFound(error) -> ErrorCategory.BLOCKED
+            isDecodingError(error) -> ErrorCategory.DECODER
             isNetworkError(error) -> ErrorCategory.NETWORK
             isParsingError(error) -> ErrorCategory.UNSUPPORTED_FORMAT
-            isDecodingError(error) -> ErrorCategory.DECODER
             isTimeout(error) -> ErrorCategory.TIMEOUT
-            isBlockedStream(error) -> ErrorCategory.BLOCKED
             else -> ErrorCategory.UNKNOWN
         }
     }

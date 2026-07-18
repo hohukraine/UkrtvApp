@@ -6,17 +6,15 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import ua.ukrtv.app.domain.model.AppError
 import ua.ukrtv.app.domain.model.MovieDetail
 import ua.ukrtv.app.domain.model.MediaLaunchState
 import ua.ukrtv.app.domain.model.Movie
-import ua.ukrtv.app.data.TtlLruCache
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.data.repository.ContentRepository
 import ua.ukrtv.app.data.repository.WatchProgressRepository
 import ua.ukrtv.app.data.repository.WatchlistRepository
 import ua.ukrtv.app.data.streaming.StreamResolver
-import ua.ukrtv.app.domain.model.StreamResolutionResult
-import ua.ukrtv.app.player.PlayerWarmupManager
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.PerformanceMonitor
 import ua.ukrtv.app.util.PerformancePreferences
@@ -29,7 +27,7 @@ sealed class DetailState {
         val detail: MovieDetail,
         val watchProgress: Long = 0L
     ) : DetailState()
-    data class Error(val message: String) : DetailState()
+    data class Error(val error: AppError) : DetailState()
 }
 
 @HiltViewModel
@@ -39,7 +37,6 @@ class DetailViewModel @Inject constructor(
     private val watchProgressRepository: WatchProgressRepository,
     private val watchlistRepository: WatchlistRepository,
     private val streamResolver: StreamResolver,
-    private val warmupManager: PlayerWarmupManager,
     private val okHttpClient: okhttp3.OkHttpClient,
     private val providerManager: ProviderManager,
     private val performancePreferences: PerformancePreferences
@@ -58,7 +55,6 @@ class DetailViewModel @Inject constructor(
 
     private var currentDetail: MovieDetail? = null
     private var preWarmJob: Job? = null
-    private val preWarmCache = TtlLruCache<String, StreamResolutionResult>(maxSize = 10, ttlMs = 5 * 60 * 1000L)
 
     init {
         val id = savedStateHandle.get<String>("id")
@@ -70,7 +66,7 @@ class DetailViewModel @Inject constructor(
         if (id != null && url != null) {
             loadDetail(id, url, alternate)
         } else {
-            _state.value = DetailState.Error("Відсутні дані для завантаження")
+            _state.value = DetailState.Error(AppError.UnknownError("Відсутні дані для завантаження"))
         }
     }
 
@@ -126,7 +122,9 @@ class DetailViewModel @Inject constructor(
             }.onFailure { e ->
                 ua.ukrtv.app.util.Perf.end("detail:load", "DetailVM")
                 AppLogger.d("DetailVM", "Detail load FAILED: ${e.message}")
-                _state.value = DetailState.Error(e.message ?: "Не вдалося завантажити деталі")
+                val appError = if (e is java.io.IOException) AppError.NetworkError(e.message ?: "Помилка мережі")
+                               else AppError.ParsingError(e.message ?: "Не вдалося завантажити деталі")
+                _state.value = DetailState.Error(appError)
             }
             PerformanceMonitor.end()
         }
@@ -150,37 +148,28 @@ class DetailViewModel @Inject constructor(
 
         preWarmJob = viewModelScope.launch {
             try {
+                delay(500)
                 AppLogger.d("DetailVM", "Pre-warming S${targetSeason}E${targetEpisode} for ${detail.title}")
-                val result = streamResolver.resolve(
+                streamResolver.resolve(
                     url = detail.pageUrl,
                     season = targetSeason,
                     episode = targetEpisode,
                     isDeep = !isSeries
                 )
-                if (result != null) {
-                    val cacheKey = "${detail.pageUrl}|${targetSeason}|${targetEpisode}"
-                    preWarmCache.put(cacheKey, result)
-                } else {
-                    val otherProvider = when {
-                        detail.pageUrl.contains("uakino") -> providerManager.eneyidaProvider
-                        detail.pageUrl.contains("eneyida") -> providerManager.uakinoProvider
-                        else -> null
-                    }
-                    if (otherProvider != null) {
-                        AppLogger.d("DetailVM", "Pre-warm primary failed, trying ${otherProvider.name} fallback for ${detail.title}")
-                        val match = otherProvider.search(detail.title, limit = 5).firstOrNull()
-                        if (match != null) {
-                            val fallbackResult = streamResolver.resolve(
-                                url = match.url,
-                                season = targetSeason,
-                                episode = targetEpisode,
-                                isDeep = !isSeries
-                            )
-                            if (fallbackResult != null) {
-                                val cacheKey = "${match.url}|${targetSeason}|${targetEpisode}"
-                                preWarmCache.put(cacheKey, fallbackResult)
-                            }
-                        }
+                val otherProvider = when {
+                    detail.pageUrl.contains("uakino") -> providerManager.eneyidaProvider
+                    detail.pageUrl.contains("eneyida") -> providerManager.uakinoProvider
+                    else -> null
+                }
+                if (otherProvider != null) {
+                    val match = otherProvider.search(detail.title, limit = 5).firstOrNull()
+                    if (match != null) {
+                        streamResolver.resolve(
+                            url = match.url,
+                            season = targetSeason,
+                            episode = targetEpisode,
+                            isDeep = !isSeries
+                        )
                     }
                 }
                 AppLogger.d("DetailVM", "Pre-warm complete for ${detail.title}")
@@ -194,10 +183,7 @@ class DetailViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val cacheKey = "${detail.pageUrl}|${season}|${episode}"
-                val cachedRes = preWarmCache.get(cacheKey)
-
-                val res = cachedRes ?: withContext(Dispatchers.IO) {
+                val res = withContext(Dispatchers.IO) {
                     streamResolver.resolve(
                         url = detail.pageUrl,
                         referer = "",
@@ -208,9 +194,6 @@ class DetailViewModel @Inject constructor(
                 }
 
                 if (res != null) {
-                    val dsFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
-                        .setUserAgent(ua.ukrtv.app.Constants.USER_AGENT)
-                    warmupManager.warmup(url = res.streamUrl, dataSourceFactory = dsFactory)
                     _launchState.value = MediaLaunchState.Ready(
                         contentId = detail.id,
                         title = detail.title,
@@ -244,9 +227,6 @@ class DetailViewModel @Inject constructor(
                                     )
                                 }
                                 if (res2 != null) {
-                                    val dsFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient)
-                                        .setUserAgent(ua.ukrtv.app.Constants.USER_AGENT)
-                                    warmupManager.warmup(url = res2.streamUrl, dataSourceFactory = dsFactory)
                                     _launchState.value = MediaLaunchState.Ready(
                                         contentId = detail.id,
                                         title = detail.title,
@@ -267,15 +247,17 @@ class DetailViewModel @Inject constructor(
                             AppLogger.e("DetailViewModel", "${otherProvider.name} fallback error for ${detail.title}", e)
                         }
                     }
-                    _launchState.value = MediaLaunchState.Error("Стрім не знайдено")
+                    _launchState.value = MediaLaunchState.Error(AppError.StreamNotFoundError("Стрім не знайдено"))
                     AppLogger.e("DetailViewModel", "All providers failed for ${detail.title}")
                 }
             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                _launchState.value = MediaLaunchState.Error("Час очікування вичерпано")
+                _launchState.value = MediaLaunchState.Error(AppError.NetworkError("Час очікування вичерпано"))
                 AppLogger.e("DetailViewModel", "Stream resolve timeout for ${detail.title}", e)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
-                    _launchState.value = MediaLaunchState.Error(e.message ?: "Помилка розв'язання стріму")
+                    val appError = if (e is java.io.IOException) AppError.NetworkError(e.message ?: "Помилка мережі")
+                                   else AppError.UnknownError(e.message ?: "Помилка розв'язання стріму")
+                    _launchState.value = MediaLaunchState.Error(appError)
                     AppLogger.e("DetailViewModel", "Stream resolve failed for ${detail.title}", e)
                 }
             }
@@ -300,7 +282,7 @@ class DetailViewModel @Inject constructor(
                         poster = detail.poster,
                         pageUrl = detail.pageUrl,
                         rating = detail.rating,
-                        year = detail.year?.toIntOrNull(),
+                        year = detail.year,
                         contentType = if (detail.seasons == null) "movie" else "series"
                     )
                 )

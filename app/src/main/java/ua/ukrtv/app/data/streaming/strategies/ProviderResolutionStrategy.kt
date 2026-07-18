@@ -18,11 +18,7 @@ class ProviderResolutionStrategy @Inject constructor(
     }
 
     override suspend fun resolve(url: String, context: ResolutionContext): StreamResolutionResult? {
-        val source = try {
-            streamManager.getStream(url, context.season, context.episode, context.isDeep, context.prefetchedHtml)
-        } catch (e: Exception) {
-            null
-        } ?: return null
+        val source = streamManager.getStream(url, context.season, context.episode, context.isDeep, context.prefetchedHtml) ?: return null
 
         var streamUrl = source.primaryUrl ?: return null
         var fallbackUrls = fallbackStreams(source)

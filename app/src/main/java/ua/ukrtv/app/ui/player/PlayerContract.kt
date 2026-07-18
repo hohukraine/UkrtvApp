@@ -1,5 +1,6 @@
 package ua.ukrtv.app.ui.player
 
+import androidx.compose.runtime.Stable
 import ua.ukrtv.app.domain.model.AppError
 import ua.ukrtv.app.domain.model.Season
 import ua.ukrtv.app.domain.model.StreamType
@@ -9,9 +10,14 @@ data class CodecInfo(val mimeType: String, val displayName: String)
 
 enum class ScaleMode(val label: String) {
     FIT("Оригінал"),
-    ZOOM("Весь екран")
+    ZOOM("Весь екран"),
+    ASPECT_16_9("16:9"),
+    ASPECT_4_3("4:3"),
+    FILL("Заповнити"),
+    ORIGINAL("1:1")
 }
 
+@Stable
 data class PlayerState(
     val status: PlayerStatus = PlayerStatus.Idle,
     val isPlaying: Boolean = false,
@@ -32,9 +38,15 @@ data class PlayerState(
     val pickerColumns: List<PickerColumn> = emptyList(),
     val pickerFocusedIndex: Int = 0,
     val currentCodecDisplay: String = "",
-    val availableCodecs: List<CodecInfo> = emptyList(),
-    val shouldLaunchVlc: Boolean = false
+    val availableCodecs: List<CodecInfo> = emptyList()
 )
+
+sealed class ExternalPlayerReturnResult {
+    data object Advanced : ExternalPlayerReturnResult()
+    data class NotFinished(val positionMs: Long, val durationMs: Long) : ExternalPlayerReturnResult()
+    data object NoData : ExternalPlayerReturnResult()
+    data object Error : ExternalPlayerReturnResult()
+}
 
 sealed class PlayerStatus {
     object Idle : PlayerStatus()

@@ -10,28 +10,37 @@ import coil.request.ImageRequest
 import coil.request.SuccessResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.concurrent.ConcurrentHashMap
+import java.util.Collections
 
 object PosterColorCache {
 
-    private val cache = ConcurrentHashMap<String, Color>()
-    private const val MAX_SIZE = 200
+    private const val MAX_SIZE = 150
+    private val cache = Collections.synchronizedMap(
+        object : LinkedHashMap<String, Color>(MAX_SIZE, 0.75f, true) {
+            override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Color>?): Boolean {
+                return size > MAX_SIZE
+            }
+        }
+    )
 
     suspend fun getColor(context: Context, posterUrl: String, fallback: Color = Color(0xFF1A1A1A)): Color {
         cache[posterUrl]?.let { return it }
-        val color = withContext(Dispatchers.IO) {
+        val color = withContext(Dispatchers.Default) {
             try {
                 val loader = context.imageLoader
                 val request = ImageRequest.Builder(context)
                     .data(posterUrl)
                     .size(50, 75)
                     .bitmapConfig(Bitmap.Config.RGB_565)
+                    .allowHardware(false) // Required for Palette
                     .build()
                 val result = loader.execute(request)
                 if (result is SuccessResult) {
                     val drawable = result.drawable
                     if (drawable is BitmapDrawable) {
-                        val palette = Palette.from(drawable.bitmap).generate()
+                        val palette = Palette.from(drawable.bitmap)
+                            .maximumColorCount(8) // Performance: few colors for UI accents
+                            .generate()
                         val swatch = palette.vibrantSwatch
                             ?: palette.mutedSwatch
                             ?: palette.darkVibrantSwatch
@@ -42,7 +51,6 @@ object PosterColorCache {
             } catch (_: Exception) { }
             fallback
         }
-        if (cache.size >= MAX_SIZE) cache.clear()
         cache[posterUrl] = color
         return color
     }

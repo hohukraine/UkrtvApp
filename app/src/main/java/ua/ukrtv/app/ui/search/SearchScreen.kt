@@ -263,6 +263,7 @@ fun SearchScreen(
     HomeBackground(
         brandColor = providerColor,
         focusedColor = providerColor,
+        scrollFraction = { 0f },
         modifier = Modifier.fillMaxSize()
     ) {
         Column(
@@ -503,7 +504,7 @@ fun SearchScreen(
                                 val colSpacing = if (isPhone) PhoneGridDefaults.columnSpacing else GridDefaults.columnSpacing
                                 val rowSpacing = if (isPhone) PhoneGridDefaults.rowSpacing else GridDefaults.rowSpacing
 
-                                val rows = trending.take(if (isPhone) 9 else 12).chunked(columns)
+                                val rows = trending.chunked(columns)
                                 items(rows.size) { rowIndex ->
                                     val rowItems = rows[rowIndex]
                                     Row(

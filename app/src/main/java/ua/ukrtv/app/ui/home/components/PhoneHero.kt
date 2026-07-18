@@ -38,7 +38,7 @@ fun PhoneHeroSection(
     brandColor: Color,
     onItemClick: (Top200Movie) -> Unit,
     onActiveMovieChange: (Top200Movie) -> Unit,
-    scrollFraction: Float,
+    scrollFraction: () -> Float,
     screenHeightDp: Float,
 ) {
     if (items.isEmpty()) return
@@ -70,8 +70,9 @@ fun PhoneHeroSection(
             .height(heroHeight)
             .graphicsLayer {
                 val h = size.height
-                translationY = -scrollFraction * h * 0.15f
-                alpha = (1f - scrollFraction).coerceIn(0f, 1f)
+                val f = scrollFraction()
+                translationY = -f * h * 0.15f
+                alpha = (1f - f).coerceIn(0f, 1f)
             }
             .pointerInput(Unit) {
                 detectDragGestures(

@@ -11,7 +11,10 @@ data class WatchProgress(
     val title: String = "",
     val poster: String = "",
     val pageUrl: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val streamUrl: String? = null,
+    val streamType: String? = null,
+    val referer: String? = null
 ) {
     val progressPercentage: Int get() = if (durationMs > 0) {
         ((positionMs.toDouble() / durationMs.toDouble()) * 100).toInt().coerceIn(0, 100)

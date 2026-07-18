@@ -1,10 +1,20 @@
 package ua.ukrtv.app.domain.model
 
-sealed class AppError(val message: String, val cause: Throwable? = null) {
-    class NetworkError(message: String, cause: Throwable? = null) : AppError(message, cause)
-    class ParsingError(message: String, cause: Throwable? = null) : AppError(message, cause)
-    class ProviderBlockedError(val providerName: String, message: String) : AppError(message)
-    class StreamNotFoundError(message: String) : AppError(message)
-    class CodecFailureError(message: String, cause: Throwable? = null) : AppError(message, cause)
-    class UnknownError(message: String, cause: Throwable? = null) : AppError(message, cause)
+import android.os.Parcelable
+import kotlinx.parcelize.Parcelize
+
+@Parcelize
+sealed class AppError(val message: String) : Parcelable {
+    @Parcelize
+    class NetworkError(private val _message: String) : AppError(_message)
+    @Parcelize
+    class ParsingError(private val _message: String) : AppError(_message)
+    @Parcelize
+    class ProviderBlockedError(val providerName: String, private val _message: String) : AppError(_message)
+    @Parcelize
+    class StreamNotFoundError(private val _message: String) : AppError(_message)
+    @Parcelize
+    class CodecFailureError(private val _message: String) : AppError(_message)
+    @Parcelize
+    class UnknownError(private val _message: String) : AppError(_message)
 }

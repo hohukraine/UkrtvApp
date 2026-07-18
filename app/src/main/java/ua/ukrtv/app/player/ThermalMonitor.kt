@@ -6,6 +6,7 @@ import android.os.PowerManager
 import androidx.core.content.getSystemService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import ua.ukrtv.app.util.AppLogger
@@ -41,9 +42,18 @@ class ThermalMonitor @Inject constructor(
             return@callbackFlow
         }
 
+        var lastEmitTime = 0L
+        val debounceMs = 5_000L
+
         val listener = PowerManager.OnThermalStatusChangedListener { status ->
-            AppLogger.d("ThermalMonitor", "Thermal status changed: $status")
-            trySend(status)
+            val now = System.currentTimeMillis()
+            if (now - lastEmitTime >= debounceMs) {
+                AppLogger.d("ThermalMonitor", "Thermal status changed: $status")
+                trySend(status)
+                lastEmitTime = now
+            } else {
+                AppLogger.d("ThermalMonitor", "Thermal status $status debounced")
+            }
         }
 
         powerManager.addThermalStatusListener(listener)

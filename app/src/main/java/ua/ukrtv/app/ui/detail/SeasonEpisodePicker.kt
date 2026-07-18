@@ -40,7 +40,7 @@ import ua.ukrtv.app.util.DeviceClass
 @Composable
 fun SeasonEpisodePicker(
     seasons: List<Season>,
-    onEpisodeClick: (Int, Episode) -> Unit,
+    onEpisodeClick: (Int, Episode, String?) -> Unit,
     accentColor: Color = Color(0xFF6E85B7),
     modifier: Modifier = Modifier
 ) {
@@ -52,11 +52,27 @@ fun SeasonEpisodePicker(
         mutableStateOf(distinctSeasons.firstOrNull()?.number ?: 1)
     }
     val selectedSeason = distinctSeasons.find { it.number == selectedSeasonNum }
-    val episodes = remember(selectedSeason) {
-        selectedSeason?.episodes?.distinctBy { it.number }?.sortedBy { it.number } ?: emptyList()
+
+    val voiceoverOptions = remember(selectedSeason) {
+        selectedSeason?.voiceoverOptions?.filter { it.isNotBlank() } ?: emptyList()
+    }
+    var selectedVoiceover by remember(voiceoverOptions) {
+        mutableStateOf(voiceoverOptions.firstOrNull())
     }
 
-    // Season-scoped entrance trigger
+    val episodes = remember(selectedSeason, selectedVoiceover) {
+        if (selectedVoiceover != null && selectedSeason != null) {
+            selectedSeason.voiceovers
+                .find { it.name == selectedVoiceover }
+                ?.episodes
+                ?.distinctBy { it.number }
+                ?.sortedBy { it.number }
+                ?: selectedSeason.episodes.distinctBy { it.number }.sortedBy { it.number }
+        } else {
+            selectedSeason?.episodes?.distinctBy { it.number }?.sortedBy { it.number } ?: emptyList()
+        }
+    }
+
     var entranceTrigger by remember(seasonKey) { mutableStateOf(0L) }
     LaunchedEffect(seasonKey) {
         entranceTrigger = System.currentTimeMillis()
@@ -117,6 +133,47 @@ fun SeasonEpisodePicker(
             }
         }
 
+        // Voiceover pills
+        if (voiceoverOptions.size > 1) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                itemsIndexed(voiceoverOptions, key = { _, vo -> vo }) { _, vo ->
+                    val isSelected = selectedVoiceover == vo
+                    Surface(
+                        onClick = { selectedVoiceover = vo },
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = if (isSelected) accentColor.copy(alpha = 0.2f) else Color.Transparent,
+                            focusedContainerColor = accentColor.copy(alpha = 0.3f),
+                            contentColor = if (isSelected) Color.White else accentColor.copy(alpha = 0.6f),
+                            focusedContentColor = Color.White
+                        ),
+                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
+                        border = ClickableSurfaceDefaults.border(
+                            border = Border(
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, if (isSelected) accentColor else accentColor.copy(alpha = 0.3f)
+                                )
+                            ),
+                            focusedBorder = Border(
+                                border = androidx.compose.foundation.BorderStroke(2.dp, accentColor)
+                            )
+                        ),
+                        modifier = Modifier.semantics { contentDescription = vo }
+                    ) {
+                        Text(
+                            text = vo,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+
         // Episode rail
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             itemsIndexed(episodes, key = { _, ep -> "${selectedSeasonNum}_${ep.number}" }) { index, episode ->
@@ -127,7 +184,7 @@ fun SeasonEpisodePicker(
                     index = index,
                     entranceTrigger = entranceTrigger,
                     deviceClass = deviceClass,
-                    onClick = { onEpisodeClick(selectedSeasonNum, episode) }
+                    onClick = { onEpisodeClick(selectedSeasonNum, episode, selectedVoiceover) }
                 )
             }
         }

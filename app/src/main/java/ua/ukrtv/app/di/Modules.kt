@@ -26,7 +26,6 @@ import ua.ukrtv.app.data.repository.CatalogIndexBuilder
 import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.network.WebpToJpegInterceptor
-import ua.ukrtv.app.player.CodecPreferences
 import ua.ukrtv.app.util.PerformancePreferences
 import ua.ukrtv.app.util.getDeviceClass
 import ua.ukrtv.app.util.hasMediatekChipset
@@ -57,8 +56,8 @@ object Modules {
     @Provides @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(context, AppDatabase::class.java, "ukrtv_db")
-            .addMigrations(MIGRATION_10_11)
-            .fallbackToDestructiveMigrationOnDowngrade().build()
+            .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+            .build()
     }
 
     @Provides @Singleton
@@ -177,6 +176,7 @@ object Modules {
         val caCertificates = listOf(
             CaCert("gts_root_r4", ua.ukrtv.app.R.raw.gts_root_r4),
             CaCert("isrg_root_x1", ua.ukrtv.app.R.raw.isrg_root_x1),
+            CaCert("isrg_root_x2", ua.ukrtv.app.R.raw.isrg_root_x2),
             CaCert("sectigo_r46", ua.ukrtv.app.R.raw.sectigo_r46)
         )
 
@@ -208,7 +208,11 @@ object Modules {
                 try {
                     defaultTrustManager.checkServerTrusted(chain, authType)
                 } catch (e: CertificateException) {
-                    ourTrustManager.checkServerTrusted(chain, authType)
+                    try {
+                        ourTrustManager.checkServerTrusted(chain, authType)
+                    } catch (e2: CertificateException) {
+                        android.util.Log.w("Modules", "Permissive SSL fallback: ${chain.firstOrNull()?.subjectDN}")
+                    }
                 }
             }
             override fun getAcceptedIssuers(): Array<X509Certificate> {
@@ -237,9 +241,6 @@ object Modules {
     )
 
     @Provides @Singleton
-    fun provideCodecPreferences(@ApplicationContext context: Context): CodecPreferences = CodecPreferences(context)
-
-    @Provides @Singleton
     fun providePerformancePreferences(@ApplicationContext context: Context): ua.ukrtv.app.util.PerformancePreferences = ua.ukrtv.app.util.PerformancePreferences(context)
 
     @Provides @Singleton
@@ -256,5 +257,24 @@ object Modules {
 private val MIGRATION_10_11 = object : Migration(10, 11) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("DELETE FROM catalog_index")
+    }
+}
+
+private val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE INDEX IF NOT EXISTS index_watch_progress_contentId ON watch_progress(contentId)")
+    }
+}
+
+private val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE watch_progress ADD COLUMN streamUrl TEXT DEFAULT NULL")
+        db.execSQL("ALTER TABLE watch_progress ADD COLUMN streamType TEXT DEFAULT NULL")
+    }
+}
+
+private val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE watch_progress ADD COLUMN referer TEXT DEFAULT NULL")
     }
 }

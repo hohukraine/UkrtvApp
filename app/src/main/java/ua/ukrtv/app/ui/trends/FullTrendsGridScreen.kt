@@ -10,6 +10,7 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
@@ -45,7 +46,6 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import kotlinx.coroutines.delay
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.home.components.HomeBackground
 import ua.ukrtv.app.ui.theme.Background
@@ -107,7 +107,7 @@ private fun TvFullTrendsGridScreen(
     HomeBackground(
         brandColor = providerColor,
         focusedColor = providerColor,
-        scrollFraction = scrollFraction,
+        scrollFraction = { scrollFraction },
         modifier = Modifier.fillMaxSize()
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -206,13 +206,14 @@ private fun TvFullTrendsGridScreen(
                         }
                     }
                 }
-                itemsIndexed(items, key = { _, movie -> "${movie.pageUrl}_${movie.season ?: ""}_${movie.episode ?: ""}" }) { index, movie ->
+                itemsIndexed(items, key = { _, movie -> "${movie.pageUrl}_${movie.season ?: ""}_${movie.episode ?: ""}" }, contentType = { _, _ -> "movie" }) { index, movie ->
                     CompactGridCard(
                         movie = movie,
                         onClick = { onMovieClick(movie) },
                         entranceIndex = index,
                         entranceTrigger = entranceTrigger,
-                        deviceClass = deviceClass
+                        deviceClass = deviceClass,
+                        gridState = gridState
                     )
                 }
             }
@@ -227,7 +228,8 @@ private fun CompactGridCard(
     onClick: () -> Unit,
     entranceIndex: Int = 0,
     entranceTrigger: Long = 0L,
-    deviceClass: DeviceClass = DeviceClass.MID
+    deviceClass: DeviceClass = DeviceClass.MID,
+    gridState: LazyGridState? = null
 ) {
     val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -248,7 +250,11 @@ private fun CompactGridCard(
     var itemVisible by remember(entranceTrigger, entranceIndex) { mutableStateOf(deviceClass == DeviceClass.LOW) }
     LaunchedEffect(entranceTrigger, entranceIndex) {
         if (deviceClass != DeviceClass.LOW) {
-            delay((entranceIndex * staggerMs).toLong())
+            val isInitialVisible = gridState == null || entranceIndex <= gridState.layoutInfo.visibleItemsInfo.size
+            if (!isInitialVisible) {
+                itemVisible = true
+                return@LaunchedEffect
+            }
             itemVisible = true
         }
     }
@@ -420,7 +426,7 @@ private fun PhoneFullTrendsGridScreen(
                     verticalArrangement = Arrangement.spacedBy(PhoneGridDefaults.rowSpacing),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    items(items, key = { "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" }) { movie ->
+                    items(items, key = { "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" }, contentType = { _ -> "movie" }) { movie ->
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()

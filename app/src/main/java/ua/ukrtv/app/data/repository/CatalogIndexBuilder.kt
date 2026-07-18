@@ -29,8 +29,8 @@ class CatalogIndexBuilder @Inject constructor(
     private val htmlHttpClient: HtmlHttpClient,
     private val catalogDao: CatalogIndexDao
 ) {
-    private val buildTimeoutMs = 60_000L
-    private val incrementalMaxEmptyPages = 3
+    private val buildTimeoutMs = 180_000L
+    private val incrementalMaxEmptyPages = 5
 
     suspend fun buildForProvider(profile: DleProviderProfile, sources: List<CatalogSource>): CatalogBuildResult =
         withContext(Dispatchers.IO) {
@@ -44,7 +44,6 @@ class CatalogIndexBuilder @Inject constructor(
             for (source in sources) {
                 var page = 1
                 var hasMore = true
-                val pageItems = mutableListOf<CatalogIndexEntity>()
 
                 while (hasMore) {
                     if (System.currentTimeMillis() - startTime > buildTimeoutMs) {
@@ -59,7 +58,11 @@ class CatalogIndexBuilder @Inject constructor(
                         val items = parseCategoryPage(html, profile.baseUrl, source.contentType, profile)
                         if (items.isEmpty()) { hasMore = false; break }
 
-                        pageItems.addAll(items)
+                        // Chunked insertion instead of collecting all items in memory
+                        items.chunked(50).forEach { chunk ->
+                            catalogDao.insertAll(chunk)
+                        }
+                        totalItems += items.size
                         totalPages++
                     } catch (e: Exception) {
                         totalErrors++
@@ -67,13 +70,6 @@ class CatalogIndexBuilder @Inject constructor(
                         hasMore = false
                     }
                     page++
-                }
-
-                if (pageItems.isNotEmpty()) {
-                    pageItems.chunked(100).forEach { chunk ->
-                        catalogDao.insertAll(chunk)
-                    }
-                    totalItems += pageItems.size
                 }
             }
 
@@ -124,7 +120,7 @@ class CatalogIndexBuilder @Inject constructor(
                             emptyPagesInRow++
                         } else {
                             emptyPagesInRow = 0
-                            newItems.chunked(100).forEach { chunk ->
+                            newItems.chunked(50).forEach { chunk ->
                                 catalogDao.insertAll(chunk)
                             }
                             totalNewItems += newItems.size

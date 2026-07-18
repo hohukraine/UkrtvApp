@@ -222,7 +222,7 @@ private fun HomeScreenContent(
         focusedColor = focusColor,
         brandColor = providerColor,
         backdropColor = if (heroActive && activeBannerAccent != null) activeBannerAccent else Color.Unspecified,
-        scrollFraction = scrollFraction
+        scrollFraction = { scrollFraction }
     ) {
         // Sync banner accent with background ambient
         LaunchedEffect(activeBannerAccent, heroActive) {
@@ -231,7 +231,7 @@ private fun HomeScreenContent(
             }
         }
 
-        BannerBackdrop(activeBannerMovie, activeBannerAccent, heroActive && activeBannerMovie != null, scrollFraction)
+        BannerBackdrop(activeBannerMovie, activeBannerAccent, heroActive && activeBannerMovie != null, { scrollFraction })
 
         Column {
             if (heroActive) {
@@ -239,7 +239,7 @@ private fun HomeScreenContent(
                     brandColor = providerColor,
                     providers = providers,
                     currentProviderId = currentProviderId,
-                    scrollFraction = scrollFraction,
+                    scrollFraction = { scrollFraction },
                     onSearchClick = onSearchClick,
                     onProviderClick = onProviderClick,
                     onSettingsClick = onSettingsClick
@@ -366,7 +366,7 @@ private fun HomeScreenContent(
 }
 
 @Composable
-private fun BannerBackdrop(movie: Top200Movie?, accent: Color?, visible: Boolean, scrollFraction: Float = 0f) {
+private fun BannerBackdrop(movie: Top200Movie?, accent: Color?, visible: Boolean, scrollFraction: () -> Float = { 0f }) {
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
     val parallaxFactor = when (deviceClass) {
@@ -383,8 +383,9 @@ private fun BannerBackdrop(movie: Top200Movie?, accent: Color?, visible: Boolean
                 .height(HeroDefaults.height + 80.dp)
                 .graphicsLayer {
                     val h = size.height
-                    translationY = -scrollFraction * h * parallaxFactor
-                    alpha = (1f - scrollFraction).coerceIn(0f, 1f)
+                    val f = scrollFraction()
+                    translationY = -f * h * parallaxFactor
+                    alpha = (1f - f).coerceIn(0f, 1f)
                 }
             ) {
                 if (movie.backdropUrl.isNotEmpty()) {
@@ -425,8 +426,9 @@ private fun BannerBackdrop(movie: Top200Movie?, accent: Color?, visible: Boolean
                 }
                 .graphicsLayer {
                     val h = size.height
-                    translationY = -scrollFraction * h * parallaxFactor
-                    alpha = (1f - scrollFraction).coerceIn(0f, 1f)
+                    val f = scrollFraction()
+                    translationY = -f * h * parallaxFactor
+                    alpha = (1f - f).coerceIn(0f, 1f)
                 }
             ) {
                 if (movie.backdropUrl.isNotEmpty()) {
@@ -616,7 +618,7 @@ private fun PhoneHomeScreen(
                         brandColor = providerColor,
                         onItemClick = { movie -> onSearchQueryClick(movie.title) },
                         onActiveMovieChange = { activeTop200Movie = it },
-                        scrollFraction = scrollFraction,
+                        scrollFraction = { scrollFraction },
                         screenHeightDp = screenHeightDp.toFloat()
                     )
                 }

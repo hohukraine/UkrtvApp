@@ -1,12 +1,13 @@
 package ua.ukrtv.app.util
 
 import android.util.Log
+import ua.ukrtv.app.BuildConfig
 import java.util.concurrent.ConcurrentHashMap
 
 object AppLogger {
 
     private const val DEFAULT_TAG = "UkrtvApp"
-    private var isDebug = true
+    private var isDebug = BuildConfig.DEBUG
     private var fileLoggerInitialized = false
 
     fun init(context: android.content.Context) {

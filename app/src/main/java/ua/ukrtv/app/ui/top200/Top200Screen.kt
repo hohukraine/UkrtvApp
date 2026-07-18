@@ -4,10 +4,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,36 +30,35 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import kotlinx.coroutines.delay
-import ua.ukrtv.app.ui.theme.Background
-import ua.ukrtv.app.ui.theme.FormFactor
-import ua.ukrtv.app.ui.theme.Gold
-import ua.ukrtv.app.ui.theme.LocalFormFactor
-import ua.ukrtv.app.ui.theme.LocalDeviceClass
-import ua.ukrtv.app.ui.theme.LocalIsMediatek
-import ua.ukrtv.app.ui.theme.OnSurface
-import ua.ukrtv.app.ui.theme.OnSurfaceDim
-import ua.ukrtv.app.ui.theme.OnSurfaceVariant
-import ua.ukrtv.app.ui.theme.OverlayLight
-import ua.ukrtv.app.ui.theme.SurfaceFocus
-import ua.ukrtv.app.ui.theme.SurfaceVariant
-import ua.ukrtv.app.ui.theme.deviceImage
-import ua.ukrtv.app.ui.components.RatingCircle
-import ua.ukrtv.app.domain.model.Top200Movie
-import ua.ukrtv.app.util.DeviceClass
-import ua.ukrtv.app.data.repository.Top200Repository
-import androidx.lifecycle.ViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import ua.ukrtv.app.data.repository.Top200Repository
+import ua.ukrtv.app.domain.model.Top200Movie
+import ua.ukrtv.app.ui.components.RatingCircle
+import ua.ukrtv.app.ui.theme.*
+import ua.ukrtv.app.util.DeviceClass
 import javax.inject.Inject
 
 @HiltViewModel
 class Top200ViewModel @Inject constructor(
     private val repository: Top200Repository
 ) : ViewModel() {
-    val movies = repository.getTop200()
+    private val _movies = MutableStateFlow<List<Top200Movie>>(emptyList())
+    val movies = _movies.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            _movies.value = repository.getTop200()
+        }
+    }
 }
 
 @Composable
@@ -82,6 +81,7 @@ private fun TvTop200Screen(
     onMovieClick: (Top200Movie) -> Unit,
     onBack: () -> Unit
 ) {
+    val movies by viewModel.movies.collectAsState()
     var isBackReady by remember { mutableStateOf(false) }
     val listFocusRequester = remember { FocusRequester() }
 
@@ -152,7 +152,7 @@ private fun TvTop200Screen(
             contentPadding = PaddingValues(bottom = 48.dp),
             modifier = Modifier.focusRequester(listFocusRequester)
         ) {
-            items(viewModel.movies, key = { it.rank }) { movie ->
+            items(movies, key = { it.rank }) { movie ->
                 Surface(
                     onClick = { onMovieClick(movie) },
                     shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
@@ -266,6 +266,7 @@ private fun PhoneTop200Screen(
     onMovieClick: (Top200Movie) -> Unit,
     onBack: () -> Unit
 ) {
+    val movies by viewModel.movies.collectAsState()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -293,7 +294,7 @@ private fun PhoneTop200Screen(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(viewModel.movies, key = { it.rank }) { movie ->
+            items(movies, key = { it.rank }) { movie ->
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

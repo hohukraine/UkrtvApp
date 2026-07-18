@@ -59,7 +59,7 @@ val UakinoProfile = DleProviderProfile(
     ),
     categoryPaths = mapOf(
         ContentCategory.TRENDS to "find/year/2026/f/sort=rating;desc/",
-        ContentCategory.MOVIES to "filmy/online/",
+        ContentCategory.MOVIES to "ua/",
         ContentCategory.SERIES to "seriesss/online/",
         ContentCategory.ANIME to "animeukr/online/",
         ContentCategory.CARTOONS to "cartoon/online/",
@@ -100,7 +100,7 @@ val EneyidaProfile = DleProviderProfile(
     ),
     categoryPaths = mapOf(
         ContentCategory.TRENDS to "f/sort=rating/order=desc/",
-        ContentCategory.MOVIES to "films/",
+        ContentCategory.MOVIES to "",
         ContentCategory.SERIES to "series/",
         ContentCategory.ANIME to "anime/",
         ContentCategory.CARTOONS to "cartoon/",

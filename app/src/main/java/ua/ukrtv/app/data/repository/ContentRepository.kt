@@ -31,7 +31,7 @@ class ContentRepository @Inject constructor(
     private val catalogDao: CatalogIndexDao
 ) {
     private val homeSource = HomeGridSource(homeCacheRepository)
-    private val searchSource = SearchSource(providerManager, catalogDao)
+    private val searchSource = SearchSource(providerManager, catalogRepository, catalogDao)
     private val detailSource = DetailSource(providerManager, streamResolver)
     private val trendsCache = TtlLruCache<String, List<Movie>>(maxSize = 5, ttlMs = 15 * 60 * 1000L)
 
@@ -39,7 +39,6 @@ class ContentRepository @Inject constructor(
 
     init {
         cleanupOldCaches()
-        catalogRepository.ensureBuilt()
     }
 
     private fun cleanupOldCaches() {
@@ -109,7 +108,7 @@ class ContentRepository @Inject constructor(
             allProgress
                 .filter { it.progressPercentage in 1..94 }
                 .sortedByDescending { it.timestamp }
-                .distinctBy { it.pageUrl }
+                .distinctBy { ContentUtils.cleanTitle(it.title) }
                 .mapNotNull { progress ->
                     val pUrl = progress.pageUrl
                     if (pUrl.isEmpty()) return@mapNotNull null

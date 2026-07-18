@@ -29,5 +29,5 @@ sealed class MediaLaunchState : Parcelable {
     ) : MediaLaunchState()
     
     @Parcelize
-    data class Error(val message: String) : MediaLaunchState()
+    data class Error(val error: AppError) : MediaLaunchState()
 }

@@ -37,7 +37,7 @@ class DleParser(private val profile: DleProviderProfile) {
         return fullDetail.copy(
             title = if (title.isNotEmpty()) ContentUtils.cleanTitle(title) else fullDetail.title,
             poster = if (poster.isNotEmpty() && profile.selectors.detailPoster == null) DleResolutionUtils.ensureAbsoluteUrl(poster, url) else fullDetail.poster,
-            year = year ?: fullDetail.year
+            year = year?.toIntOrNull() ?: fullDetail.year
         )
     }
 
@@ -143,6 +143,9 @@ class DleParser(private val profile: DleProviderProfile) {
             IMDB_FULL_REGEX.find(container.text())?.groupValues?.get(1)
         }
 
+        val yearStr = cachedExtractMetadata("year").firstOrNull()
+        val year = yearStr?.let { DIGIT_REGEX.find(it)?.value?.toIntOrNull() }
+
         return MovieDetail(
             id = url,
             title = ContentUtils.cleanTitle(title),
@@ -152,7 +155,7 @@ class DleParser(private val profile: DleProviderProfile) {
                 .takeIf { !it.isNullOrBlank() }
                 ?: doc.selectFirst("meta[property=og:image]")?.attr("abs:content") ?: "",
             description = description,
-            year = null, 
+            year = year,
             genres = genres,
             pageUrl = url,
             providerName = profile.name,

@@ -1,8 +1,10 @@
 package ua.ukrtv.app.ui.settings
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,6 +13,8 @@ import ua.ukrtv.app.BuildConfig
 import ua.ukrtv.app.data.repository.InstallResult
 import ua.ukrtv.app.data.repository.UpdateRepository
 import ua.ukrtv.app.domain.model.UpdateInfo
+import ua.ukrtv.app.player.ExternalPlayerInfo
+import ua.ukrtv.app.player.ExternalPlayerLauncher
 import ua.ukrtv.app.util.PerformancePreferences
 import ua.ukrtv.app.util.PerformanceProfile
 import ua.ukrtv.app.util.PlayerPreferences
@@ -30,6 +34,7 @@ sealed class UpdateState {
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val performancePreferences: PerformancePreferences,
     private val playerPreferences: PlayerPreferences,
     private val updateRepository: UpdateRepository
@@ -39,10 +44,25 @@ class SettingsViewModel @Inject constructor(
 
     val playerType: StateFlow<PlayerType> = playerPreferences.playerType
 
+    val externalPlayerPackage: StateFlow<String> = playerPreferences.externalPlayerPackage
+
+    private val _installedPlayers = MutableStateFlow<List<ExternalPlayerInfo>>(emptyList())
+    val installedPlayers: StateFlow<List<ExternalPlayerInfo>> = _installedPlayers.asStateFlow()
+
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
 
     private var downloadedApk: java.io.File? = null
+
+    private val externalPlayerLauncher by lazy { ExternalPlayerLauncher(appContext) }
+
+    init {
+        refreshInstalledPlayers()
+    }
+
+    fun refreshInstalledPlayers() {
+        _installedPlayers.value = externalPlayerLauncher.detectInstalledPlayers()
+    }
 
     fun setPerformanceProfile(profile: PerformanceProfile) {
         performancePreferences.setProfile(profile)
@@ -50,6 +70,10 @@ class SettingsViewModel @Inject constructor(
 
     fun setPlayerType(type: PlayerType) {
         playerPreferences.setPlayerType(type)
+    }
+
+    fun setExternalPlayerPackage(packageName: String) {
+        playerPreferences.setExternalPlayerPackage(packageName)
     }
 
     fun checkForUpdates() {

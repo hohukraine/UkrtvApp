@@ -56,7 +56,7 @@ class MainActivity : ComponentActivity() {
         val formFactor = detectFormFactor(this)
         isTv = formFactor == FormFactor.TV
         requestedOrientation = if (isTv) {
-            ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+            ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         } else {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
@@ -109,7 +109,9 @@ fun UkrtvTVApp() {
         { movie: ua.ukrtv.app.domain.model.Movie ->
             ua.ukrtv.app.util.Perf.start("nav:home2detail")
             ua.ukrtv.app.util.AppLogger.d("Navigation", "home→detail: movie=${movie.title} url=${movie.pageUrl?.take(40)}")
-            navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl))
+            navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl)) {
+                launchSingleTop = true
+            }
         }
     }
     val onContinueWatchingClick = remember(navController) {
@@ -124,11 +126,13 @@ fun UkrtvTVApp() {
                     season = movie.season,
                     episode = movie.episode
                 )
-            )
+            ) {
+                launchSingleTop = true
+            }
         }
     }
     val onSearchClick = remember(navController) {
-        { navController.navigate(AppNavigation.searchRoute()) }
+        { navController.navigate(AppNavigation.searchRoute()) { launchSingleTop = true } }
     }
 
     val deviceClass = LocalDeviceClass.current
@@ -156,10 +160,10 @@ fun UkrtvTVApp() {
                     onMovieClick = onMovieClick,
                     onContinueWatchingClick = onContinueWatchingClick,
                     onSearchClick = onSearchClick,
-                    onSearchQueryClick = { query -> navController.navigate(AppNavigation.searchRoute(query)) },
-                    onTop200Click = { navController.navigate(AppNavigation.TOP_200) },
-                    onSeeAllTrendsClick = { navController.navigate(AppNavigation.TRENDS_GRID) },
-                    onSettingsClick = { navController.navigate(AppNavigation.SETTINGS) }
+                    onSearchQueryClick = { query -> navController.navigate(AppNavigation.searchRoute(query)) { launchSingleTop = true } },
+                    onTop200Click = { navController.navigate(AppNavigation.TOP_200) { launchSingleTop = true } },
+                    onSeeAllTrendsClick = { navController.navigate(AppNavigation.TRENDS_GRID) { launchSingleTop = true } },
+                    onSettingsClick = { navController.navigate(AppNavigation.SETTINGS) { launchSingleTop = true } }
                 )
             }
             composable(AppNavigation.TOP_200) {
@@ -169,7 +173,7 @@ fun UkrtvTVApp() {
                             AppNavigation.searchRoute(
                                 movie.searchQueries.firstOrNull() ?: movie.title
                             )
-                        )
+                        ) { launchSingleTop = true }
                     },
                     onBack = { navController.popBackStack() }
                 )
@@ -180,7 +184,7 @@ fun UkrtvTVApp() {
             ) {
                 SearchScreen(
                     onMovieClick = { movie ->
-                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl))
+                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl)) { launchSingleTop = true }
                     }
                 )
             }
@@ -204,7 +208,7 @@ fun UkrtvTVApp() {
                                     season = launchState.season,
                                     episode = launchState.episode
                                 )
-                            )
+                            ) { launchSingleTop = true }
                         }
                     },
                     onBackClick = { navController.popBackStack() }
@@ -213,7 +217,7 @@ fun UkrtvTVApp() {
             composable(AppNavigation.TRENDS_GRID) {
                 FullTrendsGridScreen(
                     onMovieClick = { movie: ua.ukrtv.app.domain.model.Movie ->
-                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl))
+                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl)) { launchSingleTop = true }
                     },
                     onBack = { navController.popBackStack() }
                 )

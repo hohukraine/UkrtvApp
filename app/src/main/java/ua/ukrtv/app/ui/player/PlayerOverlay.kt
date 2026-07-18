@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -111,11 +112,10 @@ fun PlayerOverlay(
 
     var seekDirection by remember { mutableStateOf<SeekDirection?>(null) }
 
-    LaunchedEffect(positionMs) {
-        if (seekDirection != null) {
-            delay(600)
-            seekDirection = null
-        }
+    LaunchedEffect(seekDirection) {
+        val dir = seekDirection ?: return@LaunchedEffect
+        delay(600)
+        seekDirection = null
     }
 
     fun onSeekWithIndicator(forward: Boolean) {
@@ -150,8 +150,8 @@ fun PlayerOverlay(
 
             AnimatedVisibility(
                 visible = visible,
-                enter = fadeIn(tween(300, easing = LinearEasing)),
-                exit = fadeOut(tween(300, easing = LinearEasing))
+                enter = fadeIn(tween(200, easing = FastOutSlowInEasing)),
+                exit = fadeOut(tween(200, easing = FastOutSlowInEasing))
             ) {
                 SeekIndicator(
                     brandColor = brandColor,
@@ -162,8 +162,8 @@ fun PlayerOverlay(
 
             AnimatedVisibility(
                 visible = visible,
-                enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { -it }),
-                exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { -it })
+                enter = fadeIn(tween(200, easing = FastOutSlowInEasing)) + slideInVertically(tween(200, easing = FastOutSlowInEasing), initialOffsetY = { -it }),
+                exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing), targetOffsetY = { -it })
             ) {
                 PlayerOverlayTitle(
                     brandColor = brandColor,
@@ -196,8 +196,8 @@ fun PlayerOverlay(
 
             AnimatedVisibility(
                     visible = visible,
-                    enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { -it }),
-                    exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { -it })
+                    enter = fadeIn(tween(200, easing = FastOutSlowInEasing)) + slideInVertically(tween(200, easing = FastOutSlowInEasing), initialOffsetY = { -it }),
+                    exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing), targetOffsetY = { -it })
                 ) {
                     SkipIntroButton(
                         brandColor = brandColor,
@@ -211,8 +211,8 @@ fun PlayerOverlay(
 
             AnimatedVisibility(
                 visible = visible,
-                enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { it }),
-                exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { it }),
+                enter = fadeIn(tween(200, easing = FastOutSlowInEasing)) + slideInVertically(tween(200, easing = FastOutSlowInEasing), initialOffsetY = { it }),
+                exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing), targetOffsetY = { it }),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 BottomControls(

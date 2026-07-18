@@ -19,7 +19,7 @@ import ua.ukrtv.app.data.local.entity.WatchlistEntity
     WatchlistEntity::class,
     WatchProgressEntity::class,
     CatalogIndexEntity::class
-], version = 11, exportSchema = false)
+], version = 14, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun htmlCacheDao(): HtmlCacheDao

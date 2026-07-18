@@ -97,7 +97,8 @@ object DleResolutionUtils {
         if (preferMaster) {
             val master = urls.firstOrNull { 
                 it.contains("master.m3u8", ignoreCase = true) || 
-                it.contains("playlist.m3u8", ignoreCase = true) 
+                it.contains("playlist.m3u8", ignoreCase = true) ||
+                it.contains("index.m3u8", ignoreCase = true)
             }
             if (master != null) return master
         }

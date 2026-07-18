@@ -23,7 +23,7 @@ fun HomeBackground(
     focusedColor: Color,
     brandColor: Color,
     backdropColor: Color = Color.Unspecified,
-    scrollFraction: Float = 0f,
+    scrollFraction: () -> Float = { 0f },
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
@@ -49,7 +49,7 @@ fun HomeBackground(
 
     // Feature 3: Content-aware background — boost provider glow as banner scrolls away
     val providerBoost = if (deviceClass == DeviceClass.LOW) 1f
-        else 1f + 0.5f * scrollFraction.coerceIn(0f, 1f)
+        else 1f + 0.5f * scrollFraction().coerceIn(0f, 1f)
     val effectiveProviderAlpha = providerAlpha * providerBoost
 
     // Feature 6: Ambient Gradient Motion — subtle oscillation of glow centers
@@ -90,7 +90,7 @@ fun HomeBackground(
     }
     val washTargetAlpha = when {
         backdropColor == Color.Unspecified -> 0f
-        else -> (1f - scrollFraction * 1.1f).coerceIn(0f, 1f)
+        else -> (1f - scrollFraction() * 1.1f).coerceIn(0f, 1f)
     }
     val animatedWashAlpha by animateFloatAsState(
         targetValue = washTargetAlpha,

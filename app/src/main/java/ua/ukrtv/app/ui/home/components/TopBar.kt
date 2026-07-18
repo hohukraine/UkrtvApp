@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
@@ -33,46 +34,56 @@ fun TopBar(
     brandColor: Color,
     providers: List<Provider>,
     currentProviderId: String,
-    scrollFraction: Float = 0f,
+    scrollFraction: () -> Float = { 0f },
     onSearchClick: () -> Unit,
     onProviderClick: (String) -> Unit,
     onSettingsClick: () -> Unit = {},
     searchFocusRequester: FocusRequester = remember { FocusRequester() }
 ) {
     val deviceClass = LocalDeviceClass.current
-    val bgAlpha = when (deviceClass) {
-        DeviceClass.LOW -> (scrollFraction * 0.3f).coerceIn(0f, 0.3f)
-        DeviceClass.MID -> (scrollFraction * 0.5f).coerceIn(0f, 0.5f)
-        DeviceClass.HIGH -> (scrollFraction * 0.7f).coerceIn(0f, 0.7f)
-    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .then(
-                when {
-                    deviceClass == DeviceClass.HIGH -> {
-                        val bgBrightness = (0.08f + 0.25f * scrollFraction).coerceIn(0f, 0.33f)
-                        Modifier
-                            .padding(horizontal = GridDefaults.horizontalPadding - 16.dp, vertical = 8.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                Brush.verticalGradient(
-                                    listOf(
-                                        Color.White.copy(alpha = bgBrightness),
-                                        Color.White.copy(alpha = bgBrightness * 0.4f)
-                                    )
-                                )
+                if (deviceClass == DeviceClass.HIGH) {
+                    Modifier
+                        .padding(horizontal = GridDefaults.horizontalPadding - 16.dp, vertical = 8.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                } else {
+                    Modifier
+                        .padding(horizontal = GridDefaults.horizontalPadding)
+                        .padding(top = 16.dp, bottom = 8.dp)
+                }
+            )
+            .drawBehind {
+                val fraction = scrollFraction()
+                if (deviceClass == DeviceClass.HIGH) {
+                    val bgBrightness = (0.08f + 0.25f * fraction).coerceIn(0f, 0.33f)
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = bgBrightness),
+                                Color.White.copy(alpha = bgBrightness * 0.4f)
                             )
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    )
+                } else {
+                    val bgAlpha = when (deviceClass) {
+                        DeviceClass.LOW -> (fraction * 0.3f).coerceIn(0f, 0.3f)
+                        DeviceClass.MID -> (fraction * 0.5f).coerceIn(0f, 0.5f)
+                        DeviceClass.HIGH -> 0f
                     }
-                    bgAlpha > 0.01f -> Modifier
-                        .background(Background.copy(alpha = bgAlpha))
-                        .padding(horizontal = GridDefaults.horizontalPadding)
-                        .padding(top = 16.dp, bottom = 8.dp)
-                    else -> Modifier
-                        .padding(horizontal = GridDefaults.horizontalPadding)
-                        .padding(top = 16.dp, bottom = 8.dp)
+                    if (bgAlpha > 0.01f) {
+                        drawRect(color = Background.copy(alpha = bgAlpha))
+                    }
+                }
+            }
+            .then(
+                if (deviceClass == DeviceClass.HIGH) {
+                    Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                } else {
+                    Modifier
                 }
             )
     ) {

@@ -40,10 +40,9 @@ class HtmlHttpClient(
     }
 
     fun restart() {
-        if (refreshJob.isCancelled) {
-            refreshJob = SupervisorJob()
-            refreshScope = CoroutineScope(Dispatchers.IO + refreshJob)
-        }
+        refreshJob.cancel()
+        refreshJob = SupervisorJob()
+        refreshScope = CoroutineScope(Dispatchers.IO + refreshJob)
     }
 
     private fun isSslError(e: Exception): Boolean {
@@ -99,6 +98,7 @@ class HtmlHttpClient(
 
     private suspend fun <T> runWithRetries(
         tag: String,
+        host: String? = null,
         block: suspend (attempt: Int) -> T,
         onRetryDelay: suspend (delayTimeMs: Long, attempt: Int) -> Unit = { d, _ -> delay(d) }
     ): T? {
@@ -119,7 +119,7 @@ class HtmlHttpClient(
                 }
 
                 if (isSslError(e)) {
-                    AppLogger.w(tag, "SSL error is permanent, skipping retries: ${e.message}")
+                    AppLogger.w(tag, "SSL error is permanent, skipping retries: host=$host ${e.message}")
                     return null
                 }
 
@@ -210,10 +210,10 @@ class HtmlHttpClient(
         semaphore?.acquire()
         try {
             return withTimeoutOrNull(20_000L) {
-                runWithRetries(tag, block = { attempt ->
+                runWithRetries(tag, host = host, block = { attempt ->
                     val builder = Request.Builder().url(url)
                     applyHeaders(builder, referer, isAjax)
-                    val request = builder.get().build()
+                    val request = builder.build()
 
                     okHttpClient.newCall(request).execute().use { response ->
                         val responseCode = response.code
@@ -232,7 +232,9 @@ class HtmlHttpClient(
                             }
                             return@runWithRetries body
                         } else {
-                            AppLogger.w(tag, "Failed GET $url: $responseCode ${response.message}")
+                            val msg = response.message
+                            response.body?.close() // Explicitly close body on failure
+                            AppLogger.w(tag, "Failed GET $url: $responseCode $msg")
                             throw Exception("HTTP $responseCode")
                         }
                     }
@@ -250,7 +252,7 @@ class HtmlHttpClient(
         isAjax: Boolean = false
     ): String? = withContext(Dispatchers.IO) {
         withTimeoutOrNull(20_000L) {
-            runWithRetries(tag, block = { attempt ->
+            runWithRetries(tag, host = runCatching { java.net.URI(url).host }.getOrNull(), block = { attempt ->
                 val builder = Request.Builder().url(url)
                 applyHeaders(builder, referer, isAjax)
                 val request = builder.post(body).build()
@@ -271,7 +273,9 @@ class HtmlHttpClient(
                     if (response.isSuccessful) {
                         return@runWithRetries responseBody
                     } else {
-                        AppLogger.w(tag, "Failed POST $url: $responseCode ${response.message}")
+                        val msg = response.message
+                        response.body?.close() // Explicitly close body on failure
+                        AppLogger.w(tag, "Failed POST $url: $responseCode $msg")
                         throw Exception("HTTP $responseCode")
                     }
                 }

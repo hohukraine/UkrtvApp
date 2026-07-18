@@ -1,32 +1,39 @@
 package ua.ukrtv.app.data.repository
 
+import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import ua.ukrtv.app.domain.model.HomeSection
+import ua.ukrtv.app.util.AppLogger
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class HomeCacheRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val dataStore: DataStore<Preferences>,
     private val json: Json
 ) {
+    private fun getTimeKey(providerName: String) = longPreferencesKey("home_cache_time_v3_$providerName")
+    private fun getCacheFile(providerName: String) = File(context.cacheDir, "home_cache_$providerName.json")
 
-    private fun getCacheKey(providerName: String) = stringPreferencesKey("home_cache_v2_$providerName")
-    private fun getTimeKey(providerName: String) = longPreferencesKey("home_cache_time_v2_$providerName")
-
-    suspend fun getHomeCache(providerName: String): List<HomeSection>? {
-        val prefs = dataStore.data.firstOrNull() ?: return null
-        val cached = prefs[getCacheKey(providerName)] ?: return null
-        return try {
+    suspend fun getHomeCache(providerName: String): List<HomeSection>? = withContext(Dispatchers.IO) {
+        val file = getCacheFile(providerName)
+        if (!file.exists()) return@withContext null
+        try {
+            val cached = file.readText()
             json.decodeFromString<List<HomeSection>>(cached)
         } catch (e: Exception) {
+            AppLogger.e("HomeCache", "Failed to read cache file for $providerName", e)
             null
         }
     }
@@ -35,18 +42,24 @@ class HomeCacheRepository @Inject constructor(
         return dataStore.data.firstOrNull()?.get(getTimeKey(providerName)) ?: 0L
     }
 
-    suspend fun saveHomeCache(providerName: String, sections: List<HomeSection>) {
-        dataStore.edit { prefs ->
-            prefs[getCacheKey(providerName)] = json.encodeToString(sections)
-            prefs[getTimeKey(providerName)] = System.currentTimeMillis()
+    suspend fun saveHomeCache(providerName: String, sections: List<HomeSection>) = withContext(Dispatchers.IO) {
+        try {
+            val content = json.encodeToString(sections)
+            getCacheFile(providerName).writeText(content)
+            dataStore.edit { prefs ->
+                prefs[getTimeKey(providerName)] = System.currentTimeMillis()
+            }
+        } catch (e: Exception) {
+            AppLogger.e("HomeCache", "Failed to save cache file for $providerName", e)
         }
     }
 
-    suspend fun saveEmptyCache(providerName: String) {
-        dataStore.edit { prefs ->
-            // Save empty cache with zero timestamp — always expired on next open
-            prefs[getCacheKey(providerName)] = "[]"
-            prefs[getTimeKey(providerName)] = 0L
-        }
+    suspend fun saveEmptyCache(providerName: String) = withContext(Dispatchers.IO) {
+        try {
+            getCacheFile(providerName).delete()
+            dataStore.edit { prefs ->
+                prefs[getTimeKey(providerName)] = 0L
+            }
+        } catch (_: Exception) {}
     }
 }

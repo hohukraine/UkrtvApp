@@ -2,6 +2,7 @@ package ua.ukrtv.app.ui.player
 
 import android.content.Context
 import ua.ukrtv.app.util.AppLogger
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.PlaybackException
@@ -23,29 +24,38 @@ import ua.ukrtv.app.data.streaming.StreamResolver
 import ua.ukrtv.app.domain.model.Season
 import ua.ukrtv.app.player.AudioEngine
 import ua.ukrtv.app.player.PlayerFactory
+import ua.ukrtv.app.player.PlaybackEngine
 import ua.ukrtv.app.player.PlaybackErrorHandler
-import ua.ukrtv.app.player.PlayerWarmupManager
+import ua.ukrtv.app.player.ExoPlayerEngine
+import ua.ukrtv.app.player.ExternalPlayerInfo
+import ua.ukrtv.app.player.ExternalPlayerLauncher
+
 import ua.ukrtv.app.player.ThermalMonitor
 import ua.ukrtv.app.util.PerformanceMonitor
 import ua.ukrtv.app.util.PlayerPreferences
+import ua.ukrtv.app.util.PlayerType
 import ua.ukrtv.app.domain.model.StreamType
 import android.content.Intent
 import android.widget.Toast
+import org.json.JSONArray
+import org.json.JSONObject
 import javax.inject.Inject
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
+    private val savedStateHandle: SavedStateHandle,
     private val watchProgressRepository: WatchProgressRepository,
     private val okHttpClient: okhttp3.OkHttpClient,
     private val streamResolver: StreamResolver,
     private val playerFactory: PlayerFactory,
     private val thermalMonitor: ThermalMonitor,
-    private val warmupManager: PlayerWarmupManager,
     private val audioEngine: AudioEngine,
     private val providerManager: ProviderManager,
     private val playerPreferences: PlayerPreferences
 ) : ViewModel() {
+
+    private val externalPlayerLauncher by lazy { ExternalPlayerLauncher(appContext) }
 
     private val _state = MutableStateFlow(PlayerState())
     val state: StateFlow<PlayerState> = _state.asStateFlow()
@@ -65,13 +75,27 @@ class PlayerViewModel @Inject constructor(
     private var crossProviderRetried = false
     private var availableStreams: MutableList<String> = mutableListOf()
     private var currentStreamIndex: Int = 0
-    private var seasons: List<Season>? = null
+    private var seasons: List<Season> = run {
+        val json = savedStateHandle.get<String>(KEY_SEASONS)
+        if (json != null) deserializeSeasons(json) else emptyList()
+    }
+        set(value) {
+            field = value
+            savedStateHandle[KEY_SEASONS] = serializeSeasons(value)
+        }
 
     private var loadJob: kotlinx.coroutines.Job? = null
     private var deepJob: kotlinx.coroutines.Job? = null
+    private var preResolveJob: kotlinx.coroutines.Job? = null
     private var isResolving = false
+    private var savedBackgroundPosition: Long = 0L
+
     var player: ExoPlayer? = null
         private set
+
+    private var engine: PlaybackEngine? = null
+
+    val currentEngine: PlaybackEngine? get() = engine
 
     private var pendingSeason: Int? = null
     private var pendingEpisode: Int? = null
@@ -83,7 +107,31 @@ class PlayerViewModel @Inject constructor(
 
     val playerType: StateFlow<ua.ukrtv.app.util.PlayerType> = playerPreferences.playerType
 
+    companion object {
+        private const val KEY_CONTENT_ID = "ext_content_id"
+        private const val KEY_PAGE_URL = "ext_page_url"
+        private const val KEY_SEASON = "ext_season"
+        private const val KEY_EPISODE = "ext_episode"
+        private const val KEY_TITLE = "ext_title"
+        private const val KEY_POSTER = "ext_poster"
+        private const val KEY_PENDING_RESULT = "ext_pending_result"
+        private const val KEY_SEASONS = "ext_seasons"
+        private const val KEY_VOICEOVER = "ext_voiceover"
+        private const val KEY_EXTERNAL_DURATION = "ext_external_duration"
+    }
+
     init {
+        savedStateHandle.get<String>(KEY_CONTENT_ID)?.let { restored ->
+            contentId = restored
+            pageUrl = savedStateHandle[KEY_PAGE_URL] ?: ""
+            season = savedStateHandle[KEY_SEASON]
+            episode = savedStateHandle[KEY_EPISODE]
+            title = savedStateHandle[KEY_TITLE] ?: ""
+            poster = savedStateHandle[KEY_POSTER] ?: ""
+            voiceover = savedStateHandle[KEY_VOICEOVER]
+            episodeId = if (season != null && episode != null) "s${season}e${episode}" else null
+            AppLogger.d("PlayerVM", "Restored from SavedStateHandle: contentId=$contentId season=$season episode=$episode")
+        }
         viewModelScope.launch {
             thermalMonitor.thermalStatus.collect { status ->
                 val quality = thermalMonitor.getQualityLevel(status)
@@ -104,55 +152,97 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun initialize(contentId: String, title: String, pageUrl: String, season: Int? = null, episode: Int? = null, poster: String = "") {
-        AppLogger.d("PickerVM", "initialize: season=$season episode=$episode contentId=$contentId status=${_state.value.status::class.simpleName}")
+        val effectiveSeason = savedStateHandle.get<Int>(KEY_SEASON) ?: season
+        val effectiveEpisode = savedStateHandle.get<Int>(KEY_EPISODE) ?: episode
+        AppLogger.d("PickerVM", "initialize: effectiveSeason=$effectiveSeason effectiveEpisode=$effectiveEpisode contentId=$contentId status=${_state.value.status::class.simpleName}")
         if (_state.value.status is PlayerStatus.Ready || _state.value.status is PlayerStatus.Loading) {
-            if (this.contentId == contentId && this.season == season && this.episode == episode) return
+            if (this.contentId == contentId && this.season == effectiveSeason && this.episode == effectiveEpisode) return
         }
-        if (isResolving && this.contentId == contentId && this.season == season && this.episode == episode) return
+        if (isResolving && this.contentId == contentId && this.season == effectiveSeason && this.episode == effectiveEpisode) return
 
         this.contentId = contentId
         this.title = title
         this.pageUrl = pageUrl
         this.poster = poster
-        this.season = season
-        this.episode = episode
-        this.episodeId = if (season != null && episode != null) "s${season}e${episode}" else null
+        this.season = effectiveSeason
+        this.episode = effectiveEpisode
+        this.episodeId = if (effectiveSeason != null && effectiveEpisode != null) "s${effectiveSeason}e${effectiveEpisode}" else null
         selectedCodecMime = null
         crossProviderRetried = false
 
+        savedStateHandle[KEY_CONTENT_ID] = contentId
+        savedStateHandle[KEY_PAGE_URL] = pageUrl
+        savedStateHandle[KEY_SEASON] = effectiveSeason
+        savedStateHandle[KEY_EPISODE] = effectiveEpisode
+        savedStateHandle[KEY_TITLE] = title
+        savedStateHandle[KEY_POSTER] = poster
+        savedStateHandle[KEY_VOICEOVER] = this.voiceover
+
         updateNavigationState()
 
-        loadStream(pageUrl, if (season != null && episode != null) "S$season E$episode" else "")
+        loadStream(pageUrl, if (effectiveSeason != null && effectiveEpisode != null) "S$effectiveSeason E$effectiveEpisode" else "")
     }
 
-    private fun loadStream(url: String, subtitle: String) {
+    private fun loadStream(url: String, subtitle: String, forceStartPosition: Long? = null) {
         PerformanceMonitor.begin("PlayerVM.loadStream")
         deepJob?.cancel()
         loadJob?.cancel()
+        preResolveJob?.cancel()
+        lastSavedPosition = -1L
         isResolving = true
 
         player?.stop()
         player?.clearMediaItems()
+        engine?.let {
+            it.pause()
+        }
 
         _state.update { it.copy(status = PlayerStatus.Loading(this.title)) }
         AppLogger.d("PickerVM", "loadStream: season=$season episode=$episode voiceover=$voiceover")
         loadJob = viewModelScope.launch {
             try {
-                val res = streamResolver.resolve(url, season = this@PlayerViewModel.season, episode = this@PlayerViewModel.episode, voiceover = this@PlayerViewModel.voiceover, isDeep = false)
+                val cached: Triple<String, String, String>? = withContext(Dispatchers.IO) {
+                    watchProgressRepository.getStreamCache(contentId, episodeId)
+                }
+                if (cached != null) {
+                    val (cachedUrl, cachedType, cachedReferer) = cached
+                    AppLogger.d("PickerVM", "Using cached stream URL: ${cachedUrl.take(60)}")
+                    this@PlayerViewModel.availableStreams = mutableListOf(cachedUrl)
+                    this@PlayerViewModel.referer = cachedReferer
+                    val pos = forceStartPosition
+                        ?: withContext(Dispatchers.IO) { watchProgressRepository.getProgress(contentId, episodeId)?.positionMs }
+                        ?: 0L
+                    _state.update { it.copy(
+                        status = PlayerStatus.Ready(cachedUrl, this@PlayerViewModel.title, subtitle, pos, cachedReferer, ua.ukrtv.app.domain.model.StreamType.valueOf(cachedType), loadTrigger = System.currentTimeMillis()),
+                        availableSeasons = this@PlayerViewModel.seasons
+                    ) }
+                    updateNavigationState()
+                    initPickerColumns()
+                    isResolving = false
+                    PerformanceMonitor.end()
+                    launchDeepResolution()
+                    preResolveNextEpisode()
+                    return@launch
+                }
+
+                val res = withContext(Dispatchers.IO) {
+                    streamResolver.resolve(url, season = this@PlayerViewModel.season, episode = this@PlayerViewModel.episode, voiceover = this@PlayerViewModel.voiceover, isDeep = false)
+                }
                 if (res != null) {
                     this@PlayerViewModel.availableStreams = (listOf(res.streamUrl) + res.fallbackStreams).distinct().toMutableList()
                     this@PlayerViewModel.referer = res.referer
                     if (res.seasons != null) {
                         this@PlayerViewModel.seasons = res.seasons
                     }
-                    val pos = getSavedPosition()
+                    val pos = forceStartPosition ?: getSavedPosition()
                     _state.update { it.copy(
-                        status = PlayerStatus.Ready(res.streamUrl, this@PlayerViewModel.title, subtitle, pos, res.referer, res.streamType),
+                        status = PlayerStatus.Ready(res.streamUrl, this@PlayerViewModel.title, subtitle, pos, res.referer, res.streamType, loadTrigger = System.currentTimeMillis()),
                         availableSeasons = this@PlayerViewModel.seasons
                     ) }
                     updateNavigationState()
                     initPickerColumns()
                     launchDeepResolution()
+                    preResolveNextEpisode()
                 } else {
                     searchAndResolveOnAlternateProvider(url, subtitle)
                 }
@@ -170,13 +260,50 @@ class PlayerViewModel @Inject constructor(
     private fun launchDeepResolution() {
         deepJob?.cancel()
         deepJob = viewModelScope.launch {
-            val deepRes = try { streamResolver.resolve(this@PlayerViewModel.pageUrl, isDeep = true) } catch (_: Exception) { null }
-            if (deepRes?.seasons?.isNotEmpty() == true && deepJob?.isActive == true) {
-                this@PlayerViewModel.seasons = deepRes.seasons
-                _state.update { it.copy(availableSeasons = deepRes.seasons) }
+            val deepRes = try {
+                withContext(Dispatchers.IO) {
+                    streamResolver.resolve(this@PlayerViewModel.pageUrl, isDeep = true)
+                }
+            } catch (_: Exception) { null }
+            val newSeasons = deepRes?.seasons
+            if (newSeasons != null && newSeasons.isNotEmpty() && deepJob?.isActive == true) {
+                this@PlayerViewModel.seasons = newSeasons
+                _state.update { it.copy(availableSeasons = newSeasons) }
                 updateNavigationState()
                 rebuildPickerColumns()
             }
+        }
+    }
+
+    private fun preResolveNextEpisode() {
+        preResolveJob?.cancel()
+        val nav = EpisodeNavigator.nextEpisode(seasons, season, episode) ?: return
+        val nextEpisodeId = "s${nav.season}e${nav.episode}"
+
+        preResolveJob = viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    streamResolver.resolve(
+                        url = pageUrl,
+                        season = nav.season,
+                        episode = nav.episode,
+                        voiceover = voiceover,
+                        isDeep = false
+                    )
+                }
+                if (result != null && preResolveJob?.isActive == true) {
+                    watchProgressRepository.saveProgress(
+                        contentId = contentId,
+                        episodeId = nextEpisodeId,
+                        positionMs = 0L,
+                        durationMs = 0L,
+                        pageUrl = pageUrl,
+                        streamUrl = result.streamUrl,
+                        streamType = result.streamType.name
+                    )
+                    AppLogger.d("PlayerVM", "Pre-resolved next episode: ${nav.season}e${nav.episode} → ${result.streamUrl.take(60)}")
+                }
+            } catch (_: Exception) { }
         }
     }
 
@@ -195,10 +322,17 @@ class PlayerViewModel @Inject constructor(
 
     private var prefetchJob: kotlinx.coroutines.Job? = null
 
+    private var lastSavedPosition: Long = -1L
+
     fun saveProgress(pos: Long, dur: Long) {
         if (dur <= 0) return
+        if (pos == lastSavedPosition && pos > 0L) return
+        lastSavedPosition = pos
+        val currentStatus = _state.value.status
+        val streamUrl = (currentStatus as? PlayerStatus.Ready)?.url
+        val streamType = (currentStatus as? PlayerStatus.Ready)?.streamType?.name
         viewModelScope.launch(Dispatchers.IO) {
-            watchProgressRepository.saveProgress(contentId, episodeId, pos, dur, title, poster, pageUrl)
+            watchProgressRepository.saveProgress(contentId, episodeId, pos, dur, title, poster, pageUrl, streamUrl, streamType, referer)
         }
         prefetchNextEpisodeIfNeeded(pos, dur)
     }
@@ -217,30 +351,30 @@ class PlayerViewModel @Inject constructor(
                     isDeep = false
                 )
                 if (res != null) {
-                    val dsFactory = getDataSourceFactory()
-                    warmupManager.warmup(url = res.streamUrl, dataSourceFactory = dsFactory)
+                    AppLogger.d("Warmup", "Prefetched stream URL for: ${res.streamUrl.take(40)}")
                 }
             } catch (_: Exception) {}
         }
     }
 
 
-    fun togglePlay() { player?.let { if (it.isPlaying) it.pause() else it.play() } }
+    fun togglePlay() { engine?.let { if (it.isPlaying) it.pause() else it.play() } }
     
     fun toggleMute() {
         val newMuted = !_state.value.isMuted
         _state.update { it.copy(isMuted = newMuted) }
-        player?.volume = if (newMuted) 0f else 1f
+        engine?.setVolume(if (newMuted) 0f else 1f)
+            ?: run { player?.volume = if (newMuted) 0f else 1f }
     }
     
     fun setShowControls(show: Boolean) {
-        _state.update { it.copy(isShowingControls = show) }
+        _state.update { if (it.isShowingControls == show) it else it.copy(isShowingControls = show) }
     }
     
     fun retry() { loadStream(pageUrl, this.subtitle) }
     
     fun seekTo(positionMs: Long) {
-        player?.seekTo(positionMs)
+        engine?.seekTo(positionMs)
     }
 
     fun updateCodecInfo(display: String, codecs: List<CodecInfo>) {
@@ -317,13 +451,23 @@ class PlayerViewModel @Inject constructor(
         ))
 
         val tracks = trackManager.availableTracks.value
+        val engineVideoTracks = engine?.getVideoTracks() ?: emptyArray()
         if (tracks.isNotEmpty()) {
-            val trackIdx = pendingTrackIndex ?: trackManager.selectedTrackIndex.value ?: 0
-            val track = tracks.getOrNull(trackIdx)
+            val selectedIdx = pendingTrackIndex ?: trackManager.selectedTrackIndex.value
+            val value = if (selectedIdx == null) "Auto"
+                else tracks.getOrNull(selectedIdx)?.label?.substringBefore(" (") ?: "Auto"
             cols.add(PickerColumn(
                 id = "video_track",
-                label = "ТРЕК",
-                value = track?.label?.substringBefore(" (") ?: "—"
+                label = "ЯКІСТЬ",
+                value = value
+            ))
+        } else if (engineVideoTracks.size > 1) {
+            val trackIdx = pendingTrackIndex ?: 0
+            val track = engineVideoTracks.getOrNull(trackIdx)
+            cols.add(PickerColumn(
+                id = "video_track",
+                label = "ЯКІСТЬ",
+                value = track?.name?.substringBefore(" (") ?: "—"
             ))
         }
 
@@ -339,16 +483,19 @@ class PlayerViewModel @Inject constructor(
 
         cols.add(PickerColumn(
             id = "external_player",
-            label = "VLC",
+            label = getCurrentExternalPlayerInfo()?.label?.uppercase() ?: "ПЛЕЄР",
             value = "Відкрити",
             needsCommit = true
         ))
 
-        _state.update { it.copy(pickerColumns = cols) }
+        _state.update { prev ->
+            if (prev.pickerColumns == cols) prev
+            else prev.copy(pickerColumns = cols)
+        }
     }
 
     fun onPickerColumnFocused(index: Int) {
-        _state.update { it.copy(pickerFocusedIndex = index) }
+        _state.update { if (it.pickerFocusedIndex == index) it else it.copy(pickerFocusedIndex = index) }
     }
 
     fun onPickerValueChange(direction: Int) {
@@ -371,7 +518,7 @@ class PlayerViewModel @Inject constructor(
         if (!col.needsCommit) return
         when (col.id) {
             "external_player" -> {
-                _state.update { it.copy(shouldLaunchVlc = true) }
+                openInExternalPlayer()
             }
             "season", "episode", "voiceover" -> {
                 val seasons = _state.value.availableSeasons ?: return
@@ -381,10 +528,6 @@ class PlayerViewModel @Inject constructor(
                 onEpisodeSelected(s, e, pendingVoiceover)
             }
         }
-    }
-
-    fun clearVlcLaunchEvent() {
-        _state.update { it.copy(shouldLaunchVlc = false) }
     }
 
     private fun changePendingSeason(direction: Int) {
@@ -436,19 +579,36 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun changePendingScaleMode(direction: Int) {
-        val newMode = if (_state.value.scaleMode == ScaleMode.FIT) ScaleMode.ZOOM else ScaleMode.FIT
+        val modes = ScaleMode.entries
+        val currentIdx = modes.indexOf(_state.value.scaleMode)
+        val newIdx = (currentIdx + direction + modes.size) % modes.size
+        val newMode = modes[newIdx]
         _state.update { it.copy(scaleMode = newMode) }
+        engine?.setVideoScalingMode(newMode.ordinal)
         rebuildPickerColumns()
     }
 
     private fun changePendingVideoTrack(direction: Int) {
         val tracks = trackManager.availableTracks.value
-        if (tracks.isEmpty()) return
-        val currentIdx = pendingTrackIndex ?: trackManager.selectedTrackIndex.value ?: 0
-        val newIdx = (currentIdx + direction + tracks.size) % tracks.size
-        pendingTrackIndex = newIdx
-        val p = player ?: return
-        trackManager.selectTrack(tracks[newIdx], p)
+        val engineTracks = engine?.getVideoTracks() ?: emptyArray()
+        if (tracks.isNotEmpty()) {
+            val currentIdx = pendingTrackIndex ?: trackManager.selectedTrackIndex.value
+            val newIdx = if (currentIdx == null) {
+                if (direction > 0) 0 else tracks.size - 1
+            } else {
+                val raw = currentIdx + direction
+                if (raw < 0 || raw >= tracks.size) null else raw
+            }
+            pendingTrackIndex = newIdx
+            val p = player ?: return
+            if (newIdx == null) trackManager.clearTrackOverride(p)
+            else trackManager.selectTrack(tracks[newIdx], p)
+        } else if (engineTracks.size > 1) {
+            val currentIdx = pendingTrackIndex ?: 0
+            val newIdx = (currentIdx + direction + engineTracks.size) % engineTracks.size
+            pendingTrackIndex = newIdx
+            engine?.setVideoTrack(engineTracks[newIdx].id)
+        }
         rebuildPickerColumns()
     }
 
@@ -536,6 +696,10 @@ class PlayerViewModel @Inject constructor(
         _state.update { it.copy(status = PlayerStatus.Error(PlaybackErrorHandler.getUserMessage(error))) }
     }
 
+    fun onEngineError(message: String) {
+        _state.update { it.copy(status = PlayerStatus.Error(message)) }
+    }
+
     private suspend fun searchAndResolveOnAlternateProvider(originalUrl: String, subtitle: String) {
         val targetName = if (originalUrl.contains("uakino")) "Eneyida" else "Uakino"
         AppLogger.d("PickerVM", "Trying $targetName fallback for $title")
@@ -547,14 +711,16 @@ class PlayerViewModel @Inject constructor(
             val results = other.search(title, limit = 5)
             val match = results.firstOrNull()
             if (match != null) {
-                val res = streamResolver.resolve(match.url, season = season, episode = episode, voiceover = voiceover, isDeep = false)
+                val res = withContext(Dispatchers.IO) {
+                    streamResolver.resolve(match.url, season = season, episode = episode, voiceover = voiceover, isDeep = false)
+                }
                 if (res != null) {
                     availableStreams = (listOf(res.streamUrl) + res.fallbackStreams).distinct().toMutableList()
                     referer = res.referer
                     if (res.seasons != null) seasons = res.seasons
                     val pos = getSavedPosition()
                     _state.update { it.copy(
-                        status = PlayerStatus.Ready(res.streamUrl, title, subtitle, pos, res.referer, res.streamType),
+                        status = PlayerStatus.Ready(res.streamUrl, title, subtitle, pos, res.referer, res.streamType, loadTrigger = System.currentTimeMillis()),
                         availableSeasons = seasons
                     ) }
                     updateNavigationState()
@@ -576,6 +742,8 @@ class PlayerViewModel @Inject constructor(
         this.season = nav.season
         this.episode = nav.episode
         this.episodeId = "s${nav.season}e${nav.episode}"
+        savedStateHandle[KEY_SEASON] = nav.season
+        savedStateHandle[KEY_EPISODE] = nav.episode
         return true
     }
 
@@ -612,16 +780,38 @@ class PlayerViewModel @Inject constructor(
     fun hasNextEpisode(): Boolean = EpisodeNavigator.hasNextEpisode(seasons, season, episode)
     fun hasPreviousEpisode(): Boolean = EpisodeNavigator.hasPreviousEpisode(seasons, season, episode)
 
-    fun updateProgress(positionMs: Long, durationMs: Long) {
-        _state.update { it.copy(currentPosition = positionMs, duration = durationMs) }
-    }
-
     fun updatePlaybackState(state: Int) {
-        _state.update { it.copy(playbackState = state) }
+        _state.update { if (it.playbackState == state) it else it.copy(playbackState = state) }
     }
 
     fun updateIsPlaying(isPlaying: Boolean) {
-        _state.update { it.copy(isPlaying = isPlaying) }
+        _state.update { if (it.isPlaying == isPlaying) it else it.copy(isPlaying = isPlaying) }
+    }
+
+    fun onBackgroundTransition(positionMs: Long, durationMs: Long) {
+        savedBackgroundPosition = positionMs
+        if (positionMs > 0 && durationMs > 0) {
+            val currentStatus = _state.value.status
+            val streamUrl = (currentStatus as? PlayerStatus.Ready)?.url
+            val streamType = (currentStatus as? PlayerStatus.Ready)?.streamType?.name
+            viewModelScope.launch(Dispatchers.IO) {
+                watchProgressRepository.saveProgress(contentId, episodeId, positionMs, durationMs, title, poster, pageUrl, streamUrl, streamType)
+            }
+        }
+        AppLogger.d("PickerVM", "onBackgroundTransition: stopping player at ${positionMs}ms to release codec")
+        engine?.pause()
+    }
+
+    fun onForegroundTransition() {
+        val current = _state.value.status
+        if (current is PlayerStatus.Ready) {
+            val position = savedBackgroundPosition.takeIf { it > 0 } ?: current.positionMs
+            AppLogger.d("PickerVM", "onForegroundTransition: resuming at ${position}ms")
+            engine?.let { e ->
+                if (position > 0) e.seekTo(position)
+                e.play()
+            }
+        }
     }
 
     fun releasePlayer(playerToRelease: ExoPlayer) {
@@ -629,19 +819,37 @@ class PlayerViewModel @Inject constructor(
         playerToRelease.release()
     }
 
-    fun getOrCreatePlayer(context: Context, dsFactory: DataSource.Factory): ExoPlayer {
+    fun getOrCreatePlayer(context: Context, dsFactory: DataSource.Factory): ExoPlayer? {
         if (player == null) {
-            val warmedUp = warmupManager.takeAnyWarmupPlayer()
-            if (warmedUp != null) {
-                player = warmedUp
-                AppLogger.d("Warmup", "Using warmup player")
-            } else {
-                AppLogger.d("Warmup", "No warmup available, creating new player")
+            try {
                 player = playerFactory.buildPlayer(context, dsFactory)
+                player?.let { audioEngine.attach(it) }
+            } catch (e: Exception) {
+                AppLogger.e("PlayerViewModel", "Failed to create player", e)
+                _state.update { it.copy(status = PlayerStatus.Error("Не вдалося ініціалізувати плеєр: ${e.message}", isRetryable = false)) }
+                return null
             }
-            player?.let { audioEngine.attach(it) }
         }
-        return player!!
+        return player
+    }
+
+    fun getOrCreateEngine(context: Context): PlaybackEngine? {
+        val currentType = playerPreferences.getPlayerType()
+        if (engine != null) return engine
+        engine = when (currentType) {
+            PlayerType.BUILTIN -> {
+                val dsFactory = getDataSourceFactory()
+                val p = getOrCreatePlayer(context, dsFactory) ?: return null
+                ExoPlayerEngine(p, dsFactory as androidx.media3.datasource.okhttp.OkHttpDataSource.Factory)
+            }
+            PlayerType.EXTERNAL_PLAYER -> null
+        }
+        return engine
+    }
+
+    fun releaseEngine() {
+        engine?.release()
+        engine = null
     }
 
     private fun applyThermalQuality(quality: ThermalMonitor.QualityLevel) {
@@ -671,73 +879,251 @@ class PlayerViewModel @Inject constructor(
         return OkHttpDataSource.Factory(okHttpClient).setUserAgent(ua.ukrtv.app.Constants.USER_AGENT)
     }
 
-    fun createVlcIntent(): Intent? {
+    fun createExternalPlayerIntent(): Intent? {
         val status = _state.value.status as? PlayerStatus.Ready ?: return null
-        val ctx = appContext
-        val mime = when (status.streamType) {
-            StreamType.HLS -> "application/x-mpegURL"
-            StreamType.MPD -> "application/dash+xml"
-            StreamType.MP4 -> "video/mp4"
-            else -> "video/*"
-        }
-        val uri = android.net.Uri.parse(status.url)
-        val displayTitle = status.title
+        val packageName = playerPreferences.getExternalPlayerPackage()
+        val playerInfo = externalPlayerLauncher.getPlayerInfo(packageName) ?: return null
 
-        val vlcIntent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, mime)
-            setPackage("org.videolan.vlc")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            putExtra("title", displayTitle)
-            putExtra("position", player?.currentPosition ?: 0L)
-            putExtra("extra_duration", player?.duration ?: 0L)
-            putExtra("from_start", false)
-        }
+        val currentSeason = seasons.find { it.number == (season ?: 1) }
+        val currentVoiceover = voiceover ?: currentSeason?.voiceoverOptions?.firstOrNull()
+        
+        val allEpisodes = currentSeason?.voiceovers?.find { it.name == currentVoiceover }?.episodes
+            ?.filter { ua.ukrtv.app.data.streaming.isDirectStreamUrl(it.url) }
+            ?: emptyList()
 
-        return if (vlcIntent.resolveActivity(ctx.packageManager) != null) {
-            vlcIntent
+        // Reorder playlist so current episode is first, or keep full list but ensure it's limited
+        val currentIdx = allEpisodes.indexOfFirst { it.url == status.url }
+        val playlist = if (currentIdx != -1) {
+            // Include items from current index to the end
+            allEpisodes.subList(currentIdx, allEpisodes.size).map {
+                ExternalPlayerLauncher.PlaylistItem(
+                    url = it.url,
+                    title = "${status.title} - ${it.title}",
+                    streamType = ua.ukrtv.app.data.streaming.getStreamType(it.url)
+                )
+            }
         } else {
-            Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, mime)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                putExtra("title", displayTitle)
-                putExtra("position", player?.currentPosition ?: 0L)
-                putExtra("extra_duration", player?.duration ?: 0L)
-                putExtra("from_start", false)
+            allEpisodes.map {
+                ExternalPlayerLauncher.PlaylistItem(
+                    url = it.url,
+                    title = "${status.title} - ${it.title}",
+                    streamType = ua.ukrtv.app.data.streaming.getStreamType(it.url)
+                )
             }
         }
+
+        val config = ExternalPlayerLauncher.PlayerLaunchConfig(
+            streamUrl = status.url,
+            streamType = status.streamType,
+            title = status.title,
+            referer = status.referer,
+            positionMs = status.positionMs,
+            durationMs = savedStateHandle.get<Long>(KEY_EXTERNAL_DURATION) ?: 0L,
+            playlist = playlist
+        )
+        return externalPlayerLauncher.buildIntent(playerInfo, config)
     }
 
     fun openInExternalPlayer(): Boolean {
-        val intent = createVlcIntent() ?: return false
+        val intent = createExternalPlayerIntent() ?: return false
         val ctx = appContext
         return try {
             ctx.startActivity(intent)
             true
         } catch (e: android.content.ActivityNotFoundException) {
-            Toast.makeText(ctx, "Не знайдено зовнішній плеєр (VLC)", Toast.LENGTH_LONG).show()
+            val playerInfo = getCurrentExternalPlayerInfo()
+            Toast.makeText(ctx, "Не знайдено зовнішній плеєр (${playerInfo?.label ?: ""})", Toast.LENGTH_LONG).show()
             false
         }
     }
 
-    fun handleVlcResult(resultCode: Int, data: Intent?) {
-        if (data == null) return
-        val pos = data.getLongExtra("extra_position", 0L)
-        val dur = data.getLongExtra("extra_duration", 0L)
-        if (dur > 0) {
-            saveProgress(pos, dur)
-            AppLogger.d("PlayerVM", "VLC result: position=$pos duration=$dur")
+    fun handleExternalPlayerResult(resultCode: Int, data: Intent?): ExternalPlayerReturnResult {
+        savedStateHandle[KEY_PENDING_RESULT] = false
+        val result = externalPlayerLauncher.extractResult(resultCode, data) ?: return ExternalPlayerReturnResult.Error
+        
+        AppLogger.d("PlayerVM", "External player result: code=$resultCode position=${result.positionMs} duration=${result.durationMs} finished=${result.isFinished} seasonsSize=${seasons.size} season=$season episode=$episode")
+
+        if (result.positionMs == 0L && result.durationMs == 0L && !result.isFinished) {
+            AppLogger.d("PlayerVM", "External player returned no data (0/0) and not finished, keeping pre-launch save")
+            return ExternalPlayerReturnResult.NoData
+        }
+
+        val durationMs = if (result.durationMs > 0) {
+            result.durationMs
+        } else {
+            savedStateHandle.get<Long>(KEY_EXTERNAL_DURATION) ?: 0L
+        }
+
+        val isFinished = result.isFinished || (
+            durationMs > 0 && result.positionMs > 0 &&
+            result.positionMs.toFloat() / durationMs >= 0.90f
+        )
+
+        AppLogger.d("PlayerVM", "Re-evaluated isFinished=$isFinished (original=${result.isFinished} pos=${result.positionMs} dur=$durationMs)")
+
+        if (durationMs > 0) {
+            val positionMs = if (isFinished && result.positionMs == 0L) {
+                durationMs
+            } else {
+                result.positionMs
+            }
+            saveProgress(positionMs, durationMs)
+        }
+
+        if (isFinished && seasons.isNotEmpty()) {
+            if (this.season == null || this.episode == null) {
+                val firstSeason = seasons.first()
+                this.season = firstSeason.number
+                this.episode = firstSeason.episodes.firstOrNull()?.number ?: 1
+                this.episodeId = "s${this.season}e${this.episode}"
+                savedStateHandle[KEY_SEASON] = this.season
+                savedStateHandle[KEY_EPISODE] = this.episode
+                AppLogger.d("PlayerVM", "Defaulted to S${this.season}E${this.episode}")
+            }
+            if (hasNextEpisode()) {
+                advanceToNextEpisodeFromExternalPlayer()
+                return ExternalPlayerReturnResult.Advanced
+            }
+        }
+        return ExternalPlayerReturnResult.NotFinished(result.positionMs, durationMs)
+    }
+
+    fun switchToBuiltInPlayer(positionMs: Long) {
+        _state.update { state ->
+            val ready = state.status as? PlayerStatus.Ready ?: return@update state
+            state.copy(status = ready.copy(positionMs = positionMs, loadTrigger = System.currentTimeMillis()))
+        }
+        playerPreferences.setPlayerType(ua.ukrtv.app.util.PlayerType.BUILTIN)
+    }
+
+    fun advanceToNextEpisodeFromExternalPlayer() {
+        val nav = EpisodeNavigator.nextEpisode(seasons, season, episode) ?: return
+        
+        this.season = nav.season
+        this.episode = nav.episode
+        this.episodeId = "s${nav.season}e${nav.episode}"
+        savedStateHandle[KEY_SEASON] = nav.season
+        savedStateHandle[KEY_EPISODE] = nav.episode
+        
+        updateNavigationState()
+        loadStream(pageUrl, "S${nav.season} E${nav.episode}", forceStartPosition = 0L)
+    }
+
+    fun getCurrentExternalPlayerInfo(): ExternalPlayerInfo? {
+        val packageName = playerPreferences.getExternalPlayerPackage()
+        return externalPlayerLauncher.getPlayerInfo(packageName)
+    }
+
+    fun getInstalledExternalPlayers(): List<ExternalPlayerInfo> {
+        return externalPlayerLauncher.detectInstalledPlayers()
+    }
+
+    fun isExternalPlayerInstalled(): Boolean {
+        val packageName = playerPreferences.getExternalPlayerPackage()
+        return externalPlayerLauncher.isInstalled(packageName)
+    }
+
+    fun hasPendingExternalPlayerResult(): Boolean =
+        savedStateHandle.get<Boolean>(KEY_PENDING_RESULT) == true
+
+    suspend fun saveBeforeExternalPlayerLaunch() {
+        savedStateHandle[KEY_PENDING_RESULT] = true
+        val currentStatus = _state.value.status as? PlayerStatus.Ready ?: return
+        val pos = currentStatus.positionMs
+        val dbDuration = withContext(Dispatchers.IO) {
+            watchProgressRepository.getProgress(contentId, episodeId)?.durationMs
+        }
+        val dur = dbDuration?.takeIf { it > 0L }
+            ?: engine?.duration?.takeIf { it > 0L }
+            ?: maxOf(pos * 3, 60_000L)
+        savedStateHandle[KEY_EXTERNAL_DURATION] = dur
+        withContext(Dispatchers.IO) {
+            watchProgressRepository.saveProgress(
+                contentId, episodeId, pos, dur, title, poster, pageUrl,
+                currentStatus.url, currentStatus.streamType.name, referer
+            )
+        }
+    }
+
+    fun setExternalPlayerPackage(packageName: String) {
+        playerPreferences.setExternalPlayerPackage(packageName)
+    }
+
+    private fun serializeSeasons(seasons: List<Season>): String {
+        val arr = JSONArray()
+        for (s in seasons) {
+            val voiceovers = JSONArray()
+            for (v in s.voiceovers) {
+                val episodes = JSONArray()
+                for (ep in v.episodes) {
+                    episodes.put(JSONObject().apply {
+                        put("number", ep.number)
+                        put("title", ep.title)
+                        put("url", ep.url)
+                        put("subtitles", ep.subtitles ?: JSONObject.NULL)
+                        put("poster", ep.poster)
+                    })
+                }
+                voiceovers.put(JSONObject().apply {
+                    put("name", v.name)
+                    put("episodes", episodes)
+                })
+            }
+            arr.put(JSONObject().apply {
+                put("number", s.number)
+                put("voiceovers", voiceovers)
+            })
+        }
+        return arr.toString()
+    }
+
+    private fun deserializeSeasons(json: String): List<Season> {
+        return try {
+            val arr = JSONArray(json)
+            val result = mutableListOf<Season>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                val voiceovers = mutableListOf<ua.ukrtv.app.domain.model.Voiceover>()
+                val vArr = obj.getJSONArray("voiceovers")
+                for (j in 0 until vArr.length()) {
+                    val vObj = vArr.getJSONObject(j)
+                    val episodes = mutableListOf<ua.ukrtv.app.domain.model.Episode>()
+                    val eArr = vObj.getJSONArray("episodes")
+                    for (k in 0 until eArr.length()) {
+                        val eObj = eArr.getJSONObject(k)
+                        episodes.add(ua.ukrtv.app.domain.model.Episode(
+                            number = eObj.getInt("number"),
+                            title = eObj.getString("title"),
+                            url = eObj.getString("url"),
+                            subtitles = if (eObj.isNull("subtitles")) null else eObj.getString("subtitles"),
+                            poster = eObj.optString("poster", "")
+                        ))
+                    }
+                    voiceovers.add(ua.ukrtv.app.domain.model.Voiceover(
+                        name = vObj.getString("name"),
+                        episodes = episodes
+                    ))
+                }
+                result.add(Season(
+                    number = obj.getInt("number"),
+                    voiceovers = voiceovers
+                ))
+            }
+            result
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 
     override fun onCleared() {
         super.onCleared()
         audioEngine.release()
-        player?.let {
-            it.stop()
-            it.release()
-        }
+        engine?.release()
+        engine = null
         player = null
         loadJob?.cancel()
         prefetchJob?.cancel()
+        deepJob?.cancel()
+        preResolveJob?.cancel()
     }
 }

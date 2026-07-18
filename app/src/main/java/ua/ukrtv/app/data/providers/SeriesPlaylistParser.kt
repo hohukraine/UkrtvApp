@@ -83,7 +83,9 @@ object SeriesPlaylistParser {
         val tempEpisodes = media.mapNotNull { url ->
             val hdvbMatch = HDVB_EP_REGEX.find(url)
             if (hdvbMatch != null) {
-                return@mapNotNull TempEp(hdvbMatch.groupValues[1].toInt(), hdvbMatch.groupValues[2].toInt(), url)
+                val s = hdvbMatch.groupValues[1].toIntOrNull() ?: return@mapNotNull null
+                val e = hdvbMatch.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+                return@mapNotNull TempEp(s, e, url)
             }
             val parts = url.split("/")
             val indexIdx = parts.indexOfLast { it.contains("index.m3u8") }

@@ -3,12 +3,14 @@ package ua.ukrtv.app.data.repository
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import org.json.JSONArray
 import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.local.entity.CatalogIndexEntity
 import ua.ukrtv.app.data.providers.EneyidaProfile
@@ -34,111 +36,151 @@ class CatalogRepository @Inject constructor(
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
+    private var buildJob: Job? = null
+
     private val _state = MutableStateFlow(CatalogIndexState())
     val state: StateFlow<CatalogIndexState> = _state.asStateFlow()
 
     init {
-        scope.launch { importFromAssetIfEmpty() }
+        launchBuild("importFromAssetIfEmpty") {
+            importFromAssetIfEmpty()
+        }
+    }
+
+    private fun launchBuild(tag: String, block: suspend () -> Unit) {
+        if (buildJob?.isActive == true) {
+            AppLogger.d("CatalogRepository", "Build already in progress, skipping ($tag)")
+            return
+        }
+        buildJob = scope.launch {
+            try {
+                block()
+            } catch (e: Exception) {
+                AppLogger.e("CatalogRepository", "Build failed ($tag): ${e.message}", e)
+            } finally {
+                _state.update { it.copy(isBuilding = false, progress = "") }
+            }
+        }
     }
 
     private suspend fun importFromAssetIfEmpty() {
-        _state.value = _state.value.copy(isBuilding = true, progress = "Importing catalog index...")
-
-        try {
-            val uCount = catalogDao.countByProvider("Uakino")
-            val eCount = catalogDao.countByProvider("Eneyida")
-            if (uCount > 1000 && eCount > 1000) {
-                _state.value = _state.value.copy(
-                    uakinoReady = true, eneyidaReady = true,
-                    uakinoCount = uCount, eneyidaCount = eCount,
-                    isBuilding = false, progress = ""
-                )
-                return
+        val uCount = try { catalogDao.countByProvider("Uakino") } catch (_: Exception) { 0 }
+        val eCount = try { catalogDao.countByProvider("Eneyida") } catch (_: Exception) { 0 }
+        if (uCount > 1000 && eCount > 1000) {
+            _state.update {
+                it.copy(uakinoReady = true, eneyidaReady = true, uakinoCount = uCount, eneyidaCount = eCount)
             }
-        } catch (_: Exception) { }
+            return
+        }
+
+        _state.update { it.copy(isBuilding = true, progress = "Importing catalog index...") }
 
         try {
             context.assets.open("catalog_index.json").use { stream ->
-                val json = stream.bufferedReader().readText()
-                val arr = JSONArray(json)
+                val reader = android.util.JsonReader(stream.bufferedReader())
                 val items = mutableListOf<CatalogIndexEntity>()
-                for (i in 0 until arr.length()) {
-                    val obj = arr.getJSONObject(i)
-                    items.add(CatalogIndexEntity(
-                        url = obj.optString("url", ""),
-                        title = obj.optString("title", "").lowercase(),
-                        titleEn = obj.optString("titleEn", ""),
-                        poster = obj.optString("poster", ""),
-                        provider = obj.optString("provider", "Uakino"),
-                        year = obj.optString("year", ""),
-                        rating = obj.optString("rating", ""),
-                        quality = obj.optString("quality", ""),
-                        contentType = obj.optString("contentType", ""),
-                        updatedAt = obj.optLong("updatedAt", System.currentTimeMillis())
-                    ))
-                }
-                items.chunked(500).forEach { chunk -> catalogDao.insertAll(chunk) }
 
-                val uakinoCount = items.count { it.provider == "Uakino" }
-                val eneyidaCount = items.count { it.provider == "Eneyida" }
-                _state.value = _state.value.copy(
-                    uakinoReady = uakinoCount > 1000,
-                    eneyidaReady = eneyidaCount > 1000,
-                    uakinoCount = uakinoCount,
-                    eneyidaCount = eneyidaCount,
-                    isBuilding = false,
-                    progress = ""
-                )
-                AppLogger.i("CatalogRepository", "Imported ${items.size} items from asset ($uakinoCount Uakino, $eneyidaCount Eneyida)")
+                reader.beginArray()
+                while (reader.hasNext()) {
+                    var url = ""
+                    var title = ""
+                    var titleEn = ""
+                    var poster = ""
+                    var provider = "Uakino"
+                    var year = ""
+                    var rating = ""
+                    var quality = ""
+                    var contentType = ""
+                    var updatedAt = System.currentTimeMillis()
+
+                    reader.beginObject()
+                    while (reader.hasNext()) {
+                        when (reader.nextName()) {
+                            "url" -> url = reader.nextString()
+                            "title" -> title = reader.nextString().lowercase()
+                            "titleEn" -> titleEn = reader.nextString()
+                            "poster" -> poster = reader.nextString()
+                            "provider" -> provider = reader.nextString()
+                            "year" -> year = reader.nextString()
+                            "rating" -> rating = reader.nextString()
+                            "quality" -> quality = reader.nextString()
+                            "contentType" -> contentType = reader.nextString()
+                            "updatedAt" -> updatedAt = reader.nextLong()
+                            else -> reader.skipValue()
+                        }
+                    }
+                    reader.endObject()
+
+                    if (url.isNotEmpty()) {
+                        items.add(CatalogIndexEntity(
+                            url = url, title = title, titleEn = titleEn, poster = poster,
+                            provider = provider, year = year, rating = rating, quality = quality,
+                            contentType = contentType, updatedAt = updatedAt
+                        ))
+                    }
+
+                    if (items.size >= 500) {
+                        catalogDao.insertAll(items.toList())
+                        items.clear()
+                    }
+                }
+                reader.endArray()
+
+                if (items.isNotEmpty()) {
+                    catalogDao.insertAll(items)
+                }
+
+                val uakinoCount = catalogDao.countByProvider("Uakino")
+                val eneyidaCount = catalogDao.countByProvider("Eneyida")
+                _state.update {
+                    it.copy(
+                        uakinoReady = uakinoCount > 1000,
+                        eneyidaReady = eneyidaCount > 1000,
+                        uakinoCount = uakinoCount,
+                        eneyidaCount = eneyidaCount
+                    )
+                }
+                AppLogger.i("CatalogRepository", "Imported catalog from asset ($uakinoCount Uakino, $eneyidaCount Eneyida)")
             }
         } catch (e: Exception) {
             AppLogger.w("CatalogRepository", "Asset import failed: ${e.message}")
-            _state.value = _state.value.copy(isBuilding = false)
             ensureBuilt()
         }
     }
 
     fun ensureBuilt() {
         val s = _state.value
-        if (s.isBuilding) return
-        if (s.uakinoReady && s.eneyidaReady) return
+        if (s.isBuilding || (s.uakinoReady && s.eneyidaReady)) return
+        launchBuild("ensureBuilt") {
+            _state.update { it.copy(isBuilding = true, progress = "Building catalog index...") }
 
-        scope.launch {
-            _state.value = _state.value.copy(isBuilding = true)
-
-            if (!s.uakinoReady) {
-                _state.value = _state.value.copy(progress = "Building Uakino index...")
-                val result = if (s.uakinoCount > 0) {
+            if (!_state.value.uakinoReady) {
+                _state.update { it.copy(progress = "Building Uakino index...") }
+                val uCurrent = _state.value.uakinoCount
+                val uResult = if (uCurrent > 0) {
                     val existingUrls = catalogDao.getUrlsByProvider("Uakino").toSet()
                     builder.buildForProviderIncremental(UakinoProfile, CatalogIndexBuilder.UakinoSources, existingUrls)
                 } else {
                     builder.buildForProvider(UakinoProfile, CatalogIndexBuilder.UakinoSources)
                 }
-                val newTotal = s.uakinoCount + result.itemsInserted
-                AppLogger.i("CatalogRepository", "Uakino: +${result.itemsInserted} new items, ${result.pagesScanned} pages, ${result.errors} errors")
-                _state.value = _state.value.copy(
-                    uakinoReady = newTotal > 1000,
-                    uakinoCount = newTotal
-                )
+                val newTotal = uCurrent + uResult.itemsInserted
+                AppLogger.i("CatalogRepository", "Uakino: +${uResult.itemsInserted} new items, ${uResult.pagesScanned} pages, ${uResult.errors} errors")
+                _state.update { it.copy(uakinoReady = newTotal > 1000, uakinoCount = newTotal) }
             }
 
-            if (!s.eneyidaReady) {
-                _state.value = _state.value.copy(progress = "Building Eneyida index...")
-                val result = if (s.eneyidaCount > 0) {
+            if (!_state.value.eneyidaReady) {
+                _state.update { it.copy(progress = "Building Eneyida index...") }
+                val eCurrent = _state.value.eneyidaCount
+                val eResult = if (eCurrent > 0) {
                     val existingUrls = catalogDao.getUrlsByProvider("Eneyida").toSet()
                     builder.buildForProviderIncremental(EneyidaProfile, CatalogIndexBuilder.EneyidaSources, existingUrls)
                 } else {
                     builder.buildForProvider(EneyidaProfile, CatalogIndexBuilder.EneyidaSources)
                 }
-                val newTotal = s.eneyidaCount + result.itemsInserted
-                AppLogger.i("CatalogRepository", "Eneyida: +${result.itemsInserted} new items, ${result.pagesScanned} pages, ${result.errors} errors")
-                _state.value = _state.value.copy(
-                    eneyidaReady = newTotal > 1000,
-                    eneyidaCount = newTotal
-                )
+                val newTotal = eCurrent + eResult.itemsInserted
+                AppLogger.i("CatalogRepository", "Eneyida: +${eResult.itemsInserted} new items, ${eResult.pagesScanned} pages, ${eResult.errors} errors")
+                _state.update { it.copy(eneyidaReady = newTotal > 1000, eneyidaCount = newTotal) }
             }
-
-            _state.value = _state.value.copy(isBuilding = false, progress = "")
         }
     }
 
@@ -160,56 +202,58 @@ class CatalogRepository @Inject constructor(
         }
     }
 
-    suspend fun updateCatalogSuspend() {
-        if (_state.value.isBuilding) return
-        _state.value = _state.value.copy(isBuilding = true)
+    suspend fun awaitReady() {
+        if (!_state.value.isBuilding && _state.value.uakinoReady && _state.value.eneyidaReady) return
+        ensureBuilt()
+        state.first { !it.isBuilding }
+    }
 
-        try {
+    fun updateCatalogSuspend() {
+        val s = _state.value
+        if (s.isBuilding) return
+        launchBuild("updateCatalogSuspend") {
+            _state.update { it.copy(isBuilding = true, progress = "Updating catalog index...") }
+
             val uCount = catalogDao.countByProvider("Uakino")
             if (uCount > 0) {
                 val existingUrls = catalogDao.getUrlsByProvider("Uakino").toSet()
                 val result = builder.buildForProviderIncremental(UakinoProfile, CatalogIndexBuilder.UakinoSources, existingUrls)
                 val newTotal = uCount + result.itemsInserted
-                _state.value = _state.value.copy(uakinoReady = newTotal > 1000, uakinoCount = newTotal)
+                AppLogger.i("CatalogRepository", "Uakino update: +${result.itemsInserted} new items, ${result.pagesScanned} pages, ${result.errors} errors")
+                _state.update { it.copy(uakinoReady = newTotal > 1000, uakinoCount = newTotal) }
             }
-        } catch (e: Exception) {
-            AppLogger.w("CatalogRepository", "Uakino incremental update failed: ${e.message}")
-        }
 
-        try {
             val eCount = catalogDao.countByProvider("Eneyida")
             if (eCount > 0) {
                 val existingUrls = catalogDao.getUrlsByProvider("Eneyida").toSet()
                 val result = builder.buildForProviderIncremental(EneyidaProfile, CatalogIndexBuilder.EneyidaSources, existingUrls)
                 val newTotal = eCount + result.itemsInserted
-                _state.value = _state.value.copy(eneyidaReady = newTotal > 1000, eneyidaCount = newTotal)
+                AppLogger.i("CatalogRepository", "Eneyida update: +${result.itemsInserted} new items, ${result.pagesScanned} pages, ${result.errors} errors")
+                _state.update { it.copy(eneyidaReady = newTotal > 1000, eneyidaCount = newTotal) }
             }
-        } catch (e: Exception) {
-            AppLogger.w("CatalogRepository", "Eneyida incremental update failed: ${e.message}")
         }
-
-        _state.value = _state.value.copy(isBuilding = false, progress = "")
     }
 
     fun rebuild() {
-        scope.launch {
-            try { catalogDao.deleteAll() } catch (_: Exception) { }
-            _state.value = CatalogIndexState(isBuilding = true, progress = "Rebuilding all indexes...")
-
+        val s = _state.value
+        if (s.isBuilding) return
+        launchBuild("rebuild") {
+            _state.update { it.copy(isBuilding = true, progress = "Rebuilding all indexes...") }
             val uResult = builder.buildForProvider(UakinoProfile, CatalogIndexBuilder.UakinoSources)
-            _state.value = _state.value.copy(
-                uakinoReady = uResult.itemsInserted > 1000,
-                uakinoCount = uResult.itemsInserted,
-                progress = "Uakino done (${uResult.itemsInserted}), building Eneyida..."
-            )
-
+            _state.update {
+                it.copy(
+                    uakinoReady = uResult.itemsInserted > 1000,
+                    uakinoCount = uResult.itemsInserted,
+                    progress = "Uakino done (${uResult.itemsInserted}), building Eneyida..."
+                )
+            }
             val eResult = builder.buildForProvider(EneyidaProfile, CatalogIndexBuilder.EneyidaSources)
-            _state.value = _state.value.copy(
-                eneyidaReady = eResult.itemsInserted > 1000,
-                eneyidaCount = eResult.itemsInserted,
-                isBuilding = false,
-                progress = ""
-            )
+            _state.update {
+                it.copy(
+                    eneyidaReady = eResult.itemsInserted > 1000,
+                    eneyidaCount = eResult.itemsInserted
+                )
+            }
         }
     }
 }

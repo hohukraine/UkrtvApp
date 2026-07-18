@@ -31,12 +31,17 @@ class IframeResolutionStrategy @Inject constructor(
         val extracted = hlsExtractor.extractFromHtml(html)
         if (extracted.isNotEmpty()) {
             logger.log(url, name, "Extracted ${extracted.size} links from HTML")
-            val primary = extracted.first()
+            val master = extracted.firstOrNull {
+                it.url.contains("master.m3u8", ignoreCase = true) ||
+                it.url.contains("playlist.m3u8", ignoreCase = true) ||
+                it.url.contains("index.m3u8", ignoreCase = true)
+            }
+            val primary = master ?: extracted.first()
             return StreamResolutionResult(
                 streamUrl = primary.url,
                 streamType = primary.type,
                 referer = referer,
-                fallbackStreams = extracted.drop(1).map { it.url },
+                fallbackStreams = extracted.filter { it.url != primary.url }.map { it.url },
                 sourcePageUrl = url
             )
         }

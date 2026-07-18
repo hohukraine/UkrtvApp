@@ -24,4 +24,7 @@ interface WatchProgressDao {
 
     @Query("DELETE FROM watch_progress WHERE contentId = :contentId")
     suspend fun deleteByContentId(contentId: String)
+
+    @Query("DELETE FROM watch_progress WHERE timestamp < :threshold")
+    suspend fun deleteOlderThan(threshold: Long)
 }

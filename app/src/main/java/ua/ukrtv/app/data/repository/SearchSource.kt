@@ -13,6 +13,7 @@ import ua.ukrtv.app.util.PerformanceMonitor
 
 internal class SearchSource(
     private val providerManager: ProviderManager,
+    private val catalogRepository: CatalogRepository,
     private val catalogDao: CatalogIndexDao
 ) {
     private val popularCache = TtlLruCache<String, List<Movie>>(maxSize = 20, ttlMs = 15 * 60 * 1000L)
@@ -63,6 +64,7 @@ internal class SearchSource(
 
         try {
             PerformanceMonitor.begin("SearchSource.search")
+            catalogRepository.awaitReady()
             val entities = searchCatalog(q)
             val movies = entities.map { entity ->
                 Movie(
