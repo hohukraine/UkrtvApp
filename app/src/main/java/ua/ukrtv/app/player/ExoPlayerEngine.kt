@@ -4,7 +4,6 @@ import android.content.Context
 import android.view.SurfaceView
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
@@ -13,7 +12,6 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
-import ua.ukrtv.app.domain.model.StreamType
 
 @UnstableApi
 class ExoPlayerEngine(
@@ -68,24 +66,6 @@ class ExoPlayerEngine(
         applyReferer(referer)
         val mediaItem = MediaItem.Builder()
             .setUri(url)
-            .build()
-        player.setMediaItem(mediaItem)
-        if (positionMs > 0) player.seekTo(positionMs)
-        player.prepare()
-        player.playWhenReady = true
-    }
-
-    fun setMediaWithStreamType(url: String, streamType: StreamType, positionMs: Long = 0, referer: String = "") {
-        applyReferer(referer)
-        val mimeType = when (streamType) {
-            StreamType.HLS -> MimeTypes.APPLICATION_M3U8
-            StreamType.MPD -> MimeTypes.APPLICATION_MPD
-            StreamType.MP4 -> MimeTypes.VIDEO_MP4
-            else -> null
-        }
-        val mediaItem = MediaItem.Builder()
-            .setUri(url)
-            .setMimeType(mimeType)
             .build()
         player.setMediaItem(mediaItem)
         if (positionMs > 0) player.seekTo(positionMs)

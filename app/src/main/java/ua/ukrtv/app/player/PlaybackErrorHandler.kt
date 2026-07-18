@@ -49,12 +49,6 @@ object PlaybackErrorHandler {
             (msg.contains("codec") && msg.contains("died"))
     }
 
-    fun isMediatekBlackScreen(error: PlaybackException): Boolean {
-        val msg = (error.message ?: "").lowercase()
-        return (msg.contains("c2.mtk.hevc") || msg.contains("omx.mtk.")) &&
-            (msg.contains("black") || msg.contains("freeze") || msg.contains("stuck"))
-    }
-
     fun isBlockedStream(error: PlaybackException): Boolean {
         val code = error.errorCode
         val httpStatusHint = error.message ?: ""

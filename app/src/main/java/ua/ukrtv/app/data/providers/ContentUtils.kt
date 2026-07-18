@@ -65,18 +65,4 @@ object ContentUtils {
         titleCache.put(title, final)
         return final
     }
-
-    fun isTitleMatch(t1: String, t2: String, strict: Boolean = true): Boolean {
-        val c1 = cleanTitle(t1).lowercase()
-        val c2 = cleanTitle(t2).lowercase()
-        if (c1 == c2) return true
-        if (strict) return false
-        
-        val words1 = c1.split(" ").filter { it.length > 2 }.toSet()
-        val words2 = c2.split(" ").filter { it.length > 2 }.toSet()
-        if (words1.isEmpty() || words2.isEmpty()) return false
-        
-        val intersect = words1.intersect(words2)
-        return intersect.size >= minOf(words1.size, words2.size, 2)
-    }
 }

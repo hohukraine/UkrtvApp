@@ -4,37 +4,11 @@ import ua.ukrtv.app.util.AppLogger
 
 object DleResolutionUtils {
 
-    data class Variant(val url: String, val height: Int, val bandwidth: Long)
-
-    private val HLS_RESOLUTION_REGEX = Regex("""RESOLUTION=\d+x(\d+)""", RegexOption.IGNORE_CASE)
-    private val HLS_BANDWIDTH_REGEX = Regex("""BANDWIDTH=(\d+)""", RegexOption.IGNORE_CASE)
     private val MEDIA_URL_REGEX = Regex("""https?://[^\s"'>]+(?:\.m3u8|\.mp4|\.webm)(?:\?[^\s"'>]*)?""", RegexOption.IGNORE_CASE)
     private val MEDIA_PLAYLIST_REGEX = Regex("""https?://[^\s"'>]+/(?:master\.m3u8|index\.m3u8|playlist\.m3u8)""", RegexOption.IGNORE_CASE)
     private val DLEID_REGEX = Regex("""dleid://(\d+)""")
     private val DATA_FILE_REGEX = Regex("""data-file=["'](//[^"']+)["']""", RegexOption.IGNORE_CASE)
     private val YEAR_CLEANUP_REGEX = Regex("""\b(19|20)\d{2}\b""")
-
-    fun parseMasterPlaylist(playlist: String): List<Variant> {
-        val variants = mutableListOf<Variant>()
-        val lines = playlist.split("\n")
-        var i = 0
-        while (i < lines.size) {
-            val line = lines[i].trim()
-            if (line.startsWith("#EXT-X-STREAM-INF:")) {
-                val attrs = line.removePrefix("#EXT-X-STREAM-INF:")
-                val height = HLS_RESOLUTION_REGEX.find(attrs)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-                val bandwidth = HLS_BANDWIDTH_REGEX.find(attrs)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
-                if (i + 1 < lines.size) {
-                    val url = lines[i + 1].trim()
-                    if (url.isNotEmpty() && !url.startsWith("#")) {
-                        variants.add(Variant(url, height, bandwidth))
-                    }
-                }
-            }
-            i++
-        }
-        return variants
-    }
 
     private val SEASON_REGEXES = listOf(
         Regex("""(?:сезон|season|sezon)[\s\-_]*([0-9]{1,2})""", RegexOption.IGNORE_CASE),

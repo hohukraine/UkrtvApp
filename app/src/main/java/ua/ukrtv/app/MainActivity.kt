@@ -107,7 +107,6 @@ fun UkrtvTVApp() {
 
     val onMovieClick = remember(navController) {
         { movie: ua.ukrtv.app.domain.model.Movie ->
-            ua.ukrtv.app.util.Perf.start("nav:home2detail")
             ua.ukrtv.app.util.AppLogger.d("Navigation", "home→detail: movie=${movie.title} url=${movie.pageUrl?.take(40)}")
             navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl)) {
                 launchSingleTop = true

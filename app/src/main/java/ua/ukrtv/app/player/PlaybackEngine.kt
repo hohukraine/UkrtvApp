@@ -14,12 +14,8 @@ interface PlaybackEngine {
         const val STATE_PLAYING = 5
         const val STATE_PAUSED = 6
 
-        const val SCALING_FIT = 0
         const val SCALING_ZOOM = 1
-        const val SCALING_ASPECT_16_9 = 2
-        const val SCALING_ASPECT_4_3 = 3
         const val SCALING_FILL = 4
-        const val SCALING_ORIGINAL = 5
     }
 
     val currentPosition: Long

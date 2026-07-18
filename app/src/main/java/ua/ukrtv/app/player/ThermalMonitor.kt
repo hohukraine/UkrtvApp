@@ -19,12 +19,9 @@ class ThermalMonitor @Inject constructor(
 ) {
     companion object {
         const val THERMAL_STATUS_NONE = PowerManager.THERMAL_STATUS_NONE
-        const val THERMAL_STATUS_LIGHT = PowerManager.THERMAL_STATUS_LIGHT
         const val THERMAL_STATUS_MODERATE = PowerManager.THERMAL_STATUS_MODERATE
         const val THERMAL_STATUS_SEVERE = PowerManager.THERMAL_STATUS_SEVERE
         const val THERMAL_STATUS_CRITICAL = PowerManager.THERMAL_STATUS_CRITICAL
-        const val THERMAL_STATUS_EMERGENCY = PowerManager.THERMAL_STATUS_EMERGENCY
-        const val THERMAL_STATUS_SHUTDOWN = PowerManager.THERMAL_STATUS_SHUTDOWN
     }
 
     val thermalStatus: Flow<Int> = callbackFlow {

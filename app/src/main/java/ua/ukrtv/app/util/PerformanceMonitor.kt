@@ -4,28 +4,9 @@ import android.os.Trace
 
 object PerformanceMonitor {
 
-    private var enabled = true
+    fun begin(name: String) = Trace.beginSection(name)
 
-    fun setEnabled(value: Boolean) {
-        enabled = value
-    }
-
-    fun begin(name: String) {
-        if (enabled) Trace.beginSection(name)
-    }
-
-    fun end() {
-        if (enabled) Trace.endSection()
-    }
-
-    inline fun trace(sectionName: String, action: () -> Unit) {
-        begin(sectionName)
-        try {
-            action()
-        } finally {
-            end()
-        }
-    }
+    fun end() = Trace.endSection()
 
     inline fun <T> traceResult(sectionName: String, action: () -> T): T {
         begin(sectionName)

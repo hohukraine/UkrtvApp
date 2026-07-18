@@ -25,13 +25,4 @@ class ResolutionLogger @Inject constructor() {
         val prefix = if (isError) "❌" else "✅"
         AppLogger.d("ResolutionAudit", "$prefix [$strategy] $url: $message")
     }
-
-    fun getLogs(): List<LogEntry> = logs.toList()
-
-    fun getFormattedLogs(): String {
-        return logs.joinToString("\n") { entry ->
-            val date = java.text.SimpleDateFormat("HH:mm:ss.SSS", java.util.Locale.getDefault()).format(entry.timestamp)
-            "[$date] ${if (entry.isError) "ERR" else "OK "} [${entry.strategy}] ${entry.url}: ${entry.message}"
-        }
-    }
 }

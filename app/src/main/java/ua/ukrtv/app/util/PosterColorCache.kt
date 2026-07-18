@@ -55,17 +55,5 @@ object PosterColorCache {
         return color
     }
 
-    suspend fun batchExtract(context: Context, urls: List<String>, fallback: Color = Color(0xFF1A1A1A)) {
-        urls.forEach { url ->
-            if (!cache.containsKey(url)) {
-                getColor(context, url, fallback)
-            }
-        }
-    }
-
     fun getCached(posterUrl: String): Color? = cache[posterUrl]
-
-    fun contains(posterUrl: String): Boolean = cache.containsKey(posterUrl)
-
-    fun clear() = cache.clear()
 }

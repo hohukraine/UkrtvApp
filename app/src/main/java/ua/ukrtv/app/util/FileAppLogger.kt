@@ -53,19 +53,6 @@ object FileAppLogger {
         log("E:$tag", message + (throwable?.let { " | ${it.javaClass.simpleName}: ${it.message}" } ?: ""))
     }
 
-    fun shutdown() {
-        try {
-            synchronized(this) {
-                writer?.flush()
-                writer?.close()
-                writer = null
-                initialized = false
-            }
-        } catch (_: IOException) {}
-    }
-
-    fun getLogFile(): File? = logFile
-
     private fun rotateIfNeeded() {
         val current = logFile ?: return
         try {

@@ -46,15 +46,4 @@ class TvRecommendationManager(private val context: Context) {
             ua.ukrtv.app.util.AppLogger.w("TvRecs", "Failed to publish watch next: ${e.message}")
         }
     }
-
-    fun removeFromWatchNext() {
-        try {
-            context.contentResolver.delete(
-                watchNextUri,
-                null, null
-            )
-        } catch (e: Exception) {
-            ua.ukrtv.app.util.AppLogger.w("TvRecs", "Failed to remove watch next: ${e.message}")
-        }
-    }
 }

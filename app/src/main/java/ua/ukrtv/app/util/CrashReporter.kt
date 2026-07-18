@@ -64,14 +64,4 @@ object CrashReporter {
             AppLogger.e("CrashReporter", "Failed to write crash report", e)
         }
     }
-
-    fun getCrashReports(): List<File> {
-        val dir = crashDir ?: return emptyList()
-        return dir.listFiles()?.filter { it.name.startsWith("crash_") }?.sortedByDescending { it.lastModified() }
-            ?: emptyList()
-    }
-
-    fun clearCrashReports() {
-        getCrashReports().forEach { it.delete() }
-    }
 }
