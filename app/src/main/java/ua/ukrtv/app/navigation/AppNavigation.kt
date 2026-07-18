@@ -1,6 +1,7 @@
 package ua.ukrtv.app.navigation
 
 import android.net.Uri
+import ua.ukrtv.app.data.providers.ContentCategory
 
 object AppNavigation {
     const val HOME = "home"
@@ -10,6 +11,7 @@ object AppNavigation {
     const val DETAIL = "detail/{id}?url={url}&alternate={alternate}"
     const val PLAYER = "player/{id}/{title}?url={url}&season={season}&episode={episode}&poster={poster}"
     const val SETTINGS = "settings"
+    const val CATEGORY_GRID = "category_grid?category={category}"
 
     fun searchRoute(query: String = ""): String {
         if (query.isEmpty()) return "search?q="
@@ -22,6 +24,10 @@ object AppNavigation {
         val encodedUrl = Uri.encode(url, null)
         val base = "detail/$encodedId?url=$encodedUrl"
         return if (alternateUrl != null) "$base&alternate=${Uri.encode(alternateUrl, null)}" else base
+    }
+
+    fun categoryGridRoute(categoryKey: String): String {
+        return "category_grid?category=$categoryKey"
     }
 
     fun playerRoute(id: String, title: String, url: String, season: Int? = null, episode: Int? = null, poster: String = ""): String {

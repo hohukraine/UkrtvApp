@@ -19,6 +19,8 @@ import ua.ukrtv.app.util.PerformancePreferences
 import ua.ukrtv.app.util.PerformanceProfile
 import ua.ukrtv.app.util.PlayerPreferences
 import ua.ukrtv.app.util.PlayerType
+import ua.ukrtv.app.util.HomePreferences
+import ua.ukrtv.app.util.HomeLayout
 import javax.inject.Inject
 
 sealed class UpdateState {
@@ -37,6 +39,7 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val performancePreferences: PerformancePreferences,
     private val playerPreferences: PlayerPreferences,
+    private val homePreferences: HomePreferences,
     private val updateRepository: UpdateRepository
 ) : ViewModel() {
 
@@ -45,6 +48,10 @@ class SettingsViewModel @Inject constructor(
     val playerType: StateFlow<PlayerType> = playerPreferences.playerType
 
     val externalPlayerPackage: StateFlow<String> = playerPreferences.externalPlayerPackage
+
+    val homeLayout: StateFlow<HomeLayout> = homePreferences.layout
+
+    val defaultProvider: StateFlow<String> = homePreferences.defaultProvider
 
     private val _installedPlayers = MutableStateFlow<List<ExternalPlayerInfo>>(emptyList())
     val installedPlayers: StateFlow<List<ExternalPlayerInfo>> = _installedPlayers.asStateFlow()
@@ -74,6 +81,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setExternalPlayerPackage(packageName: String) {
         playerPreferences.setExternalPlayerPackage(packageName)
+    }
+
+    fun setHomeLayout(layout: HomeLayout) {
+        homePreferences.setLayout(layout)
+    }
+
+    fun setDefaultProvider(providerId: String) {
+        homePreferences.setDefaultProvider(providerId)
     }
 
     fun checkForUpdates() {

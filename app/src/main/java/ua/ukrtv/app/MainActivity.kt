@@ -35,6 +35,7 @@ import ua.ukrtv.app.ui.player.PlayerScreen
 import ua.ukrtv.app.ui.settings.SettingsScreen
 import ua.ukrtv.app.ui.top200.Top200Screen
 import ua.ukrtv.app.ui.trends.FullTrendsGridScreen
+import ua.ukrtv.app.ui.category.FullCategoryGridScreen
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.UkrtvTheme
 import ua.ukrtv.app.util.DeviceClass
@@ -162,6 +163,7 @@ fun UkrtvTVApp() {
                     onSearchQueryClick = { query -> navController.navigate(AppNavigation.searchRoute(query)) { launchSingleTop = true } },
                     onTop200Click = { navController.navigate(AppNavigation.TOP_200) { launchSingleTop = true } },
                     onSeeAllTrendsClick = { navController.navigate(AppNavigation.TRENDS_GRID) { launchSingleTop = true } },
+                    onSeeAllCategoryClick = { categoryKey -> navController.navigate(AppNavigation.categoryGridRoute(categoryKey)) { launchSingleTop = true } },
                     onSettingsClick = { navController.navigate(AppNavigation.SETTINGS) { launchSingleTop = true } }
                 )
             }
@@ -211,6 +213,17 @@ fun UkrtvTVApp() {
                         }
                     },
                     onBackClick = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = AppNavigation.CATEGORY_GRID,
+                arguments = listOf(navArgument("category") { type = NavType.StringType })
+            ) {
+                FullCategoryGridScreen(
+                    onMovieClick = { movie: ua.ukrtv.app.domain.model.Movie ->
+                        navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl)) { launchSingleTop = true }
+                    },
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(AppNavigation.TRENDS_GRID) {

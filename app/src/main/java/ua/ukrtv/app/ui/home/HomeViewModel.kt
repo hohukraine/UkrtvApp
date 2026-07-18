@@ -16,6 +16,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import ua.ukrtv.app.data.providers.ProviderManager
+import ua.ukrtv.app.data.providers.ContentCategory
 import ua.ukrtv.app.data.repository.ContentRepository
 import ua.ukrtv.app.data.repository.WatchlistRepository
 import ua.ukrtv.app.data.repository.Top200Repository
@@ -23,6 +24,8 @@ import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.Provider
 import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.util.AppLogger
+import ua.ukrtv.app.util.HomePreferences
+import ua.ukrtv.app.util.HomeLayout
 import ua.ukrtv.app.util.PosterColorCache
 import javax.inject.Inject
 
@@ -32,8 +35,11 @@ class HomeViewModel @Inject constructor(
     private val mediaRepository: ContentRepository,
     private val providerManager: ProviderManager,
     private val top200Repository: Top200Repository,
-    private val watchlistRepository: WatchlistRepository
+    private val watchlistRepository: WatchlistRepository,
+    private val homePreferences: HomePreferences
 ) : ViewModel() {
+
+    val homeLayout: StateFlow<HomeLayout> = homePreferences.layout
 
     val isOnline: StateFlow<Boolean> = callbackFlow {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -193,6 +199,76 @@ class HomeViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val focusColor: StateFlow<Color> = _focusColor
         .stateIn(viewModelScope, SharingStarted.Eagerly, Color(0xFF1A1A1A))
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val categoryMovies: StateFlow<List<Movie>> = providerManager.activeProvider
+        .flatMapLatest { provider ->
+            flow {
+                try {
+                    val items = provider.getMoviesByCategory(ContentCategory.MOVIES, 1)
+                    emit(items)
+                } catch (_: Exception) {
+                    emit(emptyList())
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val categorySeries: StateFlow<List<Movie>> = providerManager.activeProvider
+        .flatMapLatest { provider ->
+            flow {
+                try {
+                    val items = provider.getMoviesByCategory(ContentCategory.SERIES, 1)
+                    emit(items)
+                } catch (_: Exception) {
+                    emit(emptyList())
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val categoryAnime: StateFlow<List<Movie>> = providerManager.activeProvider
+        .flatMapLatest { provider ->
+            flow {
+                try {
+                    val items = provider.getMoviesByCategory(ContentCategory.ANIME, 1)
+                    emit(items)
+                } catch (_: Exception) {
+                    emit(emptyList())
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val categoryCartoons: StateFlow<List<Movie>> = providerManager.activeProvider
+        .flatMapLatest { provider ->
+            flow {
+                try {
+                    val items = provider.getMoviesByCategory(ContentCategory.CARTOONS, 1)
+                    emit(items)
+                } catch (_: Exception) {
+                    emit(emptyList())
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val categoryCartoonSeries: StateFlow<List<Movie>> = providerManager.activeProvider
+        .flatMapLatest { provider ->
+            flow {
+                try {
+                    val items = provider.getMoviesByCategory(ContentCategory.CARTOON_SERIES, 1)
+                    emit(items)
+                } catch (_: Exception) {
+                    emit(emptyList())
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val providers: List<Provider> = providerManager.getProviders()
 

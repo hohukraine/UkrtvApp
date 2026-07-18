@@ -59,7 +59,7 @@ val UakinoProfile = DleProviderProfile(
     ),
     categoryPaths = mapOf(
         ContentCategory.TRENDS to "find/year/2026/f/sort=rating;desc/",
-        ContentCategory.MOVIES to "ua/",
+        ContentCategory.MOVIES to "filmy/online/",
         ContentCategory.SERIES to "seriesss/online/",
         ContentCategory.ANIME to "animeukr/online/",
         ContentCategory.CARTOONS to "cartoon/online/",

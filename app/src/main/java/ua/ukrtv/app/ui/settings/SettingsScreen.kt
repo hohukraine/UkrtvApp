@@ -29,6 +29,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.PerformanceProfile
 import ua.ukrtv.app.util.PlayerType
+import ua.ukrtv.app.util.HomeLayout
 import ua.ukrtv.app.util.resolveDeviceClass
 import ua.ukrtv.app.util.getDeviceClass
 import ua.ukrtv.app.ui.theme.LocalFormFactor
@@ -63,9 +64,14 @@ private fun TvSettingsScreen(
     val externalPlayerPackage by viewModel.externalPlayerPackage.collectAsState()
     val installedPlayers by viewModel.installedPlayers.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    val homeLayout by viewModel.homeLayout.collectAsState()
+    val defaultProvider by viewModel.defaultProvider.collectAsState()
     val context = LocalContext.current
     val hardwareClass = remember { getDeviceClass(context) }
     val scrollState = rememberScrollState()
+    val providers = remember { viewModel.let {
+        listOf("Eneyida" to "Eneyida", "Uakino" to "Uakino")
+    } }
 
     Column(
         modifier = Modifier
@@ -261,6 +267,189 @@ private fun TvSettingsScreen(
 
         Spacer(Modifier.height(32.dp))
 
+        // Home page layout
+        Text(
+            text = "ДОМАШНЯ СТОРІНКА",
+            color = Color.White.copy(alpha = 0.7f),
+            fontSize = 14.sp,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
+        // Default provider
+        Text(
+            text = "Провайдер за замовчуванням",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf("Eneyida" to "Eneyida", "Uakino" to "Uakino").forEach { (id, label) ->
+                val isSelected = id == defaultProvider
+                Surface(
+                    onClick = { viewModel.setDefaultProvider(id) },
+                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
+                        focusedContainerColor = Color(0xFF3B82F6),
+                        contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
+                        focusedContentColor = Color.White
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 16.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        )
+                        if (isSelected) {
+                            Text(
+                                text = "✓",
+                                color = Color(0xFF8AB4F8),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Sections visibility
+        Text(
+            text = "Секції на головній",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf(
+                "Продовжити перегляд" to homeLayout.showContinueWatching,
+                "Мій список" to homeLayout.showWatchlist,
+                "Тренди" to homeLayout.showTrends
+            ).forEach { (label, enabled) ->
+                Surface(
+                    onClick = {
+                        viewModel.setHomeLayout(
+                            when (label) {
+                                "Продовжити перегляд" -> homeLayout.copy(showContinueWatching = !enabled)
+                                "Мій список" -> homeLayout.copy(showWatchlist = !enabled)
+                                "Тренди" -> homeLayout.copy(showTrends = !enabled)
+                                else -> homeLayout
+                            }
+                        )
+                    },
+                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = if (enabled) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
+                        focusedContainerColor = Color(0xFF3B82F6),
+                        contentColor = if (enabled) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
+                        focusedContentColor = Color.White
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 16.sp,
+                            fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal
+                        )
+                        Text(
+                            text = if (enabled) "✓" else "✗",
+                            color = if (enabled) Color(0xFF8AB4F8) else Color.White.copy(alpha = 0.3f),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // Category rows
+        Text(
+            text = "Категорії контенту",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            listOf(
+                "Фільми" to homeLayout.showMovies,
+                "Серіали" to homeLayout.showSeries,
+                "Аніме" to homeLayout.showAnime,
+                "Мультфільми" to homeLayout.showCartoons,
+                "Мультсеріали" to homeLayout.showCartoonSeries
+            ).forEach { (label, enabled) ->
+                Surface(
+                    onClick = {
+                        viewModel.setHomeLayout(
+                            when (label) {
+                                "Фільми" -> homeLayout.copy(showMovies = !enabled)
+                                "Серіали" -> homeLayout.copy(showSeries = !enabled)
+                                "Аніме" -> homeLayout.copy(showAnime = !enabled)
+                                "Мультфільми" -> homeLayout.copy(showCartoons = !enabled)
+                                "Мультсеріали" -> homeLayout.copy(showCartoonSeries = !enabled)
+                                else -> homeLayout
+                            }
+                        )
+                    },
+                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = if (enabled) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
+                        focusedContainerColor = Color(0xFF3B82F6),
+                        contentColor = if (enabled) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
+                        focusedContentColor = Color.White
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 16.sp,
+                            fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal
+                        )
+                        Text(
+                            text = if (enabled) "✓" else "✗",
+                            color = if (enabled) Color(0xFF8AB4F8) else Color.White.copy(alpha = 0.3f),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(32.dp))
+
         // Default player
         Text(
             text = "Плеєр за замовчуванням",
@@ -404,6 +593,8 @@ private fun PhoneSettingsScreen(
     val externalPlayerPackage by viewModel.externalPlayerPackage.collectAsState()
     val installedPlayers by viewModel.installedPlayers.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
+    val homeLayout by viewModel.homeLayout.collectAsState()
+    val defaultProvider by viewModel.defaultProvider.collectAsState()
     val context = LocalContext.current
     val hardwareClass = remember { getDeviceClass(context) }
     val scrollState = rememberScrollState()
@@ -511,6 +702,103 @@ private fun PhoneSettingsScreen(
                                 }
                                 Text(profile.description, color = Color.White.copy(alpha = if (isSelected) 0.5f else 0.3f), fontSize = 11.sp, modifier = Modifier.padding(top = 2.dp))
                             }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Home page layout
+            Text("ДОМАШНЯ СТОРІНКА", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
+
+            Text("Провайдер за замовчуванням", color = Color.White.copy(alpha = 0.4f), fontSize = 10.sp, modifier = Modifier.padding(bottom = 6.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf("Eneyida" to "Eneyida", "Uakino" to "Uakino").forEach { (id, label) ->
+                    val isSelected = id == defaultProvider
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.setDefaultProvider(id) }
+                            .background(if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1D), RoundedCornerShape(10.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, color = Color.White, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                            if (isSelected) Text("✓", color = Color(0xFF8AB4F8), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Text("Секції на головній", color = Color.White.copy(alpha = 0.4f), fontSize = 10.sp, modifier = Modifier.padding(bottom = 6.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf(
+                    "Продовжити перегляд" to homeLayout.showContinueWatching,
+                    "Мій список" to homeLayout.showWatchlist,
+                    "Тренди" to homeLayout.showTrends
+                ).forEach { (label, enabled) ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setHomeLayout(
+                                    when (label) {
+                                        "Продовжити перегляд" -> homeLayout.copy(showContinueWatching = !enabled)
+                                        "Мій список" -> homeLayout.copy(showWatchlist = !enabled)
+                                        "Тренди" -> homeLayout.copy(showTrends = !enabled)
+                                        else -> homeLayout
+                                    }
+                                )
+                            }
+                            .background(if (enabled) Color(0xFF1E3A5F) else Color(0xFF1A1A1D), RoundedCornerShape(10.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, color = Color.White, fontSize = 14.sp, fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal)
+                            Text(if (enabled) "✓" else "✗", color = if (enabled) Color(0xFF8AB4F8) else Color.White.copy(alpha = 0.3f), fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Text("Категорії контенту", color = Color.White.copy(alpha = 0.4f), fontSize = 10.sp, modifier = Modifier.padding(bottom = 6.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf(
+                    "Фільми" to homeLayout.showMovies,
+                    "Серіали" to homeLayout.showSeries,
+                    "Аніме" to homeLayout.showAnime,
+                    "Мультфільми" to homeLayout.showCartoons,
+                    "Мультсеріали" to homeLayout.showCartoonSeries
+                ).forEach { (label, enabled) ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.setHomeLayout(
+                                    when (label) {
+                                        "Фільми" -> homeLayout.copy(showMovies = !enabled)
+                                        "Серіали" -> homeLayout.copy(showSeries = !enabled)
+                                        "Аніме" -> homeLayout.copy(showAnime = !enabled)
+                                        "Мультфільми" -> homeLayout.copy(showCartoons = !enabled)
+                                        "Мультсеріали" -> homeLayout.copy(showCartoonSeries = !enabled)
+                                        else -> homeLayout
+                                    }
+                                )
+                            }
+                            .background(if (enabled) Color(0xFF1E3A5F) else Color(0xFF1A1A1D), RoundedCornerShape(10.dp))
+                            .padding(12.dp)
+                    ) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(label, color = Color.White, fontSize = 14.sp, fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal)
+                            Text(if (enabled) "✓" else "✗", color = if (enabled) Color(0xFF8AB4F8) else Color.White.copy(alpha = 0.3f), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

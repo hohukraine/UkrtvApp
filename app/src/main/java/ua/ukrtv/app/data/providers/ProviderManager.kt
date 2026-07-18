@@ -12,6 +12,7 @@ import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.repository.SessionRepository
 import ua.ukrtv.app.util.AppLogger
+import ua.ukrtv.app.util.HomePreferences
 import ua.ukrtv.app.domain.model.Provider
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,7 +21,8 @@ import javax.inject.Singleton
 class ProviderManager @Inject constructor(
     private val htmlHttpClient: HtmlHttpClient,
     private val sessionRepository: SessionRepository,
-    private val catalogRepository: CatalogRepository
+    private val catalogRepository: CatalogRepository,
+    private val homePreferences: HomePreferences
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -43,6 +45,15 @@ class ProviderManager @Inject constructor(
 
     val availableProviders: List<MediaProvider> get() = allProviders
 
+    init {
+        val savedProvider = homePreferences.getDefaultProvider()
+        val provider = getById(savedProvider)
+        if (provider != null && provider.name != _activeProvider.value.name) {
+            _activeProvider.value = provider
+            _brandColor.value = Color.parseColor(provider.brandColor)
+        }
+    }
+
     fun getProviders(): List<Provider> = availableProviders.map {
         Provider(it.name, it.brandColor)
     }
@@ -57,6 +68,7 @@ class ProviderManager @Inject constructor(
         
         _activeProvider.value = provider
         _brandColor.value = Color.parseColor(provider.brandColor)
+        homePreferences.setDefaultProvider(providerId)
 
         allProviders.forEach { it.clearCache() }
 

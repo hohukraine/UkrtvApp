@@ -27,6 +27,7 @@ import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.network.WebpToJpegInterceptor
 import ua.ukrtv.app.util.PerformancePreferences
+import ua.ukrtv.app.util.HomePreferences
 import ua.ukrtv.app.util.getDeviceClass
 import ua.ukrtv.app.util.hasMediatekChipset
 import java.io.InputStream
@@ -245,6 +246,9 @@ object Modules {
 
     @Provides @Singleton
     fun providePlayerPreferences(@ApplicationContext context: Context): ua.ukrtv.app.util.PlayerPreferences = ua.ukrtv.app.util.PlayerPreferences(context)
+
+    @Provides @Singleton
+    fun provideHomePreferences(@ApplicationContext context: Context): HomePreferences = HomePreferences(context)
 
     @Provides @Singleton
     fun provideUpdateRepository(

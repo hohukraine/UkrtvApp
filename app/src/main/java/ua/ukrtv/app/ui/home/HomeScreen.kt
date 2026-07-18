@@ -60,6 +60,7 @@ import ua.ukrtv.app.ui.components.ShimmerBox
 import ua.ukrtv.app.ui.theme.*
 import ua.ukrtv.app.ui.home.components.TrendsTrailingButton
 import ua.ukrtv.app.ui.home.MovieCard
+import ua.ukrtv.app.util.HomeLayout
 
 @Composable
 fun HomeScreen(
@@ -71,12 +72,13 @@ fun HomeScreen(
     onTop200Click: () -> Unit,
     onTop200ItemClick: (Top200Movie) -> Unit = {},
     onSeeAllTrendsClick: () -> Unit = {},
+    onSeeAllCategoryClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {}
 ) {
     val formFactor = LocalFormFactor.current
     when (formFactor) {
-        FormFactor.TV -> TvHomeScreen(viewModel, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onTop200ItemClick, onSeeAllTrendsClick, onSettingsClick)
-        FormFactor.PHONE, FormFactor.TABLET -> PhoneHomeScreen(viewModel, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onSettingsClick, onSeeAllTrendsClick)
+        FormFactor.TV -> TvHomeScreen(viewModel, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onTop200ItemClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onSettingsClick)
+        FormFactor.PHONE, FormFactor.TABLET -> PhoneHomeScreen(viewModel, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onSettingsClick, onSeeAllTrendsClick, onSeeAllCategoryClick)
     }
 }
 
@@ -91,6 +93,7 @@ private fun TvHomeScreen(
     onTop200Click: () -> Unit,
     onTop200ItemClick: (Top200Movie) -> Unit = {},
     onSeeAllTrendsClick: () -> Unit = {},
+    onSeeAllCategoryClick: (String) -> Unit = {},
     onSettingsClick: () -> Unit = {}
 ) {
     val grid by viewModel.grid.collectAsState()
@@ -108,6 +111,13 @@ private fun TvHomeScreen(
     val focusColor by viewModel.focusColor.collectAsState()
     val trendingLabel by viewModel.trendingLabel.collectAsState()
 
+    val homeLayout by viewModel.homeLayout.collectAsState()
+    val rawCategoryMovies by viewModel.categoryMovies.collectAsState()
+    val rawCategorySeries by viewModel.categorySeries.collectAsState()
+    val rawCategoryAnime by viewModel.categoryAnime.collectAsState()
+    val rawCategoryCartoons by viewModel.categoryCartoons.collectAsState()
+    val rawCategoryCartoonSeries by viewModel.categoryCartoonSeries.collectAsState()
+
     val deviceClass = LocalDeviceClass.current
     val bannerFocusRequester = remember { FocusRequester() }
     var activeBannerMovie by remember { mutableStateOf<Top200Movie?>(null) }
@@ -120,6 +130,11 @@ private fun TvHomeScreen(
     val continueWatching = remember(rawContinueWatching, maxContinueItems) { rawContinueWatching.take(maxContinueItems) }
     val watchlist = remember(rawWatchlist, maxContinueItems) { rawWatchlist.take(maxContinueItems) }
     val bannerMovies = remember(rawBannerMovies, maxBannerItems) { rawBannerMovies.take(maxBannerItems) }
+    val categoryMovies = remember(rawCategoryMovies, maxGridItems) { rawCategoryMovies.take(maxGridItems) }
+    val categorySeries = remember(rawCategorySeries, maxGridItems) { rawCategorySeries.take(maxGridItems) }
+    val categoryAnime = remember(rawCategoryAnime, maxGridItems) { rawCategoryAnime.take(maxGridItems) }
+    val categoryCartoons = remember(rawCategoryCartoons, maxGridItems) { rawCategoryCartoons.take(maxGridItems) }
+    val categoryCartoonSeries = remember(rawCategoryCartoonSeries, maxGridItems) { rawCategoryCartoonSeries.take(maxGridItems) }
 
     if (ua.ukrtv.app.BuildConfig.DEBUG) JankMonitor()
 
@@ -146,6 +161,12 @@ private fun TvHomeScreen(
         watchlist = watchlist,
         homeTrending = homeTrending,
         trendingLabel = trendingLabel,
+        homeLayout = homeLayout,
+        categoryMovies = categoryMovies,
+        categorySeries = categorySeries,
+        categoryAnime = categoryAnime,
+        categoryCartoons = categoryCartoons,
+        categoryCartoonSeries = categoryCartoonSeries,
         activeBannerMovie = activeBannerMovie,
         providerColor = providerColor,
         focusColor = focusColor,
@@ -162,6 +183,7 @@ private fun TvHomeScreen(
         onDismissItem = onDismiss,
         onActiveMovieChange = { activeBannerMovie = it },
         onSeeAllTrendsClick = onSeeAllTrendsClick,
+        onSeeAllCategoryClick = onSeeAllCategoryClick,
         onProviderClick = viewModel::switchProvider,
         onSettingsClick = onSettingsClick
     )
@@ -179,6 +201,12 @@ private fun HomeScreenContent(
     watchlist: List<Movie>,
     homeTrending: List<Movie>,
     trendingLabel: String = "Тренди",
+    homeLayout: HomeLayout = HomeLayout(),
+    categoryMovies: List<Movie> = emptyList(),
+    categorySeries: List<Movie> = emptyList(),
+    categoryAnime: List<Movie> = emptyList(),
+    categoryCartoons: List<Movie> = emptyList(),
+    categoryCartoonSeries: List<Movie> = emptyList(),
     activeBannerMovie: Top200Movie?,
     providerColor: Color,
     focusColor: Color,
@@ -195,6 +223,7 @@ private fun HomeScreenContent(
     onDismissItem: (Movie) -> Unit,
     onActiveMovieChange: (Top200Movie) -> Unit,
     onSeeAllTrendsClick: () -> Unit,
+    onSeeAllCategoryClick: (String) -> Unit = {},
     onProviderClick: (String) -> Unit,
     onSettingsClick: () -> Unit = {}
 ) {
@@ -329,19 +358,19 @@ private fun HomeScreenContent(
                     }
                 }
 
-                if (continueWatching.isNotEmpty()) {
+                if (homeLayout.showContinueWatching && continueWatching.isNotEmpty()) {
                     item(key = "continue_watching") {
                         ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, useWideCards = true)
                     }
                 }
 
-                if (watchlist.isNotEmpty()) {
+                if (homeLayout.showWatchlist && watchlist.isNotEmpty()) {
                     item(key = "watchlist") {
                         ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused)
                     }
                 }
 
-                if (homeTrending.isNotEmpty()) {
+                if (homeLayout.showTrends && homeTrending.isNotEmpty()) {
                     item(key = "trending") {
                         ContentRow(
                             title = trendingLabel,
@@ -356,6 +385,86 @@ private fun HomeScreenContent(
                                     brandColor = providerColor,
                                     onClick = onSeeAllTrendsClick
                                 )
+                            }
+                        )
+                    }
+                }
+
+                if (homeLayout.showMovies && categoryMovies.isNotEmpty()) {
+                    item(key = "category_movies") {
+                        ContentRow(
+                            title = "Фільми",
+                            items = categoryMovies,
+                            brandColor = providerColor,
+                            onItemClick = onMovieClick,
+                            onItemDismiss = null,
+                            onItemFocused = onMovieFocused,
+                            trailingContent = {
+                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("movies") })
+                            }
+                        )
+                    }
+                }
+
+                if (homeLayout.showSeries && categorySeries.isNotEmpty()) {
+                    item(key = "category_series") {
+                        ContentRow(
+                            title = "Серіали",
+                            items = categorySeries,
+                            brandColor = providerColor,
+                            onItemClick = onMovieClick,
+                            onItemDismiss = null,
+                            onItemFocused = onMovieFocused,
+                            trailingContent = {
+                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("series") })
+                            }
+                        )
+                    }
+                }
+
+                if (homeLayout.showAnime && categoryAnime.isNotEmpty()) {
+                    item(key = "category_anime") {
+                        ContentRow(
+                            title = "Аніме",
+                            items = categoryAnime,
+                            brandColor = providerColor,
+                            onItemClick = onMovieClick,
+                            onItemDismiss = null,
+                            onItemFocused = onMovieFocused,
+                            trailingContent = {
+                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("anime") })
+                            }
+                        )
+                    }
+                }
+
+                if (homeLayout.showCartoons && categoryCartoons.isNotEmpty()) {
+                    item(key = "category_cartoons") {
+                        ContentRow(
+                            title = "Мультфільми",
+                            items = categoryCartoons,
+                            brandColor = providerColor,
+                            onItemClick = onMovieClick,
+                            onItemDismiss = null,
+                            onItemFocused = onMovieFocused,
+                            trailingContent = {
+                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoons") })
+                            }
+                        )
+                    }
+                }
+
+                if (homeLayout.showCartoonSeries && categoryCartoonSeries.isNotEmpty()) {
+                    item(key = "category_cartoon_series") {
+                        ContentRow(
+                            title = "Мультсеріали",
+                            items = categoryCartoonSeries,
+                            brandColor = providerColor,
+                            onItemClick = onMovieClick,
+                            onItemDismiss = null,
+                            onItemFocused = onMovieFocused,
+                            trailingContent = {
+                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoon_series") })
                             }
                         )
                     }
@@ -530,6 +639,7 @@ private fun PhoneHomeScreen(
     onTop200Click: () -> Unit,
     onSettingsClick: () -> Unit = {},
     onSeeAllTrendsClick: () -> Unit = {},
+    onSeeAllCategoryClick: (String) -> Unit = {},
 ) {
     val gridState = rememberLazyListState()
     val density = LocalDensity.current
@@ -543,12 +653,23 @@ private fun PhoneHomeScreen(
     val providerColor = remember(brandColorLong) { Color(brandColorLong) }
     val providers = remember { viewModel.providers }
     val trendingLabel by viewModel.trendingLabel.collectAsState()
+    val homeLayout by viewModel.homeLayout.collectAsState()
+    val rawCategoryMovies by viewModel.categoryMovies.collectAsState()
+    val rawCategorySeries by viewModel.categorySeries.collectAsState()
+    val rawCategoryAnime by viewModel.categoryAnime.collectAsState()
+    val rawCategoryCartoons by viewModel.categoryCartoons.collectAsState()
+    val rawCategoryCartoonSeries by viewModel.categoryCartoonSeries.collectAsState()
     var activeTop200Movie by remember { mutableStateOf<Top200Movie?>(null) }
 
     val maxItems = 12
     val continueWatching = remember(rawContinueWatching) { rawContinueWatching.take(maxItems) }
     val watchlist = remember(rawWatchlist) { rawWatchlist.take(maxItems) }
     val homeTrending = remember(rawHomeTrending) { rawHomeTrending.take(maxItems) }
+    val categoryMovies = remember(rawCategoryMovies) { rawCategoryMovies.take(maxItems) }
+    val categorySeries = remember(rawCategorySeries) { rawCategorySeries.take(maxItems) }
+    val categoryAnime = remember(rawCategoryAnime) { rawCategoryAnime.take(maxItems) }
+    val categoryCartoons = remember(rawCategoryCartoons) { rawCategoryCartoons.take(maxItems) }
+    val categoryCartoonSeries = remember(rawCategoryCartoonSeries) { rawCategoryCartoonSeries.take(maxItems) }
 
     val screenHeightDp = with(LocalDensity.current) {
         androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
@@ -636,19 +757,19 @@ private fun PhoneHomeScreen(
             }
 
             // Content rows
-            if (continueWatching.isNotEmpty()) {
+            if (homeLayout.showContinueWatching && continueWatching.isNotEmpty()) {
                 item(key = "continue") {
                     ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, useWideCards = true)
                 }
             }
 
-            if (watchlist.isNotEmpty()) {
+            if (homeLayout.showWatchlist && watchlist.isNotEmpty()) {
                 item(key = "watchlist") {
                     ContentRow("Мій список", watchlist, providerColor, onMovieClick)
                 }
             }
 
-            if (homeTrending.isNotEmpty()) {
+            if (homeLayout.showTrends && homeTrending.isNotEmpty()) {
                 item(key = "trending") {
                     ContentRow(
                         trendingLabel,
@@ -672,6 +793,111 @@ private fun PhoneHomeScreen(
                                     tint = Color.White.copy(alpha = 0.6f),
                                     modifier = Modifier.size(28.dp)
                                 )
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (homeLayout.showMovies && categoryMovies.isNotEmpty()) {
+                item(key = "cat_movies") {
+                    ContentRow(
+                        "Фільми", categoryMovies, providerColor, onMovieClick,
+                        trailingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .width(PhoneCardDefaults.posterWidth)
+                                    .height(PhoneCardDefaults.posterHeight)
+                                    .clip(Shapes.card)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .clickable { onSeeAllCategoryClick("movies") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі фільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (homeLayout.showSeries && categorySeries.isNotEmpty()) {
+                item(key = "cat_series") {
+                    ContentRow(
+                        "Серіали", categorySeries, providerColor, onMovieClick,
+                        trailingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .width(PhoneCardDefaults.posterWidth)
+                                    .height(PhoneCardDefaults.posterHeight)
+                                    .clip(Shapes.card)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .clickable { onSeeAllCategoryClick("series") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі серіали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (homeLayout.showAnime && categoryAnime.isNotEmpty()) {
+                item(key = "cat_anime") {
+                    ContentRow(
+                        "Аніме", categoryAnime, providerColor, onMovieClick,
+                        trailingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .width(PhoneCardDefaults.posterWidth)
+                                    .height(PhoneCardDefaults.posterHeight)
+                                    .clip(Shapes.card)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .clickable { onSeeAllCategoryClick("anime") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усе аніме", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (homeLayout.showCartoons && categoryCartoons.isNotEmpty()) {
+                item(key = "cat_cartoons") {
+                    ContentRow(
+                        "Мультфільми", categoryCartoons, providerColor, onMovieClick,
+                        trailingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .width(PhoneCardDefaults.posterWidth)
+                                    .height(PhoneCardDefaults.posterHeight)
+                                    .clip(Shapes.card)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .clickable { onSeeAllCategoryClick("cartoons") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультфільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                            }
+                        }
+                    )
+                }
+            }
+
+            if (homeLayout.showCartoonSeries && categoryCartoonSeries.isNotEmpty()) {
+                item(key = "cat_cartoon_series") {
+                    ContentRow(
+                        "Мультсеріали", categoryCartoonSeries, providerColor, onMovieClick,
+                        trailingContent = {
+                            Box(
+                                modifier = Modifier
+                                    .width(PhoneCardDefaults.posterWidth)
+                                    .height(PhoneCardDefaults.posterHeight)
+                                    .clip(Shapes.card)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .clickable { onSeeAllCategoryClick("cartoon_series") },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультсеріали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
                             }
                         }
                     )
