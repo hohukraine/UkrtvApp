@@ -94,7 +94,7 @@ fun SeasonEpisodePicker(
             )
 
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                itemsIndexed(distinctSeasons, key = { _, s -> s.number }) { _, season ->
+                itemsIndexed(distinctSeasons, key = { _, s -> s.number }, contentType = { _, _ -> "season" }) { _, season ->
                     val isSelected = selectedSeasonNum == season.number
                     Surface(
                         onClick = { selectedSeasonNum = season.number },
@@ -139,7 +139,7 @@ fun SeasonEpisodePicker(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.padding(bottom = 16.dp)
             ) {
-                itemsIndexed(voiceoverOptions, key = { _, vo -> vo }) { _, vo ->
+                itemsIndexed(voiceoverOptions, key = { _, vo -> vo }, contentType = { _, _ -> "voiceover" }) { _, vo ->
                     val isSelected = selectedVoiceover == vo
                     Surface(
                         onClick = { selectedVoiceover = vo },
@@ -176,7 +176,7 @@ fun SeasonEpisodePicker(
 
         // Episode rail
         LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            itemsIndexed(episodes, key = { _, ep -> "${selectedSeasonNum}_${ep.number}" }) { index, episode ->
+            itemsIndexed(episodes, key = { _, ep -> "${selectedSeasonNum}_${ep.number}" }, contentType = { _, _ -> "episode" }) { index, episode ->
                 EpisodeCard(
                     episode = episode,
                     seasonNumber = selectedSeasonNum,

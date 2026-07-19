@@ -22,6 +22,9 @@ import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlin.math.sin
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -191,6 +194,7 @@ fun DetailContent(
 
     val scrollState = rememberLazyListState()
     val disableMotion = deviceClass == DeviceClass.LOW || isMediatek
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     var driftX by remember { mutableFloatStateOf(0f) }
     var driftY by remember { mutableFloatStateOf(0f) }
@@ -198,10 +202,12 @@ fun DetailContent(
         if (disableMotion) return@LaunchedEffect
         val periodX = if (deviceClass == DeviceClass.HIGH) 4000 else 6000
         val periodY = if (deviceClass == DeviceClass.HIGH) 5000 else 8000
-        while (true) {
-            val t = withFrameMillis { it }
-            driftX = sin(t * Math.PI * 2.0 / periodX).toFloat()
-            driftY = sin(t * Math.PI * 2.0 / periodY).toFloat()
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val t = withFrameMillis { it }
+                driftX = sin(t * Math.PI * 2.0 / periodX).toFloat()
+                driftY = sin(t * Math.PI * 2.0 / periodY).toFloat()
+            }
         }
     }
 
@@ -316,7 +322,7 @@ fun DetailContent(
                 bottom = 100.dp
             )
         ) {
-            item {
+            item(key = "back_button", contentType = "back_button") {
                 Column {
                     // Back button with glassmorphism for HIGH
                     if (deviceClass == DeviceClass.HIGH) {
@@ -358,7 +364,7 @@ fun DetailContent(
                 }
             }
 
-            item {
+            item(key = "main_info", contentType = "main_info") {
                 Row(modifier = Modifier.fillMaxWidth()) {
                     // Poster
                     Surface(
@@ -584,7 +590,7 @@ fun DetailContent(
 
             // Actors horizontal scroll (HIGH only — Netflix-style)
             if (deviceClass == DeviceClass.HIGH && detail.actors.isNotEmpty()) {
-                item {
+                item(key = "actors_row", contentType = "actors_row") {
                     Spacer(modifier = Modifier.height(48.dp))
                     Text(
                         text = "АКТОРИ",
@@ -631,7 +637,7 @@ fun DetailContent(
 
             // Seasons
             if (!detail.seasons.isNullOrEmpty()) {
-                item {
+                item(key = "seasons", contentType = "seasons") {
                     Column {
                         Spacer(modifier = Modifier.height(64.dp))
                         SeasonEpisodePicker(
@@ -645,7 +651,7 @@ fun DetailContent(
 
             // Comments
             if (detail.comments.isNotEmpty()) {
-                item {
+                item(key = "comments", contentType = "comments") {
                     Column {
                         Spacer(modifier = Modifier.height(64.dp))
                         CommentsSection(
@@ -719,7 +725,7 @@ private fun PhoneDetailContent(
             .background(Background),
         contentPadding = PaddingValues(bottom = 32.dp)
     ) {
-        item(contentType = "hero") {
+        item(key = "hero", contentType = "hero") {
             // Hero banner — poster with gradient overlay
             Box(
                 modifier = Modifier
@@ -800,7 +806,7 @@ private fun PhoneDetailContent(
             }
         }
 
-        item(contentType = "actions") {
+        item(key = "actions", contentType = "actions") {
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 Spacer(modifier = Modifier.height(16.dp))
                 // Action buttons
@@ -857,7 +863,7 @@ private fun PhoneDetailContent(
             }
         }
 
-        item(contentType = "meta") {
+        item(key = "meta", contentType = "meta") {
             Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                 // Genre chips
                 if (detail.genres.isNotEmpty()) {
@@ -918,7 +924,7 @@ private fun PhoneDetailContent(
         }
 
         if (!detail.seasons.isNullOrEmpty()) {
-            item(contentType = "seasons") {
+            item(key = "seasons", contentType = "seasons") {
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     Spacer(modifier = Modifier.height(24.dp))
                     SeasonEpisodePicker(
@@ -931,7 +937,7 @@ private fun PhoneDetailContent(
         }
 
         if (detail.comments.isNotEmpty()) {
-            item(contentType = "comments") {
+            item(key = "comments", contentType = "comments") {
                 Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                     Spacer(modifier = Modifier.height(24.dp))
                     CommentsSection(

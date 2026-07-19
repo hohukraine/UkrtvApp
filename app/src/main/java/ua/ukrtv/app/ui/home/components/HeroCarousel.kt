@@ -144,11 +144,12 @@ fun HeroCarousel(
                 }
             }
 
+            val clickHandler = remember(movie) { { onWatchClick(movie) } }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .focusRequester(focusRequester)
-                    .clickable { onWatchClick(movie) }
+                    .clickable(onClick = clickHandler)
                     .onFocusChanged {
                         isFocused = it.isFocused
                         if (it.isFocused) {
@@ -235,6 +236,18 @@ private fun HeroItemContent(
         else -> FontWeight.Light
     }
 
+    val glowAlpha = remember(deviceClass) { if (deviceClass == DeviceClass.HIGH) 0.4f else 0.25f }
+    val horizontalGradientBrush = remember(accentColor, deviceClass) {
+        Brush.horizontalGradient(
+            colors = listOf(
+                accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.45f else 0.3f),
+                accentColor.copy(alpha = 0.1f),
+                Color.Transparent
+            ),
+            endX = 1400f
+        )
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -245,7 +258,6 @@ private fun HeroItemContent(
 
                 if (deviceClass != DeviceClass.LOW) {
                     // Radial glow from center (accent color)
-                    val glowAlpha = if (deviceClass == DeviceClass.HIGH) 0.4f else 0.25f
                     drawRect(
                         brush = Brush.radialGradient(
                             colors = listOf(
@@ -277,16 +289,7 @@ private fun HeroItemContent(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.45f else 0.3f),
-                            accentColor.copy(alpha = 0.1f),
-                            Color.Transparent
-                        ),
-                        endX = 1400f
-                    )
-                )
+                .background(horizontalGradientBrush)
         )
 
         // Layer 3: Content

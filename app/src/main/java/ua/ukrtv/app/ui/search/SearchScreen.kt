@@ -90,13 +90,22 @@ import ua.ukrtv.app.ui.theme.Shapes
 
 import javax.inject.Inject
 
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+
+@Stable
 sealed class SearchState {
+    @Immutable
     object Idle : SearchState()
+    @Immutable
     object Loading : SearchState()
+    @Immutable
     data class Success(val results: List<Movie>) : SearchState()
+    @Immutable
     data class Error(val message: String) : SearchState()
 }
 
+@Immutable
 data class Suggestion(val text: String, val type: SuggestionType)
 
 enum class SuggestionType { HISTORY, TRENDING }
@@ -433,7 +442,7 @@ fun SearchScreen(
                             contentPadding = PaddingValues(bottom = 32.dp)
                         ) {
                             if (history.isNotEmpty()) {
-                                item(key = "history_label") {
+                                item(key = "history_label", contentType = "label") {
                                     Text(
                                         "ОСТАННІ ЗАПИТИ",
                                         color = OnSurface,
@@ -443,7 +452,7 @@ fun SearchScreen(
                                         modifier = Modifier.padding(bottom = 12.dp)
                                     )
                                 }
-                                item(key = "history_row") {
+                                item(key = "history_row", contentType = "history_row") {
                                     LazyRow(
                                         modifier = Modifier
                                             .padding(bottom = 32.dp)
@@ -489,7 +498,7 @@ fun SearchScreen(
                             }
 
                             if (trending.isNotEmpty()) {
-                                item(key = "trending_label") {
+                                item(key = "trending_label", contentType = "label") {
                                     Text(
                                         "ПОПУЛЯРНЕ ЗАРАЗ",
                                         color = OnSurface,
@@ -509,7 +518,7 @@ fun SearchScreen(
                                 val rowSpacing = if (isPhone) PhoneGridDefaults.rowSpacing else GridDefaults.rowSpacing
 
                                 val rows = trending.chunked(columns)
-                                items(rows.size) { rowIndex ->
+                                items(rows.size, key = { "trending_row_$it" }, contentType = { "trending_row" }) { rowIndex ->
                                     val rowItems = rows[rowIndex]
                                     Row(
                                         modifier = Modifier
@@ -537,7 +546,7 @@ fun SearchScreen(
                             }
 
                             if (history.isEmpty() && trending.isEmpty()) {
-                                item(key = "empty_state") {
+                                item(key = "empty_state", contentType = "empty_state") {
                                     Text(
                                         "Почніть вводити назву для пошуку",
                                         color = OnSurfaceDim
@@ -644,11 +653,15 @@ private fun SearchRow(
                 .clip(RoundedCornerShape(8.dp))
                 .background(Color(0xFF141414))
         ) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
+            val context = LocalContext.current
+            val imageRequest = remember(movie.poster) {
+                ImageRequest.Builder(context)
                     .data(movie.poster)
                     .crossfade(true)
-                    .build(),
+                    .build()
+            }
+            AsyncImage(
+                model = imageRequest,
                 contentDescription = movie.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),

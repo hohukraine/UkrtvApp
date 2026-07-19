@@ -269,7 +269,7 @@ private fun HomeScreenContent(
                 )
             ) {
                 if (!isOnline) {
-                    item(key = "offline_banner") {
+                    item(key = "offline_banner", contentType = "banner") {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -288,11 +288,11 @@ private fun HomeScreenContent(
                 }
 
                 if (isLoading) {
-                    items(6, key = { "shimmer_$it" }) { ShimmerBox(Modifier.fillMaxWidth().height(280.dp).padding(bottom = 32.dp), Shapes.card) }
+                    items(6, key = { "shimmer_$it" }, contentType = { "shimmer" }) { ShimmerBox(Modifier.fillMaxWidth().height(280.dp).padding(bottom = 32.dp), Shapes.card) }
                 }
 
                 if (!isLoading && gridError != null) {
-                    item(key = "grid_error") {
+                    item(key = "grid_error", contentType = "error") {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -319,7 +319,7 @@ private fun HomeScreenContent(
                 }
 
                 if (top200Banners.isNotEmpty()) {
-                    item(key = "banner_top200") {
+                    item(key = "banner_top200", contentType = "hero") {
                         Top200SignatureHero(
                             items = top200Banners,
                             brandColor = providerColor,
@@ -330,7 +330,7 @@ private fun HomeScreenContent(
                         )
                     }
                 } else if (bannerMovies.isNotEmpty()) {
-                    item(key = "banner_hero") {
+                    item(key = "banner_hero", contentType = "hero") {
                         HeroCarousel(
                             items = bannerMovies,
                             brandColor = providerColor,
@@ -342,19 +342,19 @@ private fun HomeScreenContent(
                 }
 
                 if (homeLayout.showContinueWatching && continueWatching.isNotEmpty()) {
-                    item(key = "continue_watching") {
+                    item(key = "continue_watching", contentType = "content_row") {
                         ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, useWideCards = true)
                     }
                 }
 
                 if (homeLayout.showWatchlist && watchlist.isNotEmpty()) {
-                    item(key = "watchlist") {
+                    item(key = "watchlist", contentType = "content_row") {
                         ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused)
                     }
                 }
 
                 if (homeLayout.showTrends && homeTrending.isNotEmpty()) {
-                    item(key = "trending") {
+                    item(key = "trending", contentType = "content_row") {
                         ContentRow(
                             title = trendingLabel,
                             items = homeTrending,
@@ -374,7 +374,7 @@ private fun HomeScreenContent(
                 }
 
                 if (homeLayout.showMovies && categoryMovies.isNotEmpty()) {
-                    item(key = "category_movies") {
+                    item(key = "category_movies", contentType = "content_row") {
                         ContentRow(
                             title = "Фільми",
                             items = categoryMovies,
@@ -390,7 +390,7 @@ private fun HomeScreenContent(
                 }
 
                 if (homeLayout.showSeries && categorySeries.isNotEmpty()) {
-                    item(key = "category_series") {
+                    item(key = "category_series", contentType = "content_row") {
                         ContentRow(
                             title = "Серіали",
                             items = categorySeries,
@@ -406,7 +406,7 @@ private fun HomeScreenContent(
                 }
 
                 if (homeLayout.showAnime && categoryAnime.isNotEmpty()) {
-                    item(key = "category_anime") {
+                    item(key = "category_anime", contentType = "content_row") {
                         ContentRow(
                             title = "Аніме",
                             items = categoryAnime,
@@ -422,7 +422,7 @@ private fun HomeScreenContent(
                 }
 
                 if (homeLayout.showCartoons && categoryCartoons.isNotEmpty()) {
-                    item(key = "category_cartoons") {
+                    item(key = "category_cartoons", contentType = "content_row") {
                         ContentRow(
                             title = "Мультфільми",
                             items = categoryCartoons,
@@ -438,7 +438,7 @@ private fun HomeScreenContent(
                 }
 
                 if (homeLayout.showCartoonSeries && categoryCartoonSeries.isNotEmpty()) {
-                    item(key = "category_cartoon_series") {
+                    item(key = "category_cartoon_series", contentType = "content_row") {
                         ContentRow(
                             title = "Мультсеріали",
                             items = categoryCartoonSeries,
@@ -703,7 +703,7 @@ private fun PhoneHomeScreen(
             modifier = Modifier.weight(1f)
         ) {
             // Hero section (Top 200 carousel)
-            item(key = "hero") {
+            item(key = "hero", contentType = "hero") {
                 if (uiState.top200Banners.isNotEmpty()) {
                     PhoneHeroSection(
                         items = uiState.top200Banners,
@@ -717,7 +717,7 @@ private fun PhoneHomeScreen(
             }
 
             if (!uiState.isOnline) {
-                item(key = "offline") {
+                item(key = "offline", contentType = "banner") {
                     Box(
                         modifier = Modifier.fillMaxWidth().background(Color(0xFFE53935)).padding(8.dp),
                         contentAlignment = Alignment.Center
@@ -729,19 +729,19 @@ private fun PhoneHomeScreen(
 
             // Content rows
             if (uiState.homeLayout.showContinueWatching && continueWatching.isNotEmpty()) {
-                item(key = "continue") {
+                item(key = "continue", contentType = "content_row") {
                     ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, useWideCards = true)
                 }
             }
 
             if (uiState.homeLayout.showWatchlist && watchlist.isNotEmpty()) {
-                item(key = "watchlist") {
+                item(key = "watchlist", contentType = "content_row") {
                     ContentRow("Мій список", watchlist, providerColor, onMovieClick)
                 }
             }
 
             if (uiState.homeLayout.showTrends && homeTrending.isNotEmpty()) {
-                item(key = "trending") {
+                item(key = "trending", contentType = "content_row") {
                     ContentRow(
                         uiState.trendingLabel,
                         homeTrending,
@@ -771,7 +771,7 @@ private fun PhoneHomeScreen(
             }
 
             if (uiState.homeLayout.showMovies && categoryMovies.isNotEmpty()) {
-                item(key = "cat_movies") {
+                item(key = "cat_movies", contentType = "content_row") {
                     ContentRow(
                         "Фільми", categoryMovies, providerColor, onMovieClick,
                         trailingContent = {
@@ -792,7 +792,7 @@ private fun PhoneHomeScreen(
             }
 
             if (uiState.homeLayout.showSeries && categorySeries.isNotEmpty()) {
-                item(key = "cat_series") {
+                item(key = "cat_series", contentType = "content_row") {
                     ContentRow(
                         "Серіали", categorySeries, providerColor, onMovieClick,
                         trailingContent = {
@@ -813,7 +813,7 @@ private fun PhoneHomeScreen(
             }
 
             if (uiState.homeLayout.showAnime && categoryAnime.isNotEmpty()) {
-                item(key = "cat_anime") {
+                item(key = "cat_anime", contentType = "content_row") {
                     ContentRow(
                         "Аніме", categoryAnime, providerColor, onMovieClick,
                         trailingContent = {
@@ -834,7 +834,7 @@ private fun PhoneHomeScreen(
             }
 
             if (uiState.homeLayout.showCartoons && categoryCartoons.isNotEmpty()) {
-                item(key = "cat_cartoons") {
+                item(key = "cat_cartoons", contentType = "content_row") {
                     ContentRow(
                         "Мультфільми", categoryCartoons, providerColor, onMovieClick,
                         trailingContent = {
@@ -855,7 +855,7 @@ private fun PhoneHomeScreen(
             }
 
             if (uiState.homeLayout.showCartoonSeries && categoryCartoonSeries.isNotEmpty()) {
-                item(key = "cat_cartoon_series") {
+                item(key = "cat_cartoon_series", contentType = "content_row") {
                     ContentRow(
                         "Мультсеріали", categoryCartoonSeries, providerColor, onMovieClick,
                         trailingContent = {
@@ -876,7 +876,7 @@ private fun PhoneHomeScreen(
             }
 
             if (continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
-                item {
+                item(contentType = "loading") {
                     Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = providerColor)
                     }

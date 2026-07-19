@@ -56,6 +56,20 @@ Lua/ukrtv/app/ui/player/PlayerViewModel_HiltModules$EarlySynthesizedInputs$dex
 Lua/ukrtv/app/ui/player/PlayerOverlay
 Lua/ukrtv/app/ui/player/EpisodePickerPanel
 
+# ── Composables: Search Screen ──
+Lua/ukrtv/app/ui/search/SearchScreenKt
+Lua/ukrtv/app/ui/search/SearchViewModel
+
+# ── Composables: Grid Screens ──
+Lua/ukrtv/app/ui/trends/FullTrendsGridScreenKt
+Lua/ukrtv/app/ui/category/FullCategoryGridScreenKt
+Lua/ukrtv/app/ui/top200/Top200ScreenKt
+
+# ── Composables: Components ──
+Lua/ukrtv/app/ui/components/ShimmerEffectKt
+Lua/ukrtv/app/ui/detail/SeasonEpisodePickerKt
+Lua/ukrtv/app/ui/detail/CommentsSectionKt
+
 # ── Coil Image Loading ──
 Lcoil/Coil
 Lcoil/ImageLoader

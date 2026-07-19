@@ -437,11 +437,15 @@ private fun PhoneFullCategoryGridScreen(
                                     .clip(RoundedCornerShape(6.dp))
                                     .background(Color(0xFF141414))
                             ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
+                                val context = LocalContext.current
+                                val imageRequest = remember(movie.poster) {
+                                    ImageRequest.Builder(context)
                                         .data(movie.poster)
                                         .size(PhoneCardDefaults.posterWidth.value.toInt(), PhoneCardDefaults.posterHeight.value.toInt())
-                                        .build(),
+                                        .build()
+                                }
+                                AsyncImage(
+                                    model = imageRequest,
                                     contentDescription = movie.title,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)),

@@ -11,6 +11,9 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
@@ -56,14 +59,18 @@ fun HomeBackground(
     var motionY by remember { mutableFloatStateOf(0f) }
     var motionPhase2X by remember { mutableFloatStateOf(0f) }
     
+    val lifecycleOwner = LocalLifecycleOwner.current
+    
     // Phase 9: Only run animation if enabled
     LaunchedEffect(deviceClass, animateGlow) {
         if (!animateGlow) return@LaunchedEffect
-        while (true) {
-            val t = withFrameMillis { it }
-            motionX = sin(t * Math.PI * 2.0 / 6000).toFloat() * motionRange
-            motionY = sin(t * Math.PI * 2.0 / 8000).toFloat() * motionRange * 0.6f
-            motionPhase2X = sin(t * Math.PI * 2.0 / 5000).toFloat() * motionRange * 0.5f
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                val t = withFrameMillis { it }
+                motionX = sin(t * Math.PI * 2.0 / 6000).toFloat() * motionRange
+                motionY = sin(t * Math.PI * 2.0 / 8000).toFloat() * motionRange * 0.6f
+                motionPhase2X = sin(t * Math.PI * 2.0 / 5000).toFloat() * motionRange * 0.5f
+            }
         }
     }
 

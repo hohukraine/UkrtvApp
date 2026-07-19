@@ -127,9 +127,9 @@ private fun PhoneContentRow(
             ) { _, item ->
                 val onClick = remember(item) { { onItemClick(item) } }
                 if (useWideCards) {
-                    ContinueWatchingCard(movie = item, onClick = onClick)
+                    ContinueWatchingCard(movie = item, onClick = onClick, modifier = Modifier.animateItem())
                 } else {
-                    MovieCard(movie = item, onClick = onClick)
+                    MovieCard(movie = item, onClick = onClick, modifier = Modifier.animateItem())
                 }
             }
 
@@ -262,26 +262,30 @@ private fun TvContentRow(
             ) { index, item ->
                 val isFirst = index == 0
                 val isLast = index == items.lastIndex && trailingContent == null
-                val itemModifier = if (isFirst) Modifier.focusRequester(firstItemFocus) else Modifier
+                val itemModifier = remember(isFirst) { if (isFirst) Modifier.focusRequester(firstItemFocus) else Modifier }
 
-                val keyBlockMod = Modifier.onPreviewKeyEvent { event ->
-                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                    when {
-                        isFirst && event.key == Key.DirectionLeft -> true
-                        isLast && event.key == Key.DirectionRight -> true
-                        else -> false
+                val keyBlockMod = remember(isFirst, isLast) {
+                    Modifier.onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        when {
+                            isFirst && event.key == Key.DirectionLeft -> true
+                            isLast && event.key == Key.DirectionRight -> true
+                            else -> false
+                        }
                     }
                 }
 
                 val lastSoundTime = remember { mutableLongStateOf(0L) }
-                val focusMod = itemModifier.then(keyBlockMod).onFocusChanged { state ->
-                    if (state.isFocused) {
-                        onItemFocused?.invoke(item)
-                        val now = System.currentTimeMillis()
-                        // 3.3 Increased throttle for sound effect
-                        if (now - lastSoundTime.longValue > 150L) {
-                            lastSoundTime.longValue = now
-                            audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
+                val focusMod = remember(item, onItemFocused, audioManager, keyBlockMod, itemModifier) {
+                    itemModifier.then(keyBlockMod).onFocusChanged { state ->
+                        if (state.isFocused) {
+                            onItemFocused?.invoke(item)
+                            val now = System.currentTimeMillis()
+                            // 3.3 Increased throttle for sound effect
+                            if (now - lastSoundTime.longValue > 150L) {
+                                lastSoundTime.longValue = now
+                                audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
+                            }
                         }
                     }
                 }
@@ -325,7 +329,7 @@ private fun TvContentRow(
                         onClick = onClick,
                         onLongClick = onDismiss,
                         onDismiss = onDismiss,
-                        modifier = entranceMod
+                        modifier = entranceMod.animateItem()
                     )
                 } else {
                     MovieCard(
@@ -335,13 +339,13 @@ private fun TvContentRow(
                         height = (if (useLargeCards) CardDefaults.posterHeight * 1.15f else CardDefaults.posterHeight) * cardScale,
                         onClick = onClick,
                         onDismiss = onDismiss,
-                        modifier = entranceMod
+                        modifier = entranceMod.animateItem()
                     )
                 }
             }
 
             if (trailingContent != null) {
-                item(key = "__trailing") {
+                item(key = "__trailing", contentType = "trailing") {
                     Box(modifier = Modifier.focusProperties { canFocus = false }) {
                         trailingContent()
                     }

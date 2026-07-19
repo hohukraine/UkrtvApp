@@ -155,12 +155,16 @@ private fun PhoneHeroPage(
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF141414))
             ) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
+                val context = LocalContext.current
+                val imageRequest = remember(movie.posterUrl) {
+                    ImageRequest.Builder(context)
                         .data(movie.posterUrl)
                         .size(480, 720)
                         .crossfade(true)
-                        .build(),
+                        .build()
+                }
+                AsyncImage(
+                    model = imageRequest,
                     contentDescription = movie.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()

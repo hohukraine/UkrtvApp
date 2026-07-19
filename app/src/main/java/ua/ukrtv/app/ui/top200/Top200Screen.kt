@@ -308,11 +308,15 @@ private fun PhoneTop200Screen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Poster with rank badge
                         Box(modifier = Modifier.width(60.dp).height(90.dp)) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
+                            val context = LocalContext.current
+                            val imageRequest = remember(movie.posterUrl) {
+                                ImageRequest.Builder(context)
                                     .data(movie.posterUrl.ifEmpty { null })
                                     .size(120, 180)
-                                    .build(),
+                                    .build()
+                            }
+                            AsyncImage(
+                                model = imageRequest,
                                 contentDescription = movie.title,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(6.dp)),

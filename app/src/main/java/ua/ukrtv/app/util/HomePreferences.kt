@@ -1,6 +1,7 @@
 package ua.ukrtv.app.util
 
 import android.content.Context
+import androidx.compose.runtime.Immutable
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -8,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
+@Immutable
 data class HomeLayout(
     val showContinueWatching: Boolean = true,
     val showWatchlist: Boolean = true,
