@@ -448,12 +448,6 @@ class PlayerViewModel @Inject constructor(
         }
 
         cols.add(PickerColumn(
-            id = "scale_mode",
-            label = "ФОРМАТ",
-            value = _state.value.scaleMode.label
-        ))
-
-        cols.add(PickerColumn(
             id = "audio_mode",
             label = "АУДІО",
             value = audioEngine.getMode().label
@@ -490,13 +484,6 @@ class PlayerViewModel @Inject constructor(
             ))
         }
 
-        cols.add(PickerColumn(
-            id = "external_player",
-            label = getCurrentExternalPlayerInfo()?.label?.uppercase() ?: "ПЛЕЄР",
-            value = "Відкрити",
-            needsCommit = true
-        ))
-
         _state.update { prev ->
             if (prev.pickerColumns == cols) prev
             else prev.copy(pickerColumns = cols)
@@ -514,7 +501,6 @@ class PlayerViewModel @Inject constructor(
             "season" -> changePendingSeason(direction)
             "episode" -> changePendingEpisode(direction)
             "voiceover" -> changePendingVoiceover(direction)
-            "scale_mode" -> changePendingScaleMode(direction)
             "audio_mode" -> changeAudioMode(direction)
             "video_track" -> changePendingVideoTrack(direction)
             "codec" -> changeCodec(direction)
@@ -526,9 +512,6 @@ class PlayerViewModel @Inject constructor(
         val col = _state.value.pickerColumns.getOrNull(idx) ?: return
         if (!col.needsCommit) return
         when (col.id) {
-            "external_player" -> {
-                openInExternalPlayer()
-            }
             "season", "episode", "voiceover" -> {
                 val seasons = _state.value.availableSeasons ?: return
                 val s = pendingSeason ?: this.season ?: seasons.first().number
@@ -584,16 +567,6 @@ class PlayerViewModel @Inject constructor(
         if (idx == -1) return
         val newIdx = (idx + direction + options.size) % options.size
         pendingVoiceover = options[newIdx]
-        rebuildPickerColumns()
-    }
-
-    private fun changePendingScaleMode(direction: Int) {
-        val modes = ScaleMode.entries
-        val currentIdx = modes.indexOf(_state.value.scaleMode)
-        val newIdx = (currentIdx + direction + modes.size) % modes.size
-        val newMode = modes[newIdx]
-        _state.update { it.copy(scaleMode = newMode) }
-        engine?.setVideoScalingMode(newMode.ordinal)
         rebuildPickerColumns()
     }
 

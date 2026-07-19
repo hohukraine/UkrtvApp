@@ -31,6 +31,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -341,7 +342,9 @@ private fun TvContentRow(
 
             if (trailingContent != null) {
                 item(key = "__trailing") {
-                    trailingContent()
+                    Box(modifier = Modifier.focusProperties { canFocus = false }) {
+                        trailingContent()
+                    }
                 }
             }
         }

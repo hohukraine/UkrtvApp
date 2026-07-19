@@ -1,8 +1,12 @@
 package ua.ukrtv.app.domain.model
 
 import android.os.Parcelable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import kotlinx.parcelize.Parcelize
 
+@Stable
+@Immutable
 @Parcelize
 sealed class AppError(val message: String) : Parcelable {
     @Parcelize

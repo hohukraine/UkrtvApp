@@ -158,6 +158,7 @@ private fun PhoneHeroPage(
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(movie.posterUrl)
+                        .size(480, 720)
                         .crossfade(true)
                         .build(),
                     contentDescription = movie.title,

@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.*
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -81,7 +82,7 @@ private fun TvTop200Screen(
     onMovieClick: (Top200Movie) -> Unit,
     onBack: () -> Unit
 ) {
-    val movies by viewModel.movies.collectAsState()
+    val movies by viewModel.movies.collectAsStateWithLifecycle()
     var isBackReady by remember { mutableStateOf(false) }
     val listFocusRequester = remember { FocusRequester() }
 
@@ -152,9 +153,10 @@ private fun TvTop200Screen(
             contentPadding = PaddingValues(bottom = 48.dp),
             modifier = Modifier.focusRequester(listFocusRequester)
         ) {
-            items(movies, key = { it.rank }) { movie ->
+            items(movies, key = { it.rank }, contentType = { "movie" }) { movie ->
+                val onClick = remember(movie.rank) { { onMovieClick(movie) } }
                 Surface(
-                    onClick = { onMovieClick(movie) },
+                    onClick = onClick,
                     shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(8.dp)),
                     colors = ClickableSurfaceDefaults.colors(
                         containerColor = OverlayLight,
@@ -266,7 +268,7 @@ private fun PhoneTop200Screen(
     onMovieClick: (Top200Movie) -> Unit,
     onBack: () -> Unit
 ) {
-    val movies by viewModel.movies.collectAsState()
+    val movies by viewModel.movies.collectAsStateWithLifecycle()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -294,11 +296,12 @@ private fun PhoneTop200Screen(
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(movies, key = { it.rank }) { movie ->
+            items(movies, key = { it.rank }, contentType = { "movie" }) { movie ->
+                val onClick = remember(movie.rank) { { onMovieClick(movie) } }
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onMovieClick(movie) }
+                        .clickable { onClick() }
                         .background(Color(0xFF1A1A1D), RoundedCornerShape(8.dp))
                         .padding(8.dp)
                 ) {

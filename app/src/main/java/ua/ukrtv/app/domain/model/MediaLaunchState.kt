@@ -1,10 +1,12 @@
 package ua.ukrtv.app.domain.model
 
 import android.os.Parcelable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import kotlinx.parcelize.Parcelize
 
 @Stable
+@Immutable
 sealed class MediaLaunchState : Parcelable {
     @Stable
     @Parcelize
@@ -28,6 +30,7 @@ sealed class MediaLaunchState : Parcelable {
         val seasons: List<Season>? = null
     ) : MediaLaunchState()
     
+    @Stable
     @Parcelize
     data class Error(val error: AppError) : MediaLaunchState()
 }

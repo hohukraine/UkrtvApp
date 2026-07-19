@@ -30,6 +30,13 @@ sealed class DetailState {
     data class Error(val error: AppError) : DetailState()
 }
 
+data class DetailUiState(
+    val detailState: DetailState = DetailState.Loading,
+    val launchState: MediaLaunchState = MediaLaunchState.Idle,
+    val isInWatchlist: Boolean = false,
+    val performanceProfile: PerformanceProfile = PerformanceProfile.BALANCED
+)
+
 @HiltViewModel
 class DetailViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
@@ -42,16 +49,19 @@ class DetailViewModel @Inject constructor(
     private val performancePreferences: PerformancePreferences
 ) : ViewModel() {
 
-    val performanceProfile: StateFlow<PerformanceProfile> = performancePreferences.profile
-
     private val _state = MutableStateFlow<DetailState>(DetailState.Loading)
-    val state: StateFlow<DetailState> = _state
-
     private val _launchState = MutableStateFlow<MediaLaunchState>(MediaLaunchState.Idle)
-    val launchState: StateFlow<MediaLaunchState> = _launchState
-
     private val _isInWatchlist = MutableStateFlow(false)
-    val isInWatchlist: StateFlow<Boolean> = _isInWatchlist
+    private val performanceProfile = performancePreferences.profile
+
+    val uiState: StateFlow<DetailUiState> = combine(
+        _state,
+        _launchState,
+        _isInWatchlist,
+        performanceProfile
+    ) { state, launchState, isInWatchlist, performanceProfile ->
+        DetailUiState(state, launchState, isInWatchlist, performanceProfile)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DetailUiState())
 
     private var currentDetail: MovieDetail? = null
     private var preWarmJob: Job? = null

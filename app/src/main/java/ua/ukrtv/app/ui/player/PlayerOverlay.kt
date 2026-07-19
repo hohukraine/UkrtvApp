@@ -99,15 +99,11 @@ fun PlayerOverlay(
     heldSeekDir: SeekDirection? = null,
     modifier: Modifier = Modifier
 ) {
-    val progress by remember(positionMs, durationMs) {
-        derivedStateOf {
-            if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f
-        }
+    val progressProvider = remember(positionMs, durationMs) {
+        { if (durationMs > 0) positionMs.toFloat() / durationMs.toFloat() else 0f }
     }
-    val bufferedProgress by remember(bufferedPositionMs, durationMs) {
-        derivedStateOf {
-            if (durationMs > 0) bufferedPositionMs.toFloat() / durationMs.toFloat() else 0f
-        }
+    val bufferedProgressProvider = remember(bufferedPositionMs, durationMs) {
+        { if (durationMs > 0) bufferedPositionMs.toFloat() / durationMs.toFloat() else 0f }
     }
 
     var seekDirection by remember { mutableStateOf<SeekDirection?>(null) }
@@ -148,11 +144,7 @@ fun PlayerOverlay(
                     )
             )
 
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(tween(200, easing = FastOutSlowInEasing)),
-                exit = fadeOut(tween(200, easing = FastOutSlowInEasing))
-            ) {
+            if (seekDirection != null) {
                 SeekIndicator(
                     brandColor = brandColor,
                     direction = seekDirection,
@@ -160,85 +152,69 @@ fun PlayerOverlay(
                 )
             }
 
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(tween(200, easing = FastOutSlowInEasing)) + slideInVertically(tween(200, easing = FastOutSlowInEasing), initialOffsetY = { -it }),
-                exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing), targetOffsetY = { -it })
-            ) {
-                PlayerOverlayTitle(
-                    brandColor = brandColor,
-                    title = title,
-                    season = season,
-                    episode = episode,
-                    showSeasonEpisode = showSeasonEpisode,
-                    voiceover = voiceover,
-                    modifier = Modifier.align(Alignment.TopStart)
-                )
-            }
-
-            if (showSkipIntro) {
-
             if (heldSeekDir != null) {
-                AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn(tween(150, easing = LinearEasing)),
-                    exit = fadeOut(tween(150, easing = LinearEasing))
-                ) {
-                    HeldSeekProgress(
-                        brandColor = brandColor,
-                        direction = heldSeekDir,
-                        positionMs = positionMs,
-                        durationMs = durationMs,
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-            }
-
-            AnimatedVisibility(
-                    visible = visible,
-                    enter = fadeIn(tween(200, easing = FastOutSlowInEasing)) + slideInVertically(tween(200, easing = FastOutSlowInEasing), initialOffsetY = { -it }),
-                    exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing), targetOffsetY = { -it })
-                ) {
-                    SkipIntroButton(
-                        brandColor = brandColor,
-                        onClick = onSkipIntro,
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(top = 28.dp, end = 64.dp)
-                    )
-                }
-            }
-
-            AnimatedVisibility(
-                visible = visible,
-                enter = fadeIn(tween(200, easing = FastOutSlowInEasing)) + slideInVertically(tween(200, easing = FastOutSlowInEasing), initialOffsetY = { it }),
-                exit = fadeOut(tween(200, easing = FastOutSlowInEasing)) + slideOutVertically(tween(200, easing = FastOutSlowInEasing), targetOffsetY = { it }),
-                modifier = Modifier.align(Alignment.BottomCenter)
-            ) {
-                BottomControls(
+                HeldSeekProgress(
                     brandColor = brandColor,
-                    isPlaying = isPlaying,
+                    direction = heldSeekDir,
                     positionMs = positionMs,
                     durationMs = durationMs,
-                    progress = progress,
-                    bufferedProgress = bufferedProgress,
-                    nextCountdown = nextCountdown,
-                    countdownEpisode = countdownEpisode,
-                    hasEpisodes = hasEpisodes,
-                    hasNextEpisode = hasNextEpisode,
-                    hasPreviousEpisode = hasPreviousEpisode,
-                    onNextEpisode = onNextEpisode,
-                    onPreviousEpisode = onPreviousEpisode,
-                    playFocusRequester = playFocusRequester,
-                    onPlayPauseToggle = onPlayPauseToggle,
-                    onSeekBackward = { onSeekWithIndicator(false) },
-                    onSeekForward = { onSeekWithIndicator(true) },
-                    pickerColumns = pickerColumns,
-                    pickerFocusedIndex = pickerFocusedIndex,
-                    onPickerColumnFocused = onPickerColumnFocused,
-                    onPickerValueChange = onPickerValueChange,
-                    onPickerCommit = onPickerCommit
+                    modifier = Modifier.align(Alignment.Center)
                 )
+            }
+
+            AnimatedVisibility(
+                visible = visible,
+                enter = fadeIn(tween(250, easing = FastOutSlowInEasing)),
+                exit = fadeOut(tween(250, easing = FastOutSlowInEasing)),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    PlayerOverlayTitle(
+                        brandColor = brandColor,
+                        title = title,
+                        season = season,
+                        episode = episode,
+                        showSeasonEpisode = showSeasonEpisode,
+                        voiceover = voiceover,
+                        modifier = Modifier.align(Alignment.TopStart)
+                    )
+
+                    if (showSkipIntro) {
+                        SkipIntroButton(
+                            brandColor = brandColor,
+                            onClick = onSkipIntro,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 28.dp, end = 64.dp)
+                        )
+                    }
+
+                    BottomControls(
+                        brandColor = brandColor,
+                        isPlaying = isPlaying,
+                        positionMs = positionMs,
+                        durationMs = durationMs,
+                        progress = progressProvider,
+                        bufferedProgress = bufferedProgressProvider,
+                        nextCountdown = nextCountdown,
+                        countdownEpisode = countdownEpisode,
+                        hasEpisodes = hasEpisodes,
+                        hasNextEpisode = hasNextEpisode,
+                        hasPreviousEpisode = hasPreviousEpisode,
+                        onNextEpisode = onNextEpisode,
+                        onPreviousEpisode = onPreviousEpisode,
+                        playFocusRequester = playFocusRequester,
+                        onPlayPauseToggle = onPlayPauseToggle,
+                        onSeekBackward = { onSeekWithIndicator(false) },
+                        onSeekForward = { onSeekWithIndicator(true) },
+                        pickerColumns = pickerColumns,
+                        pickerFocusedIndex = pickerFocusedIndex,
+                        onPickerColumnFocused = onPickerColumnFocused,
+                        onPickerValueChange = onPickerValueChange,
+                        onPickerCommit = onPickerCommit,
+                        modifier = Modifier.align(Alignment.BottomCenter)
+                    )
+                }
             }
         }
     }
@@ -320,8 +296,8 @@ private fun BottomControls(
     isPlaying: Boolean,
     positionMs: Long,
     durationMs: Long,
-    progress: Float,
-    bufferedProgress: Float,
+    progress: () -> Float,
+    bufferedProgress: () -> Float,
     nextCountdown: Int?,
     countdownEpisode: Episode?,
     hasEpisodes: Boolean,
@@ -661,11 +637,11 @@ private fun TimeLabelsRow(positionMs: Long, durationMs: Long) {
 @Composable
 private fun NetflixProgressBar(
     brandColor: Color,
-    progress: Float,
-    bufferedProgress: Float
+    progress: () -> Float,
+    bufferedProgress: () -> Float
 ) {
-    val bufferedWidth = bufferedProgress.coerceIn(0f, 1f)
-    val progressWidth = progress.coerceIn(0f, 1f)
+    val bufferedWidthProvider = remember { { bufferedProgress().coerceIn(0f, 1f) } }
+    val progressWidthProvider = remember { { progress().coerceIn(0f, 1f) } }
 
     Canvas(
         modifier = Modifier
@@ -684,6 +660,8 @@ private fun NetflixProgressBar(
             size = Size(w, barHeight),
             cornerRadius = corner
         )
+        
+        val bufferedWidth = bufferedWidthProvider()
         if (bufferedWidth > 0f) {
             drawRoundRect(
                 color = brandColor.copy(alpha = 0.35f),
@@ -692,6 +670,8 @@ private fun NetflixProgressBar(
                 cornerRadius = corner
             )
         }
+        
+        val progressWidth = progressWidthProvider()
         if (progressWidth > 0f) {
             drawRoundRect(
                 color = brandColor,

@@ -26,6 +26,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -231,16 +232,16 @@ fun SearchScreen(
     onMovieClick: (Movie) -> Unit,
     viewModel: SearchViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
-    val query by viewModel.query.collectAsState()
-    val suggestions by viewModel.suggestions.collectAsState()
-    val history by viewModel.history.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val query by viewModel.query.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
+    val history by viewModel.history.collectAsStateWithLifecycle()
     val keyboardController = LocalSoftwareKeyboardController.current
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val searchBarFocusRequester = remember { FocusRequester() }
 
-    val brandColorLong by viewModel.brandColor.collectAsState()
+    val brandColorLong by viewModel.brandColor.collectAsStateWithLifecycle()
     val providerColor = remember(brandColorLong) { Color(brandColorLong) }
     val formFactor = LocalFormFactor.current
     val isPhone = formFactor == FormFactor.PHONE
@@ -419,7 +420,7 @@ fun SearchScreen(
                             }
                         }
                     } else {
-                        val trending by viewModel.trendingMovies.collectAsState()
+                        val trending by viewModel.trendingMovies.collectAsStateWithLifecycle()
                         LaunchedEffect(trending) {
                             if (trending.isNotEmpty()) {
                                 delay(30)
@@ -461,16 +462,19 @@ fun SearchScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         contentPadding = PaddingValues(horizontal = 2.dp)
                                     ) {
-                                        items(history) { item ->
+                                        items(history, key = { it }) { item ->
+                                            val onClick = remember(item) {
+                                                {
+                                                    viewModel.search(item)
+                                                    keyboardController?.hide()
+                                                }
+                                            }
                                             Box(
                                                 modifier = Modifier
                                                     .clip(RoundedCornerShape(50))
                                                     .background(Color(0xFF2A2A2A))
                                                     .border(1.dp, Color(0xFF3A3A3A), RoundedCornerShape(50))
-                                                    .clickable {
-                                                        viewModel.search(item)
-                                                        keyboardController?.hide()
-                                                    }
+                                                    .clickable { onClick() }
                                                     .padding(horizontal = 16.dp, vertical = 8.dp)
                                             ) {
                                                 Text(
@@ -515,14 +519,17 @@ fun SearchScreen(
                                         horizontalArrangement = Arrangement.spacedBy(colSpacing)
                                     ) {
                                         rowItems.forEach { movie ->
+                                            val onClick = remember(movie.id) {
+                                                {
+                                                    viewModel.saveToHistory(movie.title)
+                                                    onMovieClick(movie)
+                                                }
+                                            }
                                             MovieCard(
                                                 movie = movie,
                                                 width = cardWidth,
                                                 height = cardHeight,
-                                                onClick = {
-                                                    viewModel.saveToHistory(movie.title)
-                                                    onMovieClick(movie)
-                                                }
+                                                onClick = onClick
                                             )
                                         }
                                     }
@@ -556,13 +563,16 @@ fun SearchScreen(
                                 modifier = Modifier.graphicsLayer { alpha = resultsAlpha },
                                 contentPadding = PaddingValues(bottom = 32.dp)
                             ) {
-                                items(s.results, key = { it.id + it.pageUrl }) { movie ->
-                                    SearchRow(
-                                        movie = movie,
-                                        onClick = {
+                                items(s.results, key = { it.id + it.pageUrl }, contentType = { "movie" }) { movie ->
+                                    val onClick = remember(movie.id) {
+                                        {
                                             viewModel.saveToHistory(query)
                                             onMovieClick(movie)
                                         }
+                                    }
+                                    SearchRow(
+                                        movie = movie,
+                                        onClick = onClick
                                     )
                                 }
                             }
@@ -574,15 +584,18 @@ fun SearchScreen(
                                 verticalArrangement = Arrangement.spacedBy(GridDefaults.rowSpacing),
                                 contentPadding = PaddingValues(bottom = 32.dp)
                             ) {
-                                items(s.results, key = { it.id + it.pageUrl }) { movie ->
+                                items(s.results, key = { it.id + it.pageUrl }, contentType = { "movie" }) { movie ->
+                                    val onClick = remember(movie.id) {
+                                        {
+                                            viewModel.saveToHistory(query)
+                                            onMovieClick(movie)
+                                        }
+                                    }
                                     MovieCard(
                                         movie = movie,
                                         width = CardDefaults.posterWidth,
                                         height = CardDefaults.posterHeight,
-                                        onClick = {
-                                            viewModel.saveToHistory(query)
-                                            onMovieClick(movie)
-                                        }
+                                        onClick = onClick
                                     )
                                 }
                             }

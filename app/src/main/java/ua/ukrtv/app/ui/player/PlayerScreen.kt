@@ -55,6 +55,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.delay
 import ua.ukrtv.app.util.AppLogger
@@ -96,7 +97,7 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
-    val playerType by viewModel.playerType.collectAsState()
+    val playerType by viewModel.playerType.collectAsStateWithLifecycle()
 
     if (playerType == ua.ukrtv.app.util.PlayerType.EXTERNAL_PLAYER) {
         ExternalPlayerScreen(
@@ -112,7 +113,7 @@ fun PlayerScreen(
         return
     }
 
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     val engine = remember { viewModel.getOrCreateEngine(context) }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
@@ -373,8 +374,7 @@ private fun TvPlayerContent(
             EpisodeLoadingOverlay(
                 poster = poster,
                 season = state.currentSeason,
-                episode = state.currentEpisode,
-                brandColor = brandColor
+                episode = state.currentEpisode
             )
         }
 
@@ -726,8 +726,7 @@ private fun PhonePlayerContent(
             EpisodeLoadingOverlay(
                 poster = poster,
                 season = state.currentSeason,
-                episode = state.currentEpisode,
-                brandColor = brandColor
+                episode = state.currentEpisode
             )
         }
 
@@ -754,8 +753,7 @@ private fun PhonePlayerContent(
 private fun EpisodeLoadingOverlay(
     poster: String,
     season: Int?,
-    episode: Int?,
-    brandColor: Color
+    episode: Int?
 ) {
     Box(
         modifier = Modifier
@@ -777,26 +775,15 @@ private fun EpisodeLoadingOverlay(
                         .clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Crop
                 )
-                Spacer(Modifier.height(20.dp))
             }
-            Text(
-                "Наступна серія",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(4.dp))
             if (season != null && episode != null) {
+                Spacer(Modifier.height(16.dp))
                 Text(
                     "Сезон $season, Серія $episode",
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 14.sp
                 )
-                Spacer(Modifier.height(16.dp))
             }
-            CircularProgressIndicator(color = brandColor)
-            Spacer(Modifier.height(8.dp))
-            Text("Завантаження...", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
         }
     }
 }
@@ -821,7 +808,7 @@ private fun ExternalPlayerScreen(
     onBack: () -> Unit,
     viewModel: PlayerViewModel
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var playerLaunched by remember { mutableStateOf(viewModel.hasPendingExternalPlayerResult()) }
 
     val externalPlayerLauncher = rememberLauncherForActivityResult(
@@ -865,7 +852,6 @@ private fun ExternalPlayerScreen(
     }
 
     val currentStatus = state.status
-    val playerLabel = remember { viewModel.getCurrentExternalPlayerInfo()?.label ?: "плеєр" }
 
     Box(
         modifier = Modifier.fillMaxSize().background(Color.Black),
@@ -890,23 +876,22 @@ private fun ExternalPlayerScreen(
                 EpisodeLoadingOverlay(
                     poster = poster,
                     season = state.currentSeason,
-                    episode = state.currentEpisode,
-                    brandColor = Color(0xFF6E85B7)
+                    episode = state.currentEpisode
                 )
             }
             currentStatus is PlayerStatus.Ready && playerLaunched -> {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = Color(0xFF6E85B7))
-                    Spacer(Modifier.height(16.dp))
-                    Text("Відкриття $playerLabel...", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
-                }
+                EpisodeLoadingOverlay(
+                    poster = poster,
+                    season = state.currentSeason,
+                    episode = state.currentEpisode
+                )
             }
             else -> {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = Color(0xFF6E85B7))
-                    Spacer(Modifier.height(16.dp))
-                    Text("Завантаження...", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
-                }
+                EpisodeLoadingOverlay(
+                    poster = poster,
+                    season = state.currentSeason,
+                    episode = state.currentEpisode
+                )
             }
         }
     }

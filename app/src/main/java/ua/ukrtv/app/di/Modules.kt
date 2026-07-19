@@ -25,7 +25,6 @@ import ua.ukrtv.app.data.local.dao.WatchlistDao
 import ua.ukrtv.app.data.repository.CatalogIndexBuilder
 import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.network.HtmlHttpClient
-import ua.ukrtv.app.data.network.WebpToJpegInterceptor
 import ua.ukrtv.app.util.PerformancePreferences
 import ua.ukrtv.app.util.HomePreferences
 import ua.ukrtv.app.util.getDeviceClass
@@ -154,7 +153,6 @@ object Modules {
 
                 chain.proceed(builder.build())
             }
-            .addInterceptor(WebpToJpegInterceptor())
             .connectTimeout(Constants.CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .readTimeout(Constants.READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .writeTimeout(Constants.READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)

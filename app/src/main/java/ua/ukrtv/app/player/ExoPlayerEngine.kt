@@ -40,11 +40,18 @@ class ExoPlayerEngine(
         }
 
         override fun onVideoSizeChanged(newVideoSize: VideoSize) {
-            listeners.forEach { it.onVideoSizeChanged(newVideoSize.width, newVideoSize.height) }
+            val codecName = extractCodecName()
+            listeners.forEach { it.onCodecInfoChanged(codecName, newVideoSize.width, newVideoSize.height) }
         }
 
         override fun onTracksChanged(tracks: Tracks) {
             notifyAudioTracks(tracks)
+            val codecName = extractCodecName()
+            val w = player.videoSize.width
+            val h = player.videoSize.height
+            if (w > 0 && h > 0) {
+                listeners.forEach { it.onCodecInfoChanged(codecName, w, h) }
+            }
             listeners.forEach { it.onTracksChanged(tracks) }
         }
 
@@ -181,6 +188,17 @@ class ExoPlayerEngine(
                 currentIndex++
             }
         }
+    }
+
+    private fun extractCodecName(): String {
+        for (group in player.currentTracks.groups) {
+            if (group.type != C.TRACK_TYPE_VIDEO) continue
+            val fmt = group.getTrackFormat(0)
+            return fmt.codecs?.substringBefore(".")
+                ?: fmt.sampleMimeType?.substringAfterLast("/")
+                ?: ""
+        }
+        return ""
     }
 
     private fun notifyAudioTracks(tracks: Tracks) {

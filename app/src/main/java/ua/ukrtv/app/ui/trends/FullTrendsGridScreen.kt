@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
@@ -79,10 +80,10 @@ private fun TvFullTrendsGridScreen(
     onMovieClick: (Movie) -> Unit,
     onBack: () -> Unit
 ) {
-    val items by viewModel.items.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val brandColorLong by viewModel.brandColor.collectAsState()
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    val brandColorLong by viewModel.brandColor.collectAsStateWithLifecycle()
     val providerColor = remember(brandColorLong) { Color(brandColorLong) }
     val deviceClass = LocalDeviceClass.current
     val gridFocusRequester = remember { FocusRequester() }
@@ -206,10 +207,11 @@ private fun TvFullTrendsGridScreen(
                         }
                     }
                 }
-                itemsIndexed(items, key = { _, movie -> "${movie.pageUrl}_${movie.season ?: ""}_${movie.episode ?: ""}" }, contentType = { _, _ -> "movie" }) { index, movie ->
+                itemsIndexed(items, key = { _, movie -> movie.id }, contentType = { _, _ -> "movie" }) { index, movie ->
+                    val onClick = remember(movie.id) { { onMovieClick(movie) } }
                     CompactGridCard(
                         movie = movie,
-                        onClick = { onMovieClick(movie) },
+                        onClick = onClick,
                         entranceIndex = index,
                         entranceTrigger = entranceTrigger,
                         deviceClass = deviceClass,
@@ -372,10 +374,10 @@ private fun PhoneFullTrendsGridScreen(
     onMovieClick: (Movie) -> Unit,
     onBack: () -> Unit
 ) {
-    val items by viewModel.items.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val error by viewModel.error.collectAsState()
-    val brandColorLong by viewModel.brandColor.collectAsState()
+    val items by viewModel.items.collectAsStateWithLifecycle()
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val error by viewModel.error.collectAsStateWithLifecycle()
+    val brandColorLong by viewModel.brandColor.collectAsStateWithLifecycle()
     val providerColor = remember(brandColorLong) { Color(brandColorLong) }
 
     Column(
@@ -426,11 +428,12 @@ private fun PhoneFullTrendsGridScreen(
                     verticalArrangement = Arrangement.spacedBy(PhoneGridDefaults.rowSpacing),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
-                    items(items, key = { "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" }, contentType = { _ -> "movie" }) { movie ->
+                    items(items, key = { it.id }, contentType = { _ -> "movie" }) { movie ->
+                        val onClick = remember(movie.id) { { onMovieClick(movie) } }
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onMovieClick(movie) }
+                                .clickable { onClick() }
                         ) {
                             Box(
                                 modifier = Modifier
