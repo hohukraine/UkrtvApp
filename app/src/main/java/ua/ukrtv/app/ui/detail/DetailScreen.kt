@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -45,12 +46,14 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.graphics.painter.ColorPainter
+import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.MediaLaunchState
 import ua.ukrtv.app.domain.model.Episode
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import ua.ukrtv.app.ui.components.DetailSkeleton
+import ua.ukrtv.app.ui.home.components.ContentRow
 import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.BrandBlue
 import ua.ukrtv.app.ui.theme.DetailDefaults
@@ -76,6 +79,7 @@ import ua.ukrtv.app.ui.theme.PhoneCardDefaults
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun DetailScreen(
+    onMovieClick: (Movie) -> Unit = {},
     onPlayClick: (MediaLaunchState) -> Unit,
     onBackClick: () -> Unit,
     viewModel: DetailViewModel = hiltViewModel(),
@@ -103,6 +107,7 @@ fun DetailScreen(
                 if (formFactor == FormFactor.PHONE) {
                     PhoneDetailContent(
                         uiState = uiState,
+                        onMovieClick = onMovieClick,
                         onWatchClick = { viewModel.watchContent() },
                         onEpisodeClick = { s_num, ep, vo -> viewModel.watchContent(season = s_num, episode = ep.number, voiceover = vo) },
                         onBackClick = onBackClick,
@@ -111,6 +116,7 @@ fun DetailScreen(
                 } else {
                     DetailContent(
                         uiState = uiState,
+                        onMovieClick = onMovieClick,
                         onWatchClick = { viewModel.watchContent() },
                         onEpisodeClick = { s_num, ep, vo -> viewModel.watchContent(season = s_num, episode = ep.number, voiceover = vo) },
                         onBackClick = onBackClick,
@@ -143,6 +149,7 @@ fun DetailScreen(
 @Composable
 fun DetailContent(
     uiState: DetailUiState,
+    onMovieClick: (Movie) -> Unit,
     onWatchClick: () -> Unit,
     onEpisodeClick: (Int, Episode, String?) -> Unit,
     onBackClick: () -> Unit,
@@ -662,6 +669,21 @@ fun DetailContent(
                     }
                 }
             }
+
+            // Related movies
+            if (state.relatedMovies.isNotEmpty()) {
+                item(key = "related", contentType = "related") {
+                    Column {
+                        Spacer(modifier = Modifier.height(64.dp))
+                        ContentRow(
+                            title = "Схоже",
+                            items = state.relatedMovies,
+                            brandColor = brandColor,
+                            onItemClick = onMovieClick
+                        )
+                    }
+                }
+            }
     }
 }
 
@@ -691,6 +713,7 @@ private fun MetaRow(label: String, values: List<String>, brandColor: Color) {
 @Composable
 private fun PhoneDetailContent(
     uiState: DetailUiState,
+    onMovieClick: (Movie) -> Unit,
     onWatchClick: () -> Unit,
     onEpisodeClick: (Int, Episode, String?) -> Unit,
     onBackClick: () -> Unit,
@@ -718,8 +741,19 @@ private fun PhoneDetailContent(
     }
 
     var showFullDescription by remember { mutableStateOf(false) }
+    val scrollState = rememberLazyListState()
+    val scrollFraction by remember {
+        derivedStateOf {
+            if (scrollState.firstVisibleItemIndex > 0) 1f
+            else {
+                val offset = scrollState.firstVisibleItemScrollOffset
+                (offset / 800f).coerceIn(0f, 1f)
+            }
+        }
+    }
 
     LazyColumn(
+        state = scrollState,
         modifier = Modifier
             .fillMaxSize()
             .background(Background),
@@ -730,7 +764,7 @@ private fun PhoneDetailContent(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(300.dp)
+                    .height(340.dp)
             ) {
                 // Poster as background
                 AsyncImage(
@@ -739,6 +773,7 @@ private fun PhoneDetailContent(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
+                        .graphicsLayer { translationY = scrollFraction * 120f }
                         .then(if (shouldBlur) Modifier.blur(20.dp, 20.dp) else Modifier)
                 )
 
@@ -944,6 +979,20 @@ private fun PhoneDetailContent(
                         comments = detail.comments,
                         providerName = detail.providerName,
                         accentColor = brandColor
+                    )
+                }
+            }
+        }
+
+        if (state.relatedMovies.isNotEmpty()) {
+            item(key = "related", contentType = "related") {
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Spacer(modifier = Modifier.height(32.dp))
+                    ContentRow(
+                        title = "Схоже",
+                        items = state.relatedMovies,
+                        brandColor = brandColor,
+                        onItemClick = onMovieClick
                     )
                 }
             }

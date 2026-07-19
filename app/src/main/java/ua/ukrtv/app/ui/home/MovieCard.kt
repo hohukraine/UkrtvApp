@@ -1,5 +1,6 @@
 package ua.ukrtv.app.ui.home
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -9,8 +10,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -19,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import ua.ukrtv.app.ui.theme.PlaceholderDark
 import androidx.compose.ui.input.key.Key
@@ -38,7 +45,9 @@ import coil.request.ImageRequest
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
+import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.util.DeviceClass
 
@@ -57,6 +66,8 @@ fun MovieCard(
 ) {
     val actualDismiss = onLongClick ?: onDismiss
     val ctx = LocalContext.current
+    val formFactor = LocalFormFactor.current
+    val isTv = formFactor == FormFactor.TV
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val deviceClass = LocalDeviceClass.current
@@ -108,7 +119,7 @@ fun MovieCard(
             .background(Color(0xFF141414))
             .clickable(
                 interactionSource = interactionSource,
-                indication = null,
+                indication = if (formFactor == FormFactor.PHONE) ripple() else null,
                 onClick = onClick
             )
             .onKeyEvent { event ->
@@ -147,6 +158,27 @@ fun MovieCard(
             error = PlaceholderDark
         )
 
+        AnimatedVisibility(
+            visible = isFocused && isTv,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut(),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(brandColor.copy(alpha = 0.9f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+
         if (movie.provider != null) {
             val providerColor = when (movie.provider) {
                 "Uakino" -> Color(0xFFFF6B35)
@@ -174,9 +206,13 @@ fun MovieCard(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(72.dp)
+                .height(80.dp)
                 .align(Alignment.BottomCenter)
-                .background(Color.Black.copy(alpha = 0.6f))
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                    )
+                )
         )
 
         Column(
@@ -227,6 +263,14 @@ fun MovieCard(
                 if (!movie.quality.isNullOrEmpty()) {
                     Text(
                         text = movie.quality.uppercase(),
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                if (!movie.duration.isNullOrEmpty()) {
+                    Text(
+                        text = movie.duration,
                         color = Color.White.copy(alpha = 0.5f),
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Medium

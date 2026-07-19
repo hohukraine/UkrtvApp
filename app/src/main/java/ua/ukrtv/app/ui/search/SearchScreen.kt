@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -547,10 +548,29 @@ fun SearchScreen(
 
                             if (history.isEmpty() && trending.isEmpty()) {
                                 item(key = "empty_state", contentType = "empty_state") {
-                                    Text(
-                                        "Почніть вводити назву для пошуку",
-                                        color = OnSurfaceDim
-                                    )
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(top = 80.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Search,
+                                            contentDescription = null,
+                                            tint = OnSurfaceDim.copy(alpha = 0.3f),
+                                            modifier = Modifier.size(80.dp)
+                                        )
+                                        Spacer(Modifier.height(16.dp))
+                                        Text(
+                                            "Знайдіть щось цікаве",
+                                            color = OnSurfaceDim,
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            "Введіть назву фільму, серіалу або актора",
+                                            color = OnSurfaceDim.copy(alpha = 0.7f),
+                                            fontSize = 14.sp
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -609,6 +629,30 @@ fun SearchScreen(
                                 }
                             }
                         }
+                    } else {
+                        Column(
+                            modifier = Modifier.fillMaxSize().padding(top = 80.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = null,
+                                tint = OnSurfaceDim.copy(alpha = 0.3f),
+                                modifier = Modifier.size(80.dp)
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            Text(
+                                "Нічого не знайдено",
+                                color = OnSurfaceDim,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                "Спробуйте інший запит",
+                                color = OnSurfaceDim.copy(alpha = 0.7f),
+                                fontSize = 14.sp
+                            )
+                        }
                     }
                 }
                 is SearchState.Error -> {
@@ -616,6 +660,13 @@ fun SearchScreen(
                         modifier = Modifier.align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ErrorOutline,
+                            contentDescription = null,
+                            tint = Error.copy(alpha = 0.7f),
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             s.message,
                             color = Error

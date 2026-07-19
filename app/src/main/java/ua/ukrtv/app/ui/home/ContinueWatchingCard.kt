@@ -1,5 +1,10 @@
 package ua.ukrtv.app.ui.home
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -11,7 +16,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,7 +50,9 @@ import coil.request.ImageRequest
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
+import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
+import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.Shapes
 import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.util.DeviceClass
@@ -56,6 +68,8 @@ fun ContinueWatchingCard(
     onDismiss: (() -> Unit)? = null,
 ) {
     val ctx = LocalContext.current
+    val formFactor = LocalFormFactor.current
+    val isTv = formFactor == FormFactor.TV
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val deviceClass = LocalDeviceClass.current
@@ -129,7 +143,7 @@ fun ContinueWatchingCard(
                 .onFocusChanged { if (!it.isFocused) deleteMode = false }
                 .combinedClickable(
                     interactionSource = interactionSource,
-                    indication = null,
+                    indication = if (formFactor == FormFactor.PHONE) ripple() else null,
                     onClick = { if (deleteMode) onDismiss?.invoke() else onClick() },
                     onLongClick = { if (!deleteMode) deleteMode = true }
                 )
@@ -178,12 +192,45 @@ fun ContinueWatchingCard(
                 error = PlaceholderDark
             )
 
+            androidx.compose.animation.AnimatedVisibility(
+                visible = isFocused && !deleteMode && isTv,
+                enter = scaleIn() + fadeIn(),
+                exit = scaleOut() + fadeOut(),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(brandColor.copy(alpha = 0.9f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                if (!movie.duration.isNullOrEmpty()) {
+                    Text(
+                        text = movie.duration,
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(72.dp)
+                    .height(80.dp)
                     .align(Alignment.BottomCenter)
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))))
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                        )
+                    )
             )
 
             Column(
@@ -210,6 +257,14 @@ fun ContinueWatchingCard(
                         letterSpacing = 1.sp
                     )
                 }
+                if (!movie.duration.isNullOrEmpty()) {
+                    Text(
+                        text = movie.duration,
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
 
             if (deleteMode) {
@@ -233,6 +288,14 @@ fun ContinueWatchingCard(
                         color = Color.White,
                         fontSize = 32.sp,
                         fontWeight = FontWeight.Bold
+                    )
+                }
+                if (!movie.duration.isNullOrEmpty()) {
+                    Text(
+                        text = movie.duration,
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }

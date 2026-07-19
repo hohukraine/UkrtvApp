@@ -73,12 +73,13 @@ fun ContentRow(
     onItemFocused: ((Movie) -> Unit)? = null,
     useWideCards: Boolean = false,
     useLargeCards: Boolean = false,
-    trailingContent: @Composable (() -> Unit)? = null
+    trailingContent: @Composable (() -> Unit)? = null,
+    isLoading: Boolean = false
 ) {
     val formFactor = LocalFormFactor.current
     when (formFactor) {
-        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useWideCards, useLargeCards, trailingContent)
-        FormFactor.PHONE, FormFactor.TABLET -> PhoneContentRow(title, items, brandColor, onItemClick, useWideCards, trailingContent)
+        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useWideCards, useLargeCards, trailingContent, isLoading)
+        FormFactor.PHONE, FormFactor.TABLET -> PhoneContentRow(title, items, brandColor, onItemClick, useWideCards, trailingContent, isLoading)
     }
 }
 
@@ -90,46 +91,58 @@ private fun PhoneContentRow(
     onItemClick: (Movie) -> Unit,
     useWideCards: Boolean = false,
     trailingContent: @Composable (() -> Unit)? = null,
+    isLoading: Boolean = false
 ) {
-    val titleColor = remember(brandColor) { brandColor.copy(alpha = 0.7f) }
-
     Column(modifier = Modifier.padding(bottom = 16.dp)) {
-        if (title.isNotEmpty()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = PhoneGridDefaults.horizontalPadding, bottom = 8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(3.dp)
-                        .height(14.dp)
-                        .background(brandColor, RoundedCornerShape(2.dp))
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = title.uppercase(),
-                    color = titleColor,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp
-                )
-            }
-        }
+        SectionHeader(
+            title = title,
+            brandColor = brandColor,
+            modifier = Modifier.padding(start = PhoneGridDefaults.horizontalPadding, bottom = 8.dp),
+            isPhone = true
+        )
 
         LazyRow(
             contentPadding = PaddingValues(horizontal = PhoneGridDefaults.horizontalPadding),
             horizontalArrangement = Arrangement.spacedBy(PhoneGridDefaults.columnSpacing)
         ) {
+            if (isLoading && items.isEmpty()) {
+                items(5) {
+                    val width = if (useWideCards) PhoneCardDefaults.wideWidth else PhoneCardDefaults.posterWidth
+                    val height = if (useWideCards) PhoneCardDefaults.wideHeight else PhoneCardDefaults.posterHeight
+                    ShimmerBox(
+                        modifier = Modifier.width(width).height(height),
+                        shape = Shapes.card
+                    )
+                }
+            }
+
             itemsIndexed(
                 items = items,
                 key = { _, it -> "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" },
                 contentType = { _, _ -> if (useWideCards) "wide" else "movie" }
-            ) { _, item ->
+            ) { index, item ->
+                val enterAlpha = remember(item) { Animatable(0f) }
+                LaunchedEffect(item) {
+                    delay(index * 40L)
+                    enterAlpha.animateTo(1f, tween(300))
+                }
                 val onClick = remember(item) { { onItemClick(item) } }
                 if (useWideCards) {
-                    ContinueWatchingCard(movie = item, onClick = onClick, modifier = Modifier.animateItem())
+                    ContinueWatchingCard(
+                        movie = item,
+                        brandColor = brandColor,
+                        onClick = onClick,
+                        modifier = Modifier.alpha(enterAlpha.value).animateItem()
+                    )
                 } else {
-                    MovieCard(movie = item, onClick = onClick, modifier = Modifier.animateItem())
+                    MovieCard(
+                        movie = item,
+                        brandColor = brandColor,
+                        width = PhoneCardDefaults.posterWidth,
+                        height = PhoneCardDefaults.posterHeight,
+                        onClick = onClick,
+                        modifier = Modifier.alpha(enterAlpha.value).animateItem()
+                    )
                 }
             }
 
@@ -153,9 +166,9 @@ private fun TvContentRow(
     onItemFocused: ((Movie) -> Unit)? = null,
     useWideCards: Boolean = false,
     useLargeCards: Boolean = false,
-    trailingContent: @Composable (() -> Unit)? = null
+    trailingContent: @Composable (() -> Unit)? = null,
+    isLoading: Boolean = false
 ) {
-    val titleColor = remember(brandColor) { brandColor.copy(alpha = 0.7f) }
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
     val cardScale = remember(deviceClass) {
@@ -202,27 +215,12 @@ private fun TvContentRow(
     }
 
     Column(modifier = Modifier.padding(bottom = 24.dp)) {
-        if (title.isNotEmpty()) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(start = GridDefaults.horizontalPadding, bottom = 12.dp, top = 32.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(3.dp)
-                        .height(18.dp)
-                        .background(brandColor, RoundedCornerShape(2.dp))
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = title.uppercase(),
-                    color = titleColor,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 2.sp
-                )
-            }
-        }
+        SectionHeader(
+            title = title,
+            brandColor = brandColor,
+            modifier = Modifier.padding(start = GridDefaults.horizontalPadding, bottom = 12.dp, top = 32.dp),
+            isPhone = false
+        )
 
         LazyRow(
             modifier = Modifier
@@ -242,7 +240,7 @@ private fun TvContentRow(
             contentPadding = PaddingValues(horizontal = GridDefaults.horizontalPadding),
             horizontalArrangement = Arrangement.spacedBy(GridDefaults.columnSpacing)
         ) {
-            if (items.isEmpty()) {
+            if (items.isEmpty() && isLoading) {
                 items(6, key = { "shimmer_$it" }) { shimmerIndex ->
                     val shimmerWidth = (if (useWideCards) CardDefaults.wideWidth else CardDefaults.compactWidth) * cardScale
                     val shimmerHeight = (if (useWideCards) CardDefaults.wideHeight else CardDefaults.compactHeight) * cardScale

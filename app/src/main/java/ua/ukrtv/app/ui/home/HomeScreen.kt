@@ -1,5 +1,7 @@
 package ua.ukrtv.app.ui.home
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,6 +13,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -33,7 +36,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.outlined.BrokenImage
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
@@ -42,7 +46,11 @@ import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.util.AppLogger
+import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import ua.ukrtv.app.domain.model.Top200Movie
+import ua.ukrtv.app.ui.home.components.BottomNavBar
 import ua.ukrtv.app.util.DeviceClass
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
@@ -299,13 +307,20 @@ private fun HomeScreenContent(
                                 .padding(vertical = 80.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            Icon(
+                                imageVector = Icons.Outlined.ErrorOutline,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.3f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = gridError,
                                 color = Color.White.copy(alpha = 0.6f),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(24.dp))
                             Button(
                                 onClick = onRetryGrid,
                                 colors = ButtonDefaults.colors(
@@ -341,19 +356,19 @@ private fun HomeScreenContent(
                     }
                 }
 
-                if (homeLayout.showContinueWatching && continueWatching.isNotEmpty()) {
+                if (homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || isLoading)) {
                     item(key = "continue_watching", contentType = "content_row") {
-                        ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, useWideCards = true)
+                        ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, useWideCards = true, isLoading = isLoading)
                     }
                 }
 
-                if (homeLayout.showWatchlist && watchlist.isNotEmpty()) {
+                if (homeLayout.showWatchlist && (watchlist.isNotEmpty() || isLoading)) {
                     item(key = "watchlist", contentType = "content_row") {
-                        ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused)
+                        ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused, isLoading = isLoading)
                     }
                 }
 
-                if (homeLayout.showTrends && homeTrending.isNotEmpty()) {
+                if (homeLayout.showTrends && (homeTrending.isNotEmpty() || isLoading)) {
                     item(key = "trending", contentType = "content_row") {
                         ContentRow(
                             title = trendingLabel,
@@ -363,6 +378,7 @@ private fun HomeScreenContent(
                             onItemDismiss = null,
                             onItemFocused = onMovieFocused,
                             useLargeCards = true,
+                            isLoading = isLoading,
                             trailingContent = {
                                 TrendsTrailingButton(
                                     brandColor = providerColor,
@@ -373,7 +389,7 @@ private fun HomeScreenContent(
                     }
                 }
 
-                if (homeLayout.showMovies && categoryMovies.isNotEmpty()) {
+                if (homeLayout.showMovies && (categoryMovies.isNotEmpty() || isLoading)) {
                     item(key = "category_movies", contentType = "content_row") {
                         ContentRow(
                             title = "Фільми",
@@ -382,6 +398,7 @@ private fun HomeScreenContent(
                             onItemClick = onMovieClick,
                             onItemDismiss = null,
                             onItemFocused = onMovieFocused,
+                            isLoading = isLoading,
                             trailingContent = {
                                 TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("movies") })
                             }
@@ -389,7 +406,7 @@ private fun HomeScreenContent(
                     }
                 }
 
-                if (homeLayout.showSeries && categorySeries.isNotEmpty()) {
+                if (homeLayout.showSeries && (categorySeries.isNotEmpty() || isLoading)) {
                     item(key = "category_series", contentType = "content_row") {
                         ContentRow(
                             title = "Серіали",
@@ -398,6 +415,7 @@ private fun HomeScreenContent(
                             onItemClick = onMovieClick,
                             onItemDismiss = null,
                             onItemFocused = onMovieFocused,
+                            isLoading = isLoading,
                             trailingContent = {
                                 TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("series") })
                             }
@@ -405,7 +423,7 @@ private fun HomeScreenContent(
                     }
                 }
 
-                if (homeLayout.showAnime && categoryAnime.isNotEmpty()) {
+                if (homeLayout.showAnime && (categoryAnime.isNotEmpty() || isLoading)) {
                     item(key = "category_anime", contentType = "content_row") {
                         ContentRow(
                             title = "Аніме",
@@ -414,6 +432,7 @@ private fun HomeScreenContent(
                             onItemClick = onMovieClick,
                             onItemDismiss = null,
                             onItemFocused = onMovieFocused,
+                            isLoading = isLoading,
                             trailingContent = {
                                 TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("anime") })
                             }
@@ -421,7 +440,7 @@ private fun HomeScreenContent(
                     }
                 }
 
-                if (homeLayout.showCartoons && categoryCartoons.isNotEmpty()) {
+                if (homeLayout.showCartoons && (categoryCartoons.isNotEmpty() || isLoading)) {
                     item(key = "category_cartoons", contentType = "content_row") {
                         ContentRow(
                             title = "Мультфільми",
@@ -430,6 +449,7 @@ private fun HomeScreenContent(
                             onItemClick = onMovieClick,
                             onItemDismiss = null,
                             onItemFocused = onMovieFocused,
+                            isLoading = isLoading,
                             trailingContent = {
                                 TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoons") })
                             }
@@ -437,7 +457,7 @@ private fun HomeScreenContent(
                     }
                 }
 
-                if (homeLayout.showCartoonSeries && categoryCartoonSeries.isNotEmpty()) {
+                if (homeLayout.showCartoonSeries && (categoryCartoonSeries.isNotEmpty() || isLoading)) {
                     item(key = "category_cartoon_series", contentType = "content_row") {
                         ContentRow(
                             title = "Мультсеріали",
@@ -446,6 +466,7 @@ private fun HomeScreenContent(
                             onItemClick = onMovieClick,
                             onItemDismiss = null,
                             onItemFocused = onMovieFocused,
+                            isLoading = isLoading,
                             trailingContent = {
                                 TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoon_series") })
                             }
@@ -641,6 +662,7 @@ private fun PhoneHomeScreen(
     val categoryAnime = remember(uiState.categoryAnime) { uiState.categoryAnime.take(maxItems) }
     val categoryCartoons = remember(uiState.categoryCartoons) { uiState.categoryCartoons.take(maxItems) }
     val categoryCartoonSeries = remember(uiState.categoryCartoonSeries) { uiState.categoryCartoonSeries.take(maxItems) }
+    val scope = rememberCoroutineScope()
 
     val screenHeightDp = with(LocalDensity.current) {
         androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
@@ -654,12 +676,28 @@ private fun PhoneHomeScreen(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background)
-            .statusBarsPadding()
-    ) {
+    Scaffold(
+        bottomBar = {
+            BottomNavBar(
+                currentRoute = "home",
+                brandColor = providerColor,
+                onHomeClick = {
+                    scope.launch { gridState.animateScrollToItem(0) }
+                },
+                onSearchClick = onSearchClick,
+                onMyListClick = { onSeeAllCategoryClick("watchlist") },
+                onSettingsClick = onSettingsClick
+            )
+        },
+        containerColor = Background
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = padding.calculateBottomPadding())
+                .background(Background)
+                .statusBarsPadding()
+        ) {
         // TopBar: UKRTV logo + Search + Settings
         Box(
             modifier = Modifier
@@ -697,11 +735,18 @@ private fun PhoneHomeScreen(
             onProviderClick = { viewModel.switchProvider(it) }
         )
 
-        // Scrollable content — fills remaining space below header
-        LazyColumn(
-            state = gridState,
+        val pullRefreshState = rememberPullToRefreshState()
+        PullToRefreshBox(
+            state = pullRefreshState,
+            isRefreshing = uiState.isLoading,
+            onRefresh = { viewModel.switchProvider(uiState.currentProviderId) },
             modifier = Modifier.weight(1f)
         ) {
+            // Scrollable content — fills remaining space below header
+            LazyColumn(
+                state = gridState,
+                modifier = Modifier.fillMaxSize()
+            ) {
             // Hero section (Top 200 carousel)
             item(key = "hero", contentType = "hero") {
                 if (uiState.top200Banners.isNotEmpty()) {
@@ -728,19 +773,19 @@ private fun PhoneHomeScreen(
             }
 
             // Content rows
-            if (uiState.homeLayout.showContinueWatching && continueWatching.isNotEmpty()) {
+            if (uiState.homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || uiState.isLoading)) {
                 item(key = "continue", contentType = "content_row") {
-                    ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, useWideCards = true)
+                    ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, useWideCards = true, isLoading = uiState.isLoading)
                 }
             }
 
-            if (uiState.homeLayout.showWatchlist && watchlist.isNotEmpty()) {
+            if (uiState.homeLayout.showWatchlist && (watchlist.isNotEmpty() || uiState.isLoading)) {
                 item(key = "watchlist", contentType = "content_row") {
-                    ContentRow("Мій список", watchlist, providerColor, onMovieClick)
+                    ContentRow("Мій список", watchlist, providerColor, onMovieClick, isLoading = uiState.isLoading)
                 }
             }
 
-            if (uiState.homeLayout.showTrends && homeTrending.isNotEmpty()) {
+            if (uiState.homeLayout.showTrends && (homeTrending.isNotEmpty() || uiState.isLoading)) {
                 item(key = "trending", contentType = "content_row") {
                     ContentRow(
                         uiState.trendingLabel,
@@ -748,6 +793,7 @@ private fun PhoneHomeScreen(
                         providerColor,
                         onMovieClick,
                         useLargeCards = true,
+                        isLoading = uiState.isLoading,
                         trailingContent = {
                             Box(
                                 modifier = Modifier
@@ -770,10 +816,11 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (uiState.homeLayout.showMovies && categoryMovies.isNotEmpty()) {
+            if (uiState.homeLayout.showMovies && (categoryMovies.isNotEmpty() || uiState.isLoading)) {
                 item(key = "cat_movies", contentType = "content_row") {
                     ContentRow(
                         "Фільми", categoryMovies, providerColor, onMovieClick,
+                        isLoading = uiState.isLoading,
                         trailingContent = {
                             Box(
                                 modifier = Modifier
@@ -791,10 +838,11 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (uiState.homeLayout.showSeries && categorySeries.isNotEmpty()) {
+            if (uiState.homeLayout.showSeries && (categorySeries.isNotEmpty() || uiState.isLoading)) {
                 item(key = "cat_series", contentType = "content_row") {
                     ContentRow(
                         "Серіали", categorySeries, providerColor, onMovieClick,
+                        isLoading = uiState.isLoading,
                         trailingContent = {
                             Box(
                                 modifier = Modifier
@@ -812,10 +860,11 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (uiState.homeLayout.showAnime && categoryAnime.isNotEmpty()) {
+            if (uiState.homeLayout.showAnime && (categoryAnime.isNotEmpty() || uiState.isLoading)) {
                 item(key = "cat_anime", contentType = "content_row") {
                     ContentRow(
                         "Аніме", categoryAnime, providerColor, onMovieClick,
+                        isLoading = uiState.isLoading,
                         trailingContent = {
                             Box(
                                 modifier = Modifier
@@ -833,10 +882,11 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (uiState.homeLayout.showCartoons && categoryCartoons.isNotEmpty()) {
+            if (uiState.homeLayout.showCartoons && (categoryCartoons.isNotEmpty() || uiState.isLoading)) {
                 item(key = "cat_cartoons", contentType = "content_row") {
                     ContentRow(
                         "Мультфільми", categoryCartoons, providerColor, onMovieClick,
+                        isLoading = uiState.isLoading,
                         trailingContent = {
                             Box(
                                 modifier = Modifier
@@ -854,10 +904,11 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (uiState.homeLayout.showCartoonSeries && categoryCartoonSeries.isNotEmpty()) {
+            if (uiState.homeLayout.showCartoonSeries && (categoryCartoonSeries.isNotEmpty() || uiState.isLoading)) {
                 item(key = "cat_cartoon_series", contentType = "content_row") {
                     ContentRow(
                         "Мультсеріали", categoryCartoonSeries, providerColor, onMovieClick,
+                        isLoading = uiState.isLoading,
                         trailingContent = {
                             Box(
                                 modifier = Modifier
@@ -875,13 +926,28 @@ private fun PhoneHomeScreen(
                 }
             }
 
-            if (continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
-                item(contentType = "loading") {
+            if (!uiState.isLoading && continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
+                item(contentType = "empty") {
                     Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = providerColor)
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Outlined.BrokenImage,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.3f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                text = "Нічого не знайдено",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 14.sp
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+}
 }

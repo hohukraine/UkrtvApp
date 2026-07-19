@@ -12,6 +12,10 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -334,7 +338,74 @@ private fun HeroItemContent(
                 // Meta badge row
                 MetaBadge(item = item, deviceClass = deviceClass)
 
+                if (item.genres.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        item.genres.take(3).forEach { genre ->
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = genre.uppercase(),
+                                    color = OnSurface.copy(alpha = 0.8f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (!item.description.isNullOrEmpty()) {
+                    Text(
+                        text = item.description,
+                        color = OnSurface.copy(alpha = 0.7f),
+                        fontSize = if (deviceClass == DeviceClass.HIGH) 18.sp else 16.sp,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 12.dp, end = 48.dp)
+                    )
+                }
+
                 Spacer(modifier = Modifier.weight(1f))
+
+                Row(
+                    modifier = Modifier.padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isFocused) Color.White else Color.White.copy(alpha = 0.9f))
+                            .padding(horizontal = 24.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.PlayArrow, null, tint = Color.Black, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Дивитися", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.2f))
+                            .padding(horizontal = 24.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Info, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Детальніше", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                    }
+                }
             }
         }
     }

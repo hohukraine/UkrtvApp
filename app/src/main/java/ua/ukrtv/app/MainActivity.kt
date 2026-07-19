@@ -4,10 +4,9 @@ import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.*
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -150,10 +149,10 @@ fun UkrtvTVApp() {
         NavHost(
             navController = navController,
             startDestination = AppNavigation.HOME,
-            enterTransition = { fadeIn(animationSpec = tween(navEnterDur)) },
-            exitTransition = { fadeOut(animationSpec = tween(navExitDur)) },
-            popEnterTransition = { fadeIn(animationSpec = tween(navEnterDur)) },
-            popExitTransition = { fadeOut(animationSpec = tween(navExitDur)) }
+            enterTransition = { slideInHorizontally(tween(navEnterDur)) { it } },
+            exitTransition = { slideOutHorizontally(tween(navExitDur)) { -it / 3 } },
+            popEnterTransition = { slideInHorizontally(tween(navEnterDur)) { -it / 3 } },
+            popExitTransition = { slideOutHorizontally(tween(navExitDur)) { it } }
         ) {
             composable(AppNavigation.HOME) {
                 HomeScreen(
@@ -198,6 +197,7 @@ fun UkrtvTVApp() {
                 )
             ) {
                 DetailScreen(
+                    onMovieClick = onMovieClick,
                     onPlayClick = { launchState ->
                         if (launchState is ua.ukrtv.app.domain.model.MediaLaunchState.Ready) {
                             navController.navigate(

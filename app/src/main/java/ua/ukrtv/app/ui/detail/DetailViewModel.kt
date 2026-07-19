@@ -25,7 +25,8 @@ sealed class DetailState {
     object Loading : DetailState()
     data class Success(
         val detail: MovieDetail,
-        val watchProgress: Long = 0L
+        val watchProgress: Long = 0L,
+        val relatedMovies: List<Movie> = emptyList()
     ) : DetailState()
     data class Error(val error: AppError) : DetailState()
 }
@@ -106,6 +107,21 @@ class DetailViewModel @Inject constructor(
                     detail = detail,
                     watchProgress = progress?.positionMs ?: 0L
                 )
+
+                // Fetch related movies
+                viewModelScope.launch {
+                    val searchQuery = detail.genres.firstOrNull() ?: detail.title.split(" ").first()
+                    mediaRepository.search(searchQuery).collect { result ->
+                        result.onSuccess { movies ->
+                            val current = _state.value as? DetailState.Success
+                            if (current != null) {
+                                _state.value = current.copy(
+                                    relatedMovies = movies.filter { it.id != detail.id }.take(12)
+                                )
+                            }
+                        }
+                    }
+                }
 
                 if (detail.seasons.isNullOrEmpty()) {
                     viewModelScope.launch {
