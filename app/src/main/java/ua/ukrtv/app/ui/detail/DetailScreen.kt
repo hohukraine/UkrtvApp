@@ -43,8 +43,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import androidx.compose.ui.graphics.painter.ColorPainter
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.MediaLaunchState
@@ -73,7 +74,7 @@ import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import coil.compose.rememberAsyncImagePainter
+import coil3.compose.rememberAsyncImagePainter
 import ua.ukrtv.app.ui.theme.PhoneCardDefaults
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -165,12 +166,8 @@ fun DetailContent(
         try { Color(android.graphics.Color.parseColor(detail.brandColor)) } catch (_: Exception) { BrandBlue }
     }
 
-    val providerColor = remember(detail.providerName) {
-        when (detail.providerName.lowercase()) {
-            "uakino" -> Color(0xFFFF6B35)
-            "eneyida" -> Color(0xFF4ECDC4)
-            else -> BrandBlue
-        }
+    val providerColor = remember(detail.brandColor) {
+        brandColor
     }
 
     val isMediatek = LocalIsMediatek.current
@@ -449,11 +446,6 @@ fun DetailContent(
 
                             // Play button — gradient for HIGH
                             if (deviceClass == DeviceClass.HIGH) {
-                                val btnGlow by animateFloatAsState(
-                                    targetValue = if (isBtnFocused) 1f else 0f,
-                                    animationSpec = tween(300),
-                                    label = "btnGlow"
-                                )
                                 Surface(
                                     onClick = onWatchClick,
                                     interactionSource = interactionSource,
@@ -607,8 +599,10 @@ fun DetailContent(
                         letterSpacing = 2.sp,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                        items(detail.actors.take(12), key = { it }) { actor ->
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        items(detail.actors.take(12), key = { it }, contentType = { "actor" }) { actor ->
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.width(90.dp)
@@ -669,21 +663,6 @@ fun DetailContent(
                     }
                 }
             }
-
-            // Related movies
-            if (state.relatedMovies.isNotEmpty()) {
-                item(key = "related", contentType = "related") {
-                    Column {
-                        Spacer(modifier = Modifier.height(64.dp))
-                        ContentRow(
-                            title = "Схоже",
-                            items = state.relatedMovies,
-                            brandColor = brandColor,
-                            onItemClick = onMovieClick
-                        )
-                    }
-                }
-            }
     }
 }
 
@@ -736,7 +715,7 @@ private fun PhoneDetailContent(
         ImageRequest.Builder(context)
             .data(detail.poster)
             .size(480, 720)
-            .crossfade(true)
+            .crossfade(100)
             .build()
     }
 
@@ -765,6 +744,20 @@ private fun PhoneDetailContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(340.dp)
+                    .drawBehind {
+                        val w = size.width
+                        val h = size.height
+                        drawRect(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    brandColor.copy(alpha = 0.4f),
+                                    Color.Transparent
+                                ),
+                                center = androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.5f),
+                                radius = w * 0.8f
+                            )
+                        )
+                    }
             ) {
                 // Poster as background
                 AsyncImage(
@@ -979,20 +972,6 @@ private fun PhoneDetailContent(
                         comments = detail.comments,
                         providerName = detail.providerName,
                         accentColor = brandColor
-                    )
-                }
-            }
-        }
-
-        if (state.relatedMovies.isNotEmpty()) {
-            item(key = "related", contentType = "related") {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Spacer(modifier = Modifier.height(32.dp))
-                    ContentRow(
-                        title = "Схоже",
-                        items = state.relatedMovies,
-                        brandColor = brandColor,
-                        onItemClick = onMovieClick
                     )
                 }
             }

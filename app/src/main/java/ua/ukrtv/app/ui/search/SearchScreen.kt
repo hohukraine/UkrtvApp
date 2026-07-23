@@ -85,8 +85,9 @@ import ua.ukrtv.app.ui.theme.PhoneGridDefaults
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.crossfade
+import coil3.request.ImageRequest
 import ua.ukrtv.app.ui.theme.Shapes
 
 import javax.inject.Inject
@@ -472,7 +473,7 @@ fun SearchScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         contentPadding = PaddingValues(horizontal = 2.dp)
                                     ) {
-                                        items(history, key = { it }) { item ->
+                                        items(history, key = { it }, contentType = { "history_chip" }) { item ->
                                             val onClick = remember(item) {
                                                 {
                                                     viewModel.search(item)
@@ -708,7 +709,7 @@ private fun SearchRow(
             val imageRequest = remember(movie.poster) {
                 ImageRequest.Builder(context)
                     .data(movie.poster)
-                    .crossfade(true)
+                    .crossfade(100)
                     .build()
             }
             AsyncImage(

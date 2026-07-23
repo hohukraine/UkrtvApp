@@ -24,6 +24,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,8 +46,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.home.components.HomeBackground
 import ua.ukrtv.app.ui.theme.Background
@@ -59,6 +60,10 @@ import ua.ukrtv.app.ui.theme.PhoneGridDefaults
 import ua.ukrtv.app.ui.theme.SurfaceVariant
 import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.util.DeviceClass
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.debounce
 
 @Composable
 fun FullTrendsGridScreen(
@@ -102,6 +107,17 @@ private fun TvFullTrendsGridScreen(
         derivedStateOf {
             if (gridState.firstVisibleItemIndex > 0) 1f
             else (gridState.firstVisibleItemScrollOffset / 200f).coerceIn(0f, 1f)
+        }
+    }
+
+    LaunchedEffect(gridState) {
+        withContext(Dispatchers.Default) {
+            snapshotFlow {
+                if (gridState.isScrollInProgress) null
+                else gridState.layoutInfo.visibleItemsInfo
+            }.filterNotNull().debounce(1000).collect { _ ->
+                // No-op: gating prevents background work during scroll
+            }
         }
     }
 
