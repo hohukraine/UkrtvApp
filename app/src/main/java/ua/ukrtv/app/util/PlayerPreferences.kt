@@ -40,14 +40,10 @@ class PlayerPreferences @Inject constructor(
             ?: "org.videolan.vlc"
     }
 
-    fun getPlayerType(): PlayerType = _playerType.value
-
     fun setPlayerType(type: PlayerType) {
         prefs.edit().putString(KEY_PLAYER_TYPE, type.name).apply()
         _playerType.value = type
     }
-
-    fun getExternalPlayerPackage(): String = _externalPlayerPackage.value
 
     fun setExternalPlayerPackage(packageName: String) {
         prefs.edit().putString(KEY_EXTERNAL_PLAYER_PACKAGE, packageName).apply()

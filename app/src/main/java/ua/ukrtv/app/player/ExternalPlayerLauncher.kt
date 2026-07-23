@@ -25,11 +25,13 @@ class ExternalPlayerLauncher(private val context: Context) {
         val title: String,
         val referer: String = "",
         val userAgent: String = Constants.USER_AGENT,
+        val cookies: String = "",
         val positionMs: Long = 0L,
         val durationMs: Long = 0L,
         val subtitlesUrl: String? = null,
         val subtitlesName: String? = null,
-        val playlist: List<PlaylistItem> = emptyList()
+        val playlist: List<PlaylistItem> = emptyList(),
+        val playlistCurrentIndex: Int = 0
     )
 
     fun detectInstalledPlayers(): List<ExternalPlayerInfo> {
@@ -97,31 +99,39 @@ class ExternalPlayerLauncher(private val context: Context) {
 
     private fun buildVlcIntent(config: PlayerLaunchConfig): Intent {
         val uri = Uri.parse(config.streamUrl)
-        val mime = getMimeType(config.streamType)
 
         return Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, mime)
+            setDataAndType(uri, "video/*")
             setPackage("org.videolan.vlc")
             setComponent(ComponentName("org.videolan.vlc", "org.videolan.vlc.gui.video.VideoPlayerActivity"))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             putExtra("title", config.title)
-            putExtra("return_result", true)
-            putExtra("extra_duration", config.durationMs)
+            putExtra("position", config.positionMs)
             putExtra("from_start", config.positionMs <= 0L)
-            if (config.positionMs > 0L) {
-                putExtra("position", config.positionMs)
+            if (config.durationMs > 0L) {
+                putExtra("extra_duration", config.durationMs)
             }
-            if (!config.subtitlesUrl.isNullOrBlank()) {
-                putExtra("subtitles_location", config.subtitlesUrl)
-            }
+
+            // Playlist support
             if (config.playlist.isNotEmpty()) {
-                val uris = config.playlist.map { Uri.parse(it.url) }.toTypedArray()
-                val clipData = ClipData.newRawUri("Playlist", uris[0])
-                for (i in 1 until uris.size) {
-                    clipData.addItem(ClipData.Item(uris[i]))
-                }
-                setClipData(clipData)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                val uris = ArrayList(config.playlist.map { Uri.parse(it.url) })
+                val titles = ArrayList(config.playlist.map { it.title })
+                putParcelableArrayListExtra("media_list", uris)
+                putStringArrayListExtra("media_list_name", titles)
+                putExtra("opened_position", config.playlistCurrentIndex)
+            }
+
+            // Headers support
+            val options = mutableListOf<String>()
+            if (config.userAgent.isNotBlank()) {
+                options.add(":http-user-agent=${config.userAgent}")
+            }
+            if (config.referer.isNotBlank()) {
+                // VLC uses two 'r's: http-referrer
+                options.add(":http-referrer=${config.referer}")
+            }
+            if (options.isNotEmpty()) {
+                putExtra("options", options.toTypedArray())
             }
         }
     }
@@ -133,24 +143,26 @@ class ExternalPlayerLauncher(private val context: Context) {
         return Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, mime)
             setPackage(packageName)
-            setClassName(packageName, "$packageName.ActivityScreen")
+            val activityClass = if (packageName.endsWith(".pro")) {
+                "com.mxtech.videoplayer.ActivityScreen"
+            } else {
+                "$packageName.ActivityScreen"
+            }
+            setClassName(packageName, activityClass)
             putExtra("title", config.title)
             putExtra("return_result", true)
             if (config.positionMs > 0L) {
                 putExtra("position", config.positionMs.toInt())
             }
             val headers = mutableListOf<String>()
+            headers.addAll(listOf("User-Agent", config.userAgent))
             if (config.referer.isNotBlank()) {
-                headers.add("Referer")
-                headers.add(config.referer)
+                headers.addAll(listOf("Referer", config.referer))
             }
-            if (config.userAgent.isNotBlank()) {
-                headers.add("User-Agent")
-                headers.add(config.userAgent)
+            if (config.cookies.isNotBlank()) {
+                headers.addAll(listOf("Cookie", config.cookies))
             }
-            if (headers.isNotEmpty()) {
-                putExtra("headers", headers.toTypedArray())
-            }
+            putExtra("headers", headers.toTypedArray())
             if (!config.subtitlesUrl.isNullOrBlank()) {
                 putExtra("subs", arrayOf(Uri.parse(config.subtitlesUrl)))
                 putExtra("subs.enable", arrayOf(Uri.parse(config.subtitlesUrl)))
@@ -164,6 +176,7 @@ class ExternalPlayerLauncher(private val context: Context) {
                 val titles = config.playlist.map { it.title }.toTypedArray()
                 putExtra("video_list", uris)
                 putExtra("video_list.name", titles)
+                putExtra("video_list_cursor", config.playlistCurrentIndex)
                 putExtra("video_list_is_explicit", true)
 
                 val clipData = ClipData.newRawUri("Playlist", uris[0])
@@ -178,9 +191,10 @@ class ExternalPlayerLauncher(private val context: Context) {
 
     private fun buildJustPlayerIntent(config: PlayerLaunchConfig): Intent {
         val uri = Uri.parse(config.streamUrl)
+        val mime = getMimeType(config.streamType)
 
         return Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "video/*")
+            setDataAndType(uri, mime)
             setPackage("com.brouken.player")
             setComponent(ComponentName("com.brouken.player", "com.brouken.player.PlayerActivity"))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -189,18 +203,16 @@ class ExternalPlayerLauncher(private val context: Context) {
             if (config.positionMs > 0L) {
                 putExtra("position", config.positionMs.toInt())
             }
+
             val headers = mutableListOf<String>()
+            headers.addAll(listOf("User-Agent", config.userAgent))
             if (config.referer.isNotBlank()) {
-                headers.add("Referer")
-                headers.add(config.referer)
+                headers.addAll(listOf("Referer", config.referer))
             }
-            if (config.userAgent.isNotBlank()) {
-                headers.add("User-Agent")
-                headers.add(config.userAgent)
+            if (config.cookies.isNotBlank()) {
+                headers.addAll(listOf("Cookie", config.cookies))
             }
-            if (headers.isNotEmpty()) {
-                putExtra("headers", headers.toTypedArray())
-            }
+            putExtra("headers", headers.toTypedArray())
         }
     }
 
@@ -219,9 +231,16 @@ class ExternalPlayerLauncher(private val context: Context) {
         }
     }
 
+    data class ExternalPlayerResult(
+        val positionMs: Long,
+        val durationMs: Long,
+        val isFinished: Boolean = false,
+        val url: String? = null
+    )
+
     fun extractResult(resultCode: Int, data: Intent?): ExternalPlayerResult? {
-        if (resultCode != Activity.RESULT_OK) return null
         if (data == null) return null
+        if (resultCode == Activity.RESULT_CANCELED && data.extras == null) return null
         val extras = data.extras
 
         extras?.let { bundle ->
@@ -246,32 +265,35 @@ class ExternalPlayerLauncher(private val context: Context) {
         }
 
         val endBy = extras?.getString("end_by")
+        val resultUrl = data.dataString
 
-        return parseResult(positionMs, durationMs, endBy)
+        return parseResult(positionMs, durationMs, endBy, resultUrl)
     }
 
-        companion object {
-            fun parseResult(positionMs: Long, durationMs: Long, endBy: String?): ExternalPlayerResult {
-                if (endBy == "playback_completion") {
-                    return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = true)
-                }
-                if (endBy == "exit") {
-                    return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = false)
-                }
-                if (durationMs > 0) {
-                    val isFinished = positionMs.toFloat() / durationMs >= 0.90f
-                    return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = isFinished)
-                }
-                if (positionMs > 0) {
-                    return ExternalPlayerResult(positionMs = positionMs, durationMs = 0L, isFinished = false)
-                }
-                return ExternalPlayerResult(positionMs = 0L, durationMs = 0L, isFinished = false)
+    companion object {
+        fun parseResult(positionMs: Long, durationMs: Long, endBy: String?, url: String? = null): ExternalPlayerResult {
+            if (endBy == "playback_completion") {
+                return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = true, url = url)
             }
+            if (endBy == "exit") {
+                return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = false, url = url)
+            }
+            if (durationMs > 0) {
+                val isFinished = positionMs.toFloat() / durationMs >= 0.90f
+                return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = isFinished, url = url)
+            }
+            if (positionMs > 0) {
+                return ExternalPlayerResult(positionMs = positionMs, durationMs = 0L, isFinished = false, url = url)
+            }
+            return ExternalPlayerResult(positionMs = 0L, durationMs = 0L, isFinished = false, url = url)
         }
+    }
 }
 
 data class ExternalPlayerResult(
     val positionMs: Long,
     val durationMs: Long,
-    val isFinished: Boolean = false
+    val isFinished: Boolean = false,
+    val url: String? = null
 )
+

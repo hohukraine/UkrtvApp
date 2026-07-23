@@ -12,7 +12,7 @@ data class ExternalPlayerInfo(
         val VLC = ExternalPlayerInfo(
             packageName = "org.videolan.vlc",
             label = "VLC",
-            supportsHeaders = false,
+            supportsHeaders = true,
             supportsSubtitles = true,
             supportsResume = true,
             supportsResult = true
