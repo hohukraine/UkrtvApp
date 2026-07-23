@@ -47,7 +47,9 @@ class WatchProgressRepository @Inject constructor(
         pageUrl: String = "",
         streamUrl: String? = null,
         streamType: String? = null,
-        referer: String? = null
+        referer: String? = null,
+        fallbackUrls: String? = null,
+        seasonsJson: String? = null
     ) {
         val id = if (episodeId != null) "${contentId}_$episodeId" else contentId
         val existing = watchProgressDao.getProgress(id)
@@ -64,7 +66,9 @@ class WatchProgressRepository @Inject constructor(
             timestamp = System.currentTimeMillis(),
             streamUrl = streamUrl ?: existing?.streamUrl,
             streamType = streamType ?: existing?.streamType,
-            referer = referer ?: existing?.referer
+            referer = referer ?: existing?.referer,
+            fallbackUrls = fallbackUrls ?: existing?.fallbackUrls,
+            seasonsJson = seasonsJson ?: existing?.seasonsJson
         )
         watchProgressDao.insert(updated)
     }
@@ -74,7 +78,14 @@ class WatchProgressRepository @Inject constructor(
         return watchProgressDao.getProgress(id)?.toDomain()
     }
 
-    suspend fun getStreamCache(contentId: String, episodeId: String?): Triple<String, String, String>? {
+    data class StreamCache(
+        val streamUrl: String,
+        val streamType: String,
+        val referer: String,
+        val fallbackUrls: List<String>
+    )
+
+    suspend fun getStreamCache(contentId: String, episodeId: String?): StreamCache? {
         val id = if (episodeId != null) "${contentId}_$episodeId" else contentId
         val entity = watchProgressDao.getProgress(id) ?: return null
         if (entity.streamUrl == null || entity.streamType == null) return null
@@ -82,7 +93,18 @@ class WatchProgressRepository @Inject constructor(
             ua.ukrtv.app.util.AppLogger.d("WatchProgressRepo", "Stream cache expired for $id (age=${(System.currentTimeMillis() - entity.timestamp) / 1000}s)")
             return null
         }
-        return Triple(entity.streamUrl, entity.streamType, entity.referer ?: "")
+        return StreamCache(
+            streamUrl = entity.streamUrl,
+            streamType = entity.streamType,
+            referer = entity.referer ?: "",
+            fallbackUrls = entity.fallbackUrls?.split("|").orEmpty().filter { it.isNotEmpty() }
+        )
+    }
+
+    suspend fun getSeasonsJson(contentId: String, episodeId: String?): String? {
+        val id = if (episodeId != null) "${contentId}_$episodeId" else contentId
+        val entity = watchProgressDao.getProgress(id) ?: return null
+        return entity.seasonsJson
     }
 
     suspend fun cleanupOldEntries() {

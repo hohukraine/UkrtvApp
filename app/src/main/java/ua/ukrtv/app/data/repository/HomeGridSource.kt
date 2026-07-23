@@ -1,5 +1,6 @@
 package ua.ukrtv.app.data.repository
 
+import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -7,6 +8,7 @@ import ua.ukrtv.app.data.providers.MediaProvider
 import ua.ukrtv.app.domain.model.HomeSection
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.util.AppLogger
+import ua.ukrtv.app.util.PosterColorCache
 
 internal class HomeGridSource(
     private val homeCacheRepository: HomeCacheRepository
@@ -15,7 +17,7 @@ internal class HomeGridSource(
         val cachedSections = homeCacheRepository.getHomeCache(provider.name)
         val cached = cachedSections?.firstOrNull()?.items
         if (!cached.isNullOrEmpty()) {
-            emit(cached)
+            emit(cached.map { it.withCachedColor() })
         } else {
             try {
                 val freshItems = provider.getHomeSections()
@@ -23,11 +25,11 @@ internal class HomeGridSource(
                     .distinctBy { it.pageUrl }
                     .take(50)
                 if (freshItems.isNotEmpty()) {
-                    val firstBatch = freshItems.take(15)
+                    val firstBatch = freshItems.take(15).map { it.withCachedColor() }
                     emit(firstBatch)
                     if (freshItems.size > 15) {
                         delay(300)
-                        emit(freshItems)
+                        emit(freshItems.map { it.withCachedColor() })
                     }
                     homeCacheRepository.saveHomeCache(
                         provider.name,
@@ -44,4 +46,10 @@ internal class HomeGridSource(
             }
         }
     }.flowOn(Dispatchers.IO)
+
+    private fun Movie.withCachedColor(): Movie {
+        val cached = PosterColorCache.getCached(this.poster) ?: return this
+        val hex = String.format("#%06X", (0xFFFFFF and cached.toArgb()))
+        return this.copy(brandColor = hex)
+    }
 }

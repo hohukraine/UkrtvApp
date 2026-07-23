@@ -19,5 +19,7 @@ data class WatchProgressEntity(
     val timestamp: Long,
     val streamUrl: String? = null,
     val streamType: String? = null,
-    val referer: String? = null
+    val referer: String? = null,
+    val fallbackUrls: String? = null,
+    val seasonsJson: String? = null
 )

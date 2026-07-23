@@ -65,6 +65,10 @@ class ContentRepository @Inject constructor(
         cleanupJob = null
     }
 
+    fun clearTrendsCache() {
+        trendsCache.clear()
+    }
+
     fun getHomeGrid(provider: MediaProvider): Flow<List<Movie>> =
         homeSource.getHomeGrid(provider)
 
@@ -95,10 +99,11 @@ class ContentRepository @Inject constructor(
         return merged
     }
 
+    private val parseSeasonEpisodeRegex = Regex("""(?:s|season)[^\d]*(\d+)[^\d]*(?:e|ep|episode)[^\d]*(\d+)""", RegexOption.IGNORE_CASE)
+
     private fun parseSeasonEpisode(episodeId: String?): Pair<Int?, Int?> {
         if (episodeId == null) return null to null
-        val regex = Regex("""(?:s|season)[^\d]*(\d+)[^\d]*(?:e|ep|episode)[^\d]*(\d+)""", RegexOption.IGNORE_CASE)
-        val match = regex.find(episodeId) ?: return null to null
+        val match = parseSeasonEpisodeRegex.find(episodeId) ?: return null to null
         return match.groupValues[1].toIntOrNull() to match.groupValues[2].toIntOrNull()
     }
 
@@ -107,7 +112,6 @@ class ContentRepository @Inject constructor(
         .mapLatest { allProgress ->
             allProgress
                 .filter { it.progressPercentage in 1..94 }
-                .sortedByDescending { it.timestamp }
                 .distinctBy { ContentUtils.cleanTitle(it.title) }
                 .mapNotNull { progress ->
                     val pUrl = progress.pageUrl

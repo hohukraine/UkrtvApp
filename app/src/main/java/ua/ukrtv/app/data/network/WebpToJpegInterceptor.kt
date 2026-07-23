@@ -46,6 +46,7 @@ class WebpToJpegInterceptor : Interceptor {
 
         if (!contentTypeString.contains("image/webp")) return response
 
+        android.util.Log.d("WebpToJpeg", "Converting WebP to JPEG for: $url")
         val bytes = try {
             body.bytes()
         } catch (_: Exception) {

@@ -45,6 +45,12 @@ class HtmlHttpClient(
         refreshScope = CoroutineScope(Dispatchers.IO + refreshJob)
     }
 
+    fun clearMemoryCache() {
+        htmlCache.clear()
+        hostSemaphores.clear()
+        inflightRefreshes.clear()
+    }
+
     private fun isSslError(e: Exception): Boolean {
         var cause: Throwable = e
         while (cause != cause.cause && cause.cause != null) {

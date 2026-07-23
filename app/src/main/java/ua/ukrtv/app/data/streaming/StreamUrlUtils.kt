@@ -23,6 +23,13 @@ fun isDirectStreamUrl(url: String): Boolean {
     return clean.endsWith(".m3u8") || clean.endsWith(".mpd") || clean.endsWith(".mp4") || clean.endsWith(".webm")
 }
 
+fun isLikelyPlayableUrl(url: String): Boolean {
+    if (url.isBlank()) return false
+    val l = url.lowercase()
+    if (l.startsWith("about:") || l.startsWith("javascript:")) return false
+    return true
+}
+
 fun isVodIdUrl(url: String): Boolean = url.lowercase().let { l ->
     (l.contains("/vod/") || l.startsWith("dleid://")) && !isDirectStreamUrl(url)
 }
