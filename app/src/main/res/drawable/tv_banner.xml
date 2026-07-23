@@ -4,22 +4,57 @@
     android:height="180dp"
     android:viewportWidth="320"
     android:viewportHeight="180">
+
+    <!-- Background gradient (dark navy → slightly lighter) -->
     <path
-        android:fillColor="#1a1a2e"
+        android:fillColor="#1A1A2E"
         android:pathData="M0,0h320v180H0z"/>
+
+    <!-- Subtle diagonal gradient overlay bar -->
     <path
-        android:fillColor="#e63946"
-        android:pathData="M40,90 L80,60 L80,120 Z"/>
-    <path
-        android:fillColor="#ffffff"
-        android:pathData="M100,72 L100,108 M108,82 L108,98 M116,72 L116,108"/>
-    <path
-        android:fillColor="#ffffff"
-        android:pathData="M140,80 Q150,65 160,80 Q170,95 180,80"
-        android:strokeWidth="2"
-        android:strokeColor="#ffffff"
-        android:fillAlpha="0"/>
-    <path
-        android:fillColor="#ffffff"
-        android:pathData="M200,90 L220,70 L240,90 Z"/>
+        android:fillColor="#16213E"
+        android:pathData="M160,0h160v180h-160z"
+        android:fillAlpha="0.5"/>
+
+    <!-- UKRTV Logo Centered -->
+    <!-- UKR: 110px wide, TV: 76px wide, gap: 10px = 196px total -->
+    <!-- Start X: (320 - 196) / 2 = 62 -->
+    <!-- Height: 52px, Start Y: (180 - 52) / 2 = 64 -->
+
+    <group
+        android:translateX="62"
+        android:translateY="64">
+
+        <!-- TV Glow Shadow behind TV letters -->
+        <path
+            android:fillColor="#4D6E85B7"
+            android:pathData="M122,-10 h40 l18,50 h-10 l-14,-36 l-14,36 h-10 z M122,-10 v54 c10,0 18,-5 18,-14 v-26 c0,-9 -8,-14 -18,-14 z" />
+
+        <!-- UKR (White) -->
+        <!-- U -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M0,0 v40 c0,8 6,12 12,12 s12,-4 12,-12 v-40 h-8 v40 c0,4 -2,6 -4,6 s-4,-2 -4,-6 v-40 z" />
+        <!-- K -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M36,0 h8 v52 h-8 z M44,26 l18,-26 h12 l-20,26 l20,26 h-12 z" />
+        <!-- R -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M82,0 h18 c10,0 14,3 14,12 s-4,12 -14,12 h-8 v28 h-10 z M90,8 v10 h10 c3,0 4,-1 4,-5 s-1,-5 -4,-5 z M100,24 l14,28 h-10 l-12,-28 z" />
+
+        <!-- TV (Blue gradient) -->
+        <group android:translateX="120">
+            <!-- T -->
+            <path
+                android:fillColor="#FF8EA4D0"
+                android:pathData="M0,0 h36 v8 h-14 v44 h-8 v-44 h-14 z" />
+            <!-- V -->
+            <path
+                android:fillColor="#FF6E85B7"
+                android:pathData="M40,0 h10 l16,40 l16,-40 h10 l-20,52 h-12 z" />
+        </group>
+    </group>
+
 </vector>
