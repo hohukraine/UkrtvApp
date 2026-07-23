@@ -182,7 +182,7 @@ class WatchProgressRepositoryTest {
     }
 
     @Test
-    fun `getStreamCache returns Triple when valid and fresh`() = runBlocking {
+    fun `getStreamCache returns StreamCache when valid and fresh`() = runBlocking {
         coEvery { dao.getProgress("movie1_s1e1") } returns WatchProgressEntity(
             id = "movie1_s1e1", contentId = "movie1", episodeId = "s1e1",
             positionMs = 5000L, durationMs = 60000L,
@@ -193,9 +193,9 @@ class WatchProgressRepositoryTest {
         )
         val result = repository.getStreamCache("movie1", "s1e1")
         assertNotNull(result)
-        assertEquals("https://cdn/test.m3u8", result!!.first)
-        assertEquals("HLS", result.second)
-        assertEquals("https://uakino.best/", result.third)
+        assertEquals("https://cdn/test.m3u8", result!!.streamUrl)
+        assertEquals("HLS", result.streamType)
+        assertEquals("https://uakino.best/", result.referer)
     }
 
     @Test
@@ -210,7 +210,7 @@ class WatchProgressRepositoryTest {
         )
         val result = repository.getStreamCache("movie1", null)
         assertNotNull(result)
-        assertEquals("", result!!.third)
+        assertEquals("", result!!.referer)
     }
 
     @Test

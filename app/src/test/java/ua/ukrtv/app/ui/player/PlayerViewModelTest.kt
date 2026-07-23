@@ -22,9 +22,19 @@ import ua.ukrtv.app.data.repository.WatchProgressRepository
 import ua.ukrtv.app.data.streaming.StreamResolver
 import ua.ukrtv.app.domain.model.Episode
 import ua.ukrtv.app.domain.model.Season
+import ua.ukrtv.app.domain.model.StreamResolutionResult
 import ua.ukrtv.app.domain.model.StreamType
 import ua.ukrtv.app.domain.model.Voiceover
-import ua.ukrtv.app.player.*
+import ua.ukrtv.app.player.AudioEngine
+import ua.ukrtv.app.player.ExternalPlayerLauncher
+import ua.ukrtv.app.player.ExternalPlayerResult
+import ua.ukrtv.app.player.MediaPrefetcher
+import ua.ukrtv.app.player.PlayerFactory
+import ua.ukrtv.app.player.PlayerPool
+import ua.ukrtv.app.player.ProviderScoreCache
+import ua.ukrtv.app.player.ProviderSpeedTester
+import ua.ukrtv.app.player.StreamHealthMonitor
+import ua.ukrtv.app.player.ThermalMonitor
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.PlayerPreferences
 
@@ -40,12 +50,19 @@ class PlayerViewModelTest {
     private lateinit var thermalMonitor: ThermalMonitor
     private lateinit var providerManager: ProviderManager
     private lateinit var playerFactory: PlayerFactory
+    private lateinit var playerPool: PlayerPool
+    private lateinit var mediaPrefetcher: MediaPrefetcher
+    private lateinit var providerSpeedTester: ProviderSpeedTester
+    private lateinit var providerScoreCache: ProviderScoreCache
+    private lateinit var streamHealthMonitor: StreamHealthMonitor
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
 
         mockkStatic(android.util.Log::class)
+        mockkStatic("ua.ukrtv.app.ui.player.SeasonSerializerKt")
+        every { serializeSeasons(any()) } returns "[]"
         every { android.util.Log.d(any<String>(), any<String>()) } returns 0
         every { android.util.Log.e(any<String>(), any<String>()) } returns 0
         every { android.util.Log.w(any<String>(), any<String>()) } returns 0
@@ -69,6 +86,11 @@ class PlayerViewModelTest {
         every { thermalMonitor.thermalStatus } returns emptyFlow()
         providerManager = mockk(relaxed = true)
         playerFactory = mockk(relaxed = true)
+        playerPool = mockk(relaxed = true)
+        mediaPrefetcher = mockk(relaxed = true)
+        providerSpeedTester = mockk(relaxed = true)
+        providerScoreCache = mockk(relaxed = true)
+        streamHealthMonitor = mockk(relaxed = true)
     }
 
     @After
@@ -85,10 +107,15 @@ class PlayerViewModelTest {
             okHttpClient = mockk(relaxed = true),
             streamResolver = streamResolver,
             playerFactory = playerFactory,
-            thermalMonitor = thermalMonitor,
+            playerPool = playerPool,
             audioEngine = audioEngine,
             providerManager = providerManager,
-            playerPreferences = playerPreferences
+            playerPreferences = playerPreferences,
+            mediaPrefetcher = mediaPrefetcher,
+            providerSpeedTester = providerSpeedTester,
+            providerScoreCache = providerScoreCache,
+            streamHealthMonitor = streamHealthMonitor,
+            thermalMonitor = thermalMonitor
         )
     }
 
@@ -118,9 +145,10 @@ class PlayerViewModelTest {
         setField(vm, "episode", 1)
 
         assertTrue(vm.prepareNextEpisode())
+        assertEquals(1, getField(vm, "preparedSeason"))
+        assertEquals(2, getField(vm, "preparedEpisode"))
         assertEquals(1, getField(vm, "season"))
-        assertEquals(2, getField(vm, "episode"))
-        assertEquals("s1e2", getField(vm, "episodeId"))
+        assertEquals(1, getField(vm, "episode"))
     }
 
     @Test
@@ -131,8 +159,8 @@ class PlayerViewModelTest {
         setField(vm, "episode", 2)
 
         assertTrue(vm.prepareNextEpisode())
-        assertEquals(1, getField(vm, "season"))
-        assertEquals(3, getField(vm, "episode"))
+        assertEquals(1, getField(vm, "preparedSeason"))
+        assertEquals(3, getField(vm, "preparedEpisode"))
     }
 
     @Test
@@ -146,16 +174,16 @@ class PlayerViewModelTest {
         setField(vm, "episode", 2)
 
         assertTrue(vm.prepareNextEpisode())
-        assertEquals(2, getField(vm, "season"))
-        assertEquals(1, getField(vm, "episode"))
+        assertEquals(2, getField(vm, "preparedSeason"))
+        assertEquals(1, getField(vm, "preparedEpisode"))
     }
 
     @Test
     fun `prepareNextEpisode returns false at last episode`() {
         val vm = createViewModel()
-        setField(vm, "seasons", listOf(season(1, ep(1), ep(2), ep(3))))
+        setField(vm, "seasons", listOf(season(1, ep(1))))
         setField(vm, "season", 1)
-        setField(vm, "episode", 3)
+        setField(vm, "episode", 1)
 
         assertFalse(vm.prepareNextEpisode())
     }
@@ -191,16 +219,46 @@ class PlayerViewModelTest {
     }
 
     @Test
-    fun `prepareNextEpisode saves to savedStateHandle`() {
+    fun `prepareNextEpisode stores next episode in prepared fields`() {
         val vm = createViewModel()
         setField(vm, "seasons", listOf(season(1, ep(1), ep(2))))
         setField(vm, "season", 1)
         setField(vm, "episode", 1)
 
-        vm.prepareNextEpisode()
+        assertTrue(vm.prepareNextEpisode())
 
-        assertEquals(1, savedStateHandle.get<Int>("ext_season"))
-        assertEquals(2, savedStateHandle.get<Int>("ext_episode"))
+        assertEquals(1, getField(vm, "preparedSeason"))
+        assertEquals(2, getField(vm, "preparedEpisode"))
+        assertNull(savedStateHandle.get<Int>("ext_season"))
+        assertNull(savedStateHandle.get<Int>("ext_episode"))
+    }
+
+    @Test
+    fun `executePreparedNavigation advances season and episode`() {
+        val vm = createViewModel()
+        setField(vm, "season", 1)
+        setField(vm, "episode", 1)
+        setField(vm, "preparedSeason", 2)
+        setField(vm, "preparedEpisode", 1)
+
+        vm.executePreparedNavigation()
+
+        assertEquals(2, getField(vm, "season"))
+        assertEquals(1, getField(vm, "episode"))
+    }
+
+    @Test
+    fun `executePreparedNavigation clears prepared fields`() {
+        val vm = createViewModel()
+        setField(vm, "season", 1)
+        setField(vm, "episode", 1)
+        setField(vm, "preparedSeason", 2)
+        setField(vm, "preparedEpisode", 1)
+
+        vm.executePreparedNavigation()
+
+        assertNull(getField(vm, "preparedSeason"))
+        assertNull(getField(vm, "preparedEpisode"))
     }
 
     // --- hasNextEpisode / hasPreviousEpisode ---
@@ -273,7 +331,7 @@ class PlayerViewModelTest {
         val vm = createViewModel()
         val intent = mockk<Intent>()
         mockkConstructor(ExternalPlayerLauncher::class)
-        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerResult(0L, 0L, false)
+        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(0L, 0L, false)
 
         val result = vm.handleExternalPlayerResult(-1, intent)
         assertEquals(ExternalPlayerReturnResult.NoData, result)
@@ -288,7 +346,7 @@ class PlayerViewModelTest {
 
         val intent = mockk<Intent>()
         mockkConstructor(ExternalPlayerLauncher::class)
-        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerResult(60000L, 60000L, true)
+        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(60000L, 60000L, true)
 
         val result = vm.handleExternalPlayerResult(-1, intent)
         assertEquals(ExternalPlayerReturnResult.Advanced, result)
@@ -305,7 +363,7 @@ class PlayerViewModelTest {
 
         val intent = mockk<Intent>()
         mockkConstructor(ExternalPlayerLauncher::class)
-        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerResult(60000L, 60000L, true)
+        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(60000L, 60000L, true)
 
         val result = vm.handleExternalPlayerResult(-1, intent)
         assertTrue(result is ExternalPlayerReturnResult.NotFinished)
@@ -320,7 +378,7 @@ class PlayerViewModelTest {
 
         val intent = mockk<Intent>()
         mockkConstructor(ExternalPlayerLauncher::class)
-        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerResult(30000L, 60000L, false)
+        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(30000L, 60000L, false)
 
         val result = vm.handleExternalPlayerResult(-1, intent)
         assertTrue(result is ExternalPlayerReturnResult.NotFinished)
@@ -338,7 +396,7 @@ class PlayerViewModelTest {
 
         val intent = mockk<Intent>()
         mockkConstructor(ExternalPlayerLauncher::class)
-        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerResult(54000L, 60000L, false)
+        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(54000L, 60000L, false)
 
         val result = vm.handleExternalPlayerResult(-1, intent)
         assertEquals(ExternalPlayerReturnResult.Advanced, result)
@@ -353,7 +411,7 @@ class PlayerViewModelTest {
 
         val intent = mockk<Intent>()
         mockkConstructor(ExternalPlayerLauncher::class)
-        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerResult(60000L, 60000L, true)
+        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(60000L, 60000L, true)
 
         val result = vm.handleExternalPlayerResult(-1, intent)
         assertEquals(ExternalPlayerReturnResult.Advanced, result)
@@ -370,7 +428,7 @@ class PlayerViewModelTest {
 
         val intent = mockk<Intent>()
         mockkConstructor(ExternalPlayerLauncher::class)
-        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerResult(60000L, 60000L, true)
+        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(60000L, 60000L, true)
 
         val result = vm.handleExternalPlayerResult(-1, intent)
         assertTrue(result is ExternalPlayerReturnResult.NotFinished)
@@ -385,7 +443,7 @@ class PlayerViewModelTest {
 
         val intent = mockk<Intent>()
         mockkConstructor(ExternalPlayerLauncher::class)
-        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerResult(10000L, 60000L, false)
+        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(10000L, 60000L, false)
 
         val result = vm.handleExternalPlayerResult(-1, intent)
         assertTrue(result is ExternalPlayerReturnResult.NotFinished)
@@ -507,5 +565,105 @@ class PlayerViewModelTest {
 
         val status = stateFlow.value.status as PlayerStatus.Ready
         assertEquals(15000L, status.positionMs)
+    }
+
+    // --- resolveWithBestProvider (through loadStream) ---
+
+    @Test
+    fun `resolveWithBestProvider skips speed test when both scores cached and primary is faster`() {
+        val vm = createViewModel()
+        every { providerManager.activeProvider } returns MutableStateFlow(
+            mockk(relaxed = true) { every { name } returns "Eneyida" }
+        )
+        every { providerManager.availableProviders } returns listOf(
+            mockk(relaxed = true) { every { name } returns "Uakino" }
+        )
+        every { providerScoreCache.getScore("Eneyida") } returns ProviderScoreCache.ProviderScore(
+            providerName = "Eneyida", url = "url1", timeToFirstByteMs = 100, throughputKbps = 8000.0
+        )
+        every { providerScoreCache.getScore("Uakino") } returns ProviderScoreCache.ProviderScore(
+            providerName = "Uakino", url = "url2", timeToFirstByteMs = 200, throughputKbps = 5000.0
+        )
+        coEvery { streamResolver.resolve(any(), any(), any(), any(), any(), any(), any()) } returns StreamResolutionResult(
+            streamUrl = "https://eneyida.tv/stream", streamType = StreamType.HLS, referer = "https://eneyida.tv"
+        )
+
+        vm.initialize("test", "Test", "https://eneyida.tv/title", season = 1, episode = 1)
+
+        coVerify(inverse = true) { providerSpeedTester.testSpeed(any(), any(), any()) }
+    }
+
+    @Test
+    fun `resolveWithBestProvider skips speed test when both scores cached and other is faster`() {
+        val vm = createViewModel()
+        every { providerManager.activeProvider } returns MutableStateFlow(
+            mockk(relaxed = true) { every { name } returns "Eneyida" }
+        )
+        every { providerManager.availableProviders } returns listOf(
+            mockk(relaxed = true) {
+                every { name } returns "Uakino"
+                coEvery { search(any(), any()) } returns listOf(
+                    ua.ukrtv.app.data.providers.SearchItem("Title", "https://uakino.com/title", "", "Uakino", "series")
+                )
+            }
+        )
+        every { providerScoreCache.getScore("Eneyida") } returns ProviderScoreCache.ProviderScore(
+            providerName = "Eneyida", url = "url1", timeToFirstByteMs = 200, throughputKbps = 5000.0
+        )
+        every { providerScoreCache.getScore("Uakino") } returns ProviderScoreCache.ProviderScore(
+            providerName = "Uakino", url = "url2", timeToFirstByteMs = 100, throughputKbps = 8000.0
+        )
+        coEvery { streamResolver.resolve(any(), any(), any(), any(), any(), any(), any()) } returns StreamResolutionResult(
+            streamUrl = "https://uakino.com/stream", streamType = StreamType.HLS, referer = "https://uakino.com"
+        )
+
+        vm.initialize("test", "Test", "https://eneyida.tv/title", season = 1, episode = 1)
+
+        coVerify(inverse = true) { providerSpeedTester.testSpeed(any(), any(), any()) }
+    }
+
+    @Test
+    fun `resolveWithBestProvider runs speed test when cache is empty`() {
+        val vm = createViewModel()
+        val activeProviderMock = mockk<ua.ukrtv.app.data.providers.MediaProvider>(relaxed = true) {
+            every { name } returns "Eneyida"
+        }
+        every { providerManager.activeProvider } returns MutableStateFlow(activeProviderMock)
+        val otherProviderMock = mockk<ua.ukrtv.app.data.providers.MediaProvider>(relaxed = true) {
+            every { name } returns "Uakino"
+            coEvery { search(any(), any()) } returns listOf(
+                ua.ukrtv.app.data.providers.SearchItem("Title", "https://uakino.com/title", "", "Uakino", "series")
+            )
+        }
+        every { providerManager.availableProviders } returns listOf(otherProviderMock)
+        every { providerScoreCache.getScore(any()) } returns null
+        coEvery { streamResolver.resolve(any(), any(), any(), any(), any(), any(), any()) } returns StreamResolutionResult(
+            streamUrl = "https://eneyida.tv/stream", streamType = StreamType.HLS, referer = "https://eneyida.tv"
+        ) andThen StreamResolutionResult(
+            streamUrl = "https://uakino.com/stream", streamType = StreamType.HLS, referer = "https://uakino.com"
+        )
+        coEvery { providerSpeedTester.testSpeed(any(), any(), any()) } returns ProviderSpeedTester.SpeedTestResult(
+            providerName = "Eneyida", url = "url", timeToFirstByteMs = 100, throughputKbps = 5000.0
+        ) andThen ProviderSpeedTester.SpeedTestResult(
+            providerName = "Uakino", url = "url", timeToFirstByteMs = 200, throughputKbps = 3000.0
+        )
+
+        vm.initialize("test", "Test", "https://eneyida.tv/title", season = 1, episode = 1)
+
+        val deadline = System.currentTimeMillis() + 5000
+        var state = vm.state.value
+        while (state.status !is PlayerStatus.Ready) {
+            if (System.currentTimeMillis() > deadline) {
+                fail("Timeout waiting for Ready state, last status: ${state.status}")
+            }
+            if (state.status is PlayerStatus.Error) {
+                fail("Unexpected error: ${state.status.message}")
+            }
+            Thread.sleep(10)
+            state = vm.state.value
+        }
+
+        coVerify { providerSpeedTester.testSpeed(any(), any(), any()) }
+        verify { providerScoreCache.record(any(), any()) }
     }
 }

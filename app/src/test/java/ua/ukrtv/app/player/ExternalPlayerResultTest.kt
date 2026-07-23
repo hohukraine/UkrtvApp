@@ -166,4 +166,54 @@ class ExternalPlayerResultTest {
         val result = ExternalPlayerLauncher.parseResult(1000L, 1000L, null)
         assertTrue(result.isFinished)
     }
+
+    @Test
+    fun `MX Player end_by user with small position - not finished`() {
+        val result = ExternalPlayerLauncher.parseResult(5044L, 3588960L, "user")
+        assertFalse(result.isFinished)
+        assertEquals(5044L, result.positionMs)
+        assertEquals(3588960L, result.durationMs)
+    }
+
+    @Test
+    fun `Just Player end_by playback_completion - finished`() {
+        val result = ExternalPlayerLauncher.parseResult(9462L, 2561642L, "playback_completion")
+        assertTrue(result.isFinished)
+        assertEquals(9462L, result.positionMs)
+        assertEquals(2561642L, result.durationMs)
+    }
+
+    @Test
+    fun `Just Player end_by user partial watch - not finished`() {
+        val result = ExternalPlayerLauncher.parseResult(9462L, 2561642L, "user")
+        assertFalse(result.isFinished)
+    }
+
+    @Test
+    fun `MX Player end_by user near start - not finished`() {
+        val result = ExternalPlayerLauncher.parseResult(10074L, 2558097L, "user")
+        assertFalse(result.isFinished)
+        assertEquals(10074L, result.positionMs)
+        assertEquals(2558097L, result.durationMs)
+    }
+
+    @Test
+    fun `VLC 97 percent finished via threshold`() {
+        val result = ExternalPlayerLauncher.parseResult(3490000L, 3588960L, null)
+        assertTrue(result.isFinished)
+    }
+
+    @Test
+    fun `VLC position without duration preserves position`() {
+        val result = ExternalPlayerLauncher.parseResult(3559000L, 0L, null)
+        assertFalse(result.isFinished)
+        assertEquals(3559000L, result.positionMs)
+        assertEquals(0L, result.durationMs)
+    }
+
+    @Test
+    fun `Just Player 89 percent - not finished`() {
+        val result = ExternalPlayerLauncher.parseResult(2280000L, 2561642L, null)
+        assertFalse(result.isFinished)
+    }
 }
