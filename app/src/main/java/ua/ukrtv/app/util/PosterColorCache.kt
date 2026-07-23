@@ -5,9 +5,12 @@ import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import androidx.compose.ui.graphics.Color
 import androidx.palette.graphics.Palette
-import coil.imageLoader
-import coil.request.ImageRequest
-import coil.request.SuccessResult
+import coil3.asDrawable
+import coil3.imageLoader
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.request.allowHardware
+import coil3.request.bitmapConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Collections
@@ -32,24 +35,28 @@ object PosterColorCache {
                     .data(posterUrl)
                     .size(50, 75)
                     .bitmapConfig(Bitmap.Config.RGB_565)
-                    .allowHardware(false) // Required for Palette
+                    .allowHardware(false)
                     .build()
                 val result = loader.execute(request)
+                var extractedColor: Color? = null
                 if (result is SuccessResult) {
-                    val drawable = result.drawable
+                    val drawable = result.image.asDrawable(context.resources)
                     if (drawable is BitmapDrawable) {
-                        val palette = Palette.from(drawable.bitmap)
-                            .maximumColorCount(8) // Performance: few colors for UI accents
+                        val bitmap = drawable.bitmap
+                        val palette = Palette.from(bitmap)
+                            .maximumColorCount(6)
                             .generate()
                         val swatch = palette.vibrantSwatch
                             ?: palette.mutedSwatch
                             ?: palette.darkVibrantSwatch
                             ?: palette.darkMutedSwatch
-                        if (swatch != null) return@withContext Color(swatch.rgb)
+                        if (swatch != null) extractedColor = Color(swatch.rgb)
                     }
                 }
-            } catch (_: Exception) { }
-            fallback
+                extractedColor ?: fallback
+            } catch (_: Exception) {
+                fallback
+            }
         }
         cache[posterUrl] = color
         return color

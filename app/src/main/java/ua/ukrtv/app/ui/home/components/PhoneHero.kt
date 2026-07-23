@@ -23,8 +23,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.crossfade
+import coil3.request.ImageRequest
 import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.ui.theme.Gold
 import kotlinx.coroutines.delay
@@ -106,19 +107,26 @@ fun PhoneHeroSection(
         ) {
             items.forEachIndexed { index, _ ->
                 val isSelected = index == currentPage
-                val dotSize by animateFloatAsState(
-                    targetValue = if (isSelected) 8f else 5f,
+                val dotScale by animateFloatAsState(
+                    targetValue = if (isSelected) 1.6f else 1f,
                     animationSpec = tween(300),
-                    label = "dotSize"
+                    label = "dotScale"
+                )
+                val dotAlpha by animateFloatAsState(
+                    targetValue = if (isSelected) 1f else 0.3f,
+                    animationSpec = tween(300),
+                    label = "dotAlpha"
                 )
                 Box(
                     modifier = Modifier
-                        .size(dotSize.dp)
+                        .size(5.dp)
+                        .graphicsLayer {
+                            scaleX = dotScale
+                            scaleY = dotScale
+                            alpha = dotAlpha
+                        }
                         .clip(RoundedCornerShape(50))
-                        .background(
-                            if (isSelected) brandColor
-                            else Color.White.copy(alpha = 0.3f)
-                        )
+                        .background(if (isSelected) brandColor else Color.White)
                 )
             }
         }
@@ -160,7 +168,7 @@ private fun PhoneHeroPage(
                     ImageRequest.Builder(context)
                         .data(movie.posterUrl)
                         .size(480, 720)
-                        .crossfade(true)
+                        .crossfade(100)
                         .build()
                 }
                 AsyncImage(

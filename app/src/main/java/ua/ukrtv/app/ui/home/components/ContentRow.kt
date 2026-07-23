@@ -4,7 +4,9 @@ import android.content.Context
 import android.media.AudioManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
@@ -29,6 +31,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -61,6 +64,7 @@ import ua.ukrtv.app.ui.theme.PhoneGridDefaults
 import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.Shapes
 import ua.ukrtv.app.util.DeviceClass
+import ua.ukrtv.app.util.PosterColorCache
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -127,21 +131,28 @@ private fun PhoneContentRow(
                     enterAlpha.animateTo(1f, tween(300))
                 }
                 val onClick = remember(item) { { onItemClick(item) } }
+                val accentColor = remember(item.brandColor) {
+                    item.brandColor?.let { try { Color(android.graphics.Color.parseColor(it)) } catch(_: Exception) { null } }
+                        ?: PosterColorCache.getCached(item.poster)
+                        ?: brandColor
+                }
                 if (useWideCards) {
                     ContinueWatchingCard(
                         movie = item,
                         brandColor = brandColor,
+                        accentColor = accentColor,
                         onClick = onClick,
-                        modifier = Modifier.alpha(enterAlpha.value).animateItem()
+                        modifier = Modifier.graphicsLayer { alpha = enterAlpha.value }.animateItem()
                     )
                 } else {
                     MovieCard(
                         movie = item,
                         brandColor = brandColor,
+                        accentColor = accentColor,
                         width = PhoneCardDefaults.posterWidth,
                         height = PhoneCardDefaults.posterHeight,
                         onClick = onClick,
-                        modifier = Modifier.alpha(enterAlpha.value).animateItem()
+                        modifier = Modifier.graphicsLayer { alpha = enterAlpha.value }.animateItem()
                     )
                 }
             }
@@ -222,9 +233,16 @@ private fun TvContentRow(
             isPhone = false
         )
 
+        CompositionLocalProvider(
+            LocalBringIntoViewSpec provides object : BringIntoViewSpec {
+                override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+                    return offset + size * 0.5f - containerSize * 0.25f
+                }
+            }
+        ) {
         LazyRow(
             modifier = Modifier
-                .height(rowHeight) // 2.1 Fixed height
+                .height(rowHeight)
                 .fillMaxWidth()
                 .focusRequester(rowFocus)
                 .onFocusChanged { state ->
@@ -275,11 +293,22 @@ private fun TvContentRow(
 
                 val lastSoundTime = remember { mutableLongStateOf(0L) }
                 val focusMod = remember(item, onItemFocused, audioManager, keyBlockMod, itemModifier) {
-                    itemModifier.then(keyBlockMod).onFocusChanged { state ->
+                    itemModifier
+                        .focusProperties {
+                            // Prevent focus from escaping to the side (See All button) when scrolling down
+                            exit = { focusDirection ->
+                                if (focusDirection == androidx.compose.ui.focus.FocusDirection.Right && isLast) {
+                                    androidx.compose.ui.focus.FocusRequester.Cancel
+                                } else {
+                                    androidx.compose.ui.focus.FocusRequester.Default
+                                }
+                            }
+                        }
+                        .then(keyBlockMod)
+                        .onFocusChanged { state ->
                         if (state.isFocused) {
                             onItemFocused?.invoke(item)
                             val now = System.currentTimeMillis()
-                            // 3.3 Increased throttle for sound effect
                             if (now - lastSoundTime.longValue > 150L) {
                                 lastSoundTime.longValue = now
                                 audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
@@ -288,7 +317,6 @@ private fun TvContentRow(
                     }
                 }
 
-                // 2.3/6 Conditional Animatable creation
                 val enterAlpha = if (enterAnimated) remember { Animatable(0f) } else null
                 val enterScale = if (enterAnimated) remember { Animatable(enterStartScale) } else null
                 val density = LocalDensity.current
@@ -309,21 +337,27 @@ private fun TvContentRow(
                 }
 
                 val entranceMod = focusMod
-                    .then(if (enterAnimated && enterAlpha != null) Modifier.alpha(enterAlpha.value) else Modifier)
-                    .then(if (enterAnimated && enterScale != null) Modifier.scale(enterScale.value) else Modifier)
-                    .then(
-                        if (enterAnimated && enterTranslateY != null)
-                            Modifier.graphicsLayer { translationY = enterTranslateY.value }
-                        else Modifier
+                    .graphicsLayer(
+                        alpha = enterAlpha?.value ?: 1f,
+                        scaleX = enterScale?.value ?: 1f,
+                        scaleY = enterScale?.value ?: 1f,
+                        translationY = enterTranslateY?.value ?: 0f,
+                        compositingStrategy = CompositingStrategy.ModulateAlpha
                     )
 
                 val onClick = remember(item) { { onItemClick(item) } }
                 val onDismiss = onItemDismiss?.let { remember(item) { { it(item) } } }
+                val accentColor = remember(item.brandColor) {
+                    item.brandColor?.let { try { Color(android.graphics.Color.parseColor(it)) } catch(_: Exception) { null } }
+                        ?: PosterColorCache.getCached(item.poster)
+                        ?: brandColor
+                }
 
                 if (useWideCards) {
                     ContinueWatchingCard(
                         movie = item,
                         brandColor = brandColor,
+                        accentColor = accentColor,
                         onClick = onClick,
                         onLongClick = onDismiss,
                         onDismiss = onDismiss,
@@ -333,6 +367,7 @@ private fun TvContentRow(
                     MovieCard(
                         movie = item,
                         brandColor = brandColor,
+                        accentColor = accentColor,
                         width = (if (useLargeCards) CardDefaults.posterWidth * 1.15f else CardDefaults.posterWidth) * cardScale,
                         height = (if (useLargeCards) CardDefaults.posterHeight * 1.15f else CardDefaults.posterHeight) * cardScale,
                         onClick = onClick,
@@ -349,6 +384,7 @@ private fun TvContentRow(
                     }
                 }
             }
+        }
         }
     }
 }

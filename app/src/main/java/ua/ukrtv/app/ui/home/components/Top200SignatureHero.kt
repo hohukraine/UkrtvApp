@@ -31,8 +31,8 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.ui.components.RatingCircle
 import ua.ukrtv.app.ui.theme.Gold

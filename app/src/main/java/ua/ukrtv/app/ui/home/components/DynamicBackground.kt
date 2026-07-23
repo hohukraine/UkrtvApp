@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -201,20 +202,21 @@ fun Modifier.providerBackground(providerColor: Color): Modifier {
         DeviceClass.LOW -> 0.02f
         else -> 0.04f
     }
-    return this.drawBehind {
+    return this.drawWithCache {
         val centerX = size.width * 0.25f
         val centerY = size.height * 0.15f
         val radius = size.width.coerceAtLeast(size.height) * 1.2f
-        drawRect(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    providerColor.copy(alpha = alpha),
-                    providerColor.copy(alpha = alpha * 0.5f),
-                    Color.Transparent
-                ),
-                center = Offset(centerX, centerY),
-                radius = radius
-            )
+        val brush = Brush.radialGradient(
+            colors = listOf(
+                providerColor.copy(alpha = alpha),
+                providerColor.copy(alpha = alpha * 0.5f),
+                Color.Transparent
+            ),
+            center = Offset(centerX, centerY),
+            radius = radius
         )
+        onDrawBehind {
+            drawRect(brush = brush)
+        }
     }
 }

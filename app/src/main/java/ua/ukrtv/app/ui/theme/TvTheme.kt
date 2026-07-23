@@ -177,11 +177,6 @@ fun UkrtvTheme(
     val deviceClass = remember(context, profile) { resolveDeviceClass(context, profile) }
     val isMediatek = remember { hasMediatekChipset() }
 
-    LaunchedEffect(deviceClass, isMediatek) {
-        (context.applicationContext as? UkrtvApplication)
-            ?.applyImageLoaderFor(deviceClass, isMediatek)
-    }
-
     CompositionLocalProvider(
         LocalDeviceClass provides deviceClass,
         LocalIsMediatek provides isMediatek,

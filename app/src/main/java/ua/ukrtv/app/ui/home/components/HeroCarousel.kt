@@ -5,7 +5,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -22,38 +24,42 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
-import ua.ukrtv.app.ui.theme.PlaceholderDark
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.request.allowHardware
+import coil3.ImageLoader
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import ua.ukrtv.app.domain.model.Movie
-import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.Gold
 import ua.ukrtv.app.ui.theme.HeroDefaults
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
-import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.ui.theme.OnSurface
+import ua.ukrtv.app.ui.theme.PlaceholderDark
+import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.util.DeviceClass
+import ua.ukrtv.app.util.PosterColorCache
 
 private const val AUTO_SCROLL_INTERVAL_MS = 4000L
 
@@ -77,11 +83,32 @@ fun HeroCarousel(
     var focusedPage by remember { mutableStateOf(-1) }
     var pendingFocusPage by remember { mutableStateOf(-1) }
 
+    val ctx = LocalContext.current
     val deviceClass = LocalDeviceClass.current
+    val isMediatek = LocalIsMediatek.current
+    LaunchedEffect(actualPage, items.size) {
+        val imageLoader = coil3.ImageLoader(ctx)
+        val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 180 to 240; DeviceClass.MID -> 360 to 480; DeviceClass.HIGH -> 540 to 720 }
+        for (offset in 1..3) {
+            val nextIdx = (actualPage + offset) % items.size
+            val nextPoster = items[nextIdx].poster
+            if (nextPoster.isNotBlank()) {
+                try {
+                    val request = ImageRequest.Builder(ctx)
+                        .data(nextPoster)
+                        .size(iw, ih)
+                        .allowHardware(deviceClass != DeviceClass.LOW && !isMediatek)
+                        .build()
+                    imageLoader.execute(request)
+                } catch (_: Exception) {}
+            }
+        }
+    }
+
     val rawAccent = remember(pagerState.currentPage) {
         items[actualPage].brandColor?.let {
-            try { Color(android.graphics.Color.parseColor(it)) } catch (_: Exception) { brandColor }
-        } ?: brandColor
+            try { Color(android.graphics.Color.parseColor(it)) } catch (_: Exception) { null }
+        } ?: PosterColorCache.getCached(items[actualPage].poster) ?: brandColor
     }
     val currentAccentColor: Color = if (deviceClass == DeviceClass.LOW) {
         rawAccent
@@ -118,17 +145,16 @@ fun HeroCarousel(
             .fillMaxWidth()
             .height(heroHeight)
             .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-            .drawWithContent {
-                drawContent()
-                // Final vertical mask to fade EVERYTHING to transparent at the bottom
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(Color.White, Color.White, Color.Transparent),
-                        startY = 0f,
-                        endY = size.height
-                    ),
-                    blendMode = BlendMode.DstIn
+            .drawWithCache {
+                val brush = Brush.verticalGradient(
+                    colors = listOf(Color.White, Color.White, Color.Transparent),
+                    startY = 0f,
+                    endY = size.height
                 )
+                onDrawWithContent {
+                    drawContent()
+                    drawRect(brush = brush, blendMode = BlendMode.DstIn)
+                }
             }
     ) {
         HorizontalPager(
@@ -137,7 +163,7 @@ fun HeroCarousel(
             pageSpacing = 24.dp,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            val movie = items[page]
+            val movie = items[page % items.size]
             val focusRequester = remember { FocusRequester() }
 
             LaunchedEffect(pendingFocusPage) {
@@ -241,61 +267,54 @@ private fun HeroItemContent(
     }
 
     val glowAlpha = remember(deviceClass) { if (deviceClass == DeviceClass.HIGH) 0.4f else 0.25f }
-    val horizontalGradientBrush = remember(accentColor, deviceClass) {
-        Brush.horizontalGradient(
-            colors = listOf(
-                accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.45f else 0.3f),
-                accentColor.copy(alpha = 0.1f),
-                Color.Transparent
-            ),
-            endX = 1400f
-        )
-    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .drawBehind {
-                // Premium color-only backdrop: no stretched images
+            .drawWithCache {
                 val w = size.width
                 val h = size.height
+                val horizontalGradient = Brush.horizontalGradient(
+                    colors = listOf(
+                        accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.45f else 0.3f),
+                        accentColor.copy(alpha = 0.1f),
+                        Color.Transparent
+                    ),
+                    endX = 1400f
+                )
+                val radialGlow = if (deviceClass != DeviceClass.LOW) {
+                    Brush.radialGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = glowAlpha),
+                            accentColor.copy(alpha = glowAlpha * 0.2f),
+                            Color.Transparent
+                        ),
+                        center = androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.5f),
+                        radius = w * 0.9f
+                    )
+                } else null
 
-                if (deviceClass != DeviceClass.LOW) {
-                    // Radial glow from center (accent color)
-                    drawRect(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                accentColor.copy(alpha = glowAlpha),
-                                accentColor.copy(alpha = glowAlpha * 0.2f),
-                                Color.Transparent
-                            ),
-                            center = androidx.compose.ui.geometry.Offset(w * 0.5f, h * 0.5f),
-                            radius = w * 0.9f
+                onDrawBehind {
+                    if (radialGlow != null) {
+                        drawRect(brush = radialGlow)
+                    }
+
+                    drawRect(brush = horizontalGradient)
+
+                    if (isFocused) {
+                        val strokeWidth = 3.dp.toPx()
+                        val cornerR = 12.dp.toPx()
+                        drawRoundRect(
+                            color = accentColor.copy(alpha = 0.8f),
+                            topLeft = androidx.compose.ui.geometry.Offset(strokeWidth / 2f, strokeWidth / 2f),
+                            size = androidx.compose.ui.geometry.Size(w - strokeWidth, h - strokeWidth),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerR),
+                            style = Stroke(width = strokeWidth)
                         )
-                    )
-                }
-
-                // Focus glow border
-                if (isFocused) {
-                    val strokeWidth = 3.dp.toPx()
-                    val cornerR = 12.dp.toPx()
-                    drawRoundRect(
-                        color = accentColor.copy(alpha = 0.8f),
-                        topLeft = androidx.compose.ui.geometry.Offset(strokeWidth / 2f, strokeWidth / 2f),
-                        size = androidx.compose.ui.geometry.Size(w - strokeWidth, h - strokeWidth),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerR),
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = strokeWidth)
-                    )
+                    }
                 }
             }
     ) {
-        // Gradient overlay (base horizontal)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(horizontalGradientBrush)
-        )
-
         // Layer 3: Content
         Row(
             modifier = Modifier
@@ -381,7 +400,7 @@ private fun HeroItemContent(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (isFocused) Color.White else Color.White.copy(alpha = 0.9f))
+                            .background(if (isFocused) accentColor else accentColor.copy(alpha = 0.9f))
                             .padding(horizontal = 24.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -395,14 +414,15 @@ private fun HeroItemContent(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color.White.copy(alpha = 0.2f))
+                            .border(BorderStroke(2.dp, accentColor.copy(alpha = 0.5f)), RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.1f))
                             .padding(horizontal = 24.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Info, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.Info, null, tint = OnSurface, modifier = Modifier.size(24.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Детальніше", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Детальніше", color = OnSurface, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         }
                     }
                 }
@@ -421,7 +441,7 @@ private fun MetaBadge(
             if (!item.rating.isNullOrEmpty()) add("IMDb ${item.rating}")
             item.year?.let { add(it.toString()) }
             if (!item.quality.isNullOrEmpty()) add(item.quality.uppercase())
-            item.contentType?.let { add(it.uppercase()) }
+            item.contentType?.let { add(item.provider?.uppercase() ?: "MOVIE") }
         }
     }
 
@@ -486,11 +506,17 @@ private fun PageIndicator(
 
             Box(
                 modifier = Modifier
-                    .size(animatedSize.dp)
+                    .size(6.dp)
+                    .graphicsLayer {
+                        val scale = animatedSize / 6f
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = animatedAlpha
+                    }
                     .clip(CircleShape)
                     .background(
-                        if (isSelected) brandColor.copy(alpha = animatedAlpha)
-                        else Color.White.copy(alpha = animatedAlpha)
+                        if (isSelected) brandColor
+                        else Color.White
                     )
             )
         }

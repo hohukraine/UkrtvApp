@@ -17,7 +17,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -41,9 +41,13 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material3.Icon
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.debounce
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.util.AppLogger
 import androidx.compose.material3.*
@@ -220,6 +224,7 @@ private fun HomeScreenContent(
 ) {
     val gridState = rememberLazyListState()
     val density = LocalDensity.current
+    val deviceClass = LocalDeviceClass.current
     val scrollFraction by remember {
         val hPx = with(density) { HeroDefaults.height.toPx() }
         derivedStateOf {
@@ -228,6 +233,20 @@ private fun HomeScreenContent(
         }
     }
     val heroActive by remember { derivedStateOf { scrollFraction < 0.99f } }
+
+    LaunchedEffect(gridState) {
+        withContext(Dispatchers.Default) {
+            snapshotFlow {
+                if (gridState.isScrollInProgress) null
+                else gridState.layoutInfo.visibleItemsInfo
+            }.filterNotNull().debounce(800).collect { visibleItems ->
+                val focusedItem = visibleItems.maxByOrNull { it.index }
+                if (focusedItem != null) {
+                    AppLogger.d("ScrollGate", "Settled at item ${focusedItem.index}")
+                }
+            }
+        }
+    }
 
     HandleBackNavigation(gridState, bannerFocusRequester, bannerMovies, top200Banners)
     AutoRestoreFocus(bannerFocusRequester, top200Banners, bannerMovies)
@@ -526,16 +545,16 @@ private fun BannerBackdrop(movie: Top200Movie?, accent: Color?, visible: Boolean
                 .fillMaxWidth()
                 .height(backdropHeight)
                 .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                .drawWithContent {
-                    drawContent()
-                    drawRect(
-                        brush = Brush.verticalGradient(
-                            colors = listOf(Color.White, Color.Transparent),
-                            startY = size.height * 0.45f,
-                            endY = size.height
-                        ),
-                        blendMode = BlendMode.DstIn
+                .drawWithCache {
+                    val brush = Brush.verticalGradient(
+                        colors = listOf(Color.White, Color.Transparent),
+                        startY = size.height * 0.45f,
+                        endY = size.height
                     )
+                    onDrawWithContent {
+                        drawContent()
+                        drawRect(brush = brush, blendMode = BlendMode.DstIn)
+                    }
                 }
                 .graphicsLayer {
                     val h = size.height

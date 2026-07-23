@@ -24,8 +24,6 @@ val OnSurfaceDim = Color(0xFFA0A0A0)
 val Gold = Color(0xFFDAA520)
 val Error = Color(0xFFE57373)
 val ErrorContainer = Color(0xFF4A1C1C)
-val Success = Color(0xFF4CAF50)
-
 // Overlay
 val Scrim = Color(0xAA000000)
 val OverlayLight = Color(0xFF1A1A1D)

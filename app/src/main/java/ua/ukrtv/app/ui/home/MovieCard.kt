@@ -23,11 +23,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import ua.ukrtv.app.ui.theme.PlaceholderDark
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -35,19 +34,21 @@ import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
 import ua.ukrtv.app.ui.theme.FormFactor
+import ua.ukrtv.app.ui.theme.PlaceholderDark
 import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.util.DeviceClass
 
@@ -57,6 +58,7 @@ private val cardShape = RoundedCornerShape(8.dp)
 fun MovieCard(
     movie: Movie,
     brandColor: Color = Color(0xFF6E85B7),
+    accentColor: Color = brandColor,
     width: Dp = CardDefaults.posterWidth,
     height: Dp = CardDefaults.posterHeight,
     modifier: Modifier = Modifier,
@@ -72,6 +74,7 @@ fun MovieCard(
     val isFocused by interactionSource.collectIsFocusedAsState()
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
+    val density = LocalDensity.current.density
 
     val targetScale = when (deviceClass) {
         DeviceClass.LOW -> 1.05f
@@ -107,15 +110,20 @@ fun MovieCard(
         modifier = modifier
             .width(width)
             .height(height)
-            .scale(scale)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                translationY = translateY * density
+                clip = true
+                shape = cardShape
+            }
             .then(
                 if (isFocused && deviceClass == DeviceClass.HIGH) {
-                    Modifier.shadow(16.dp, cardShape, ambientColor = brandColor.copy(alpha = 0.6f), spotColor = brandColor.copy(alpha = 0.4f))
+                    Modifier.shadow(16.dp, cardShape, ambientColor = accentColor.copy(alpha = 0.6f), spotColor = accentColor.copy(alpha = 0.4f))
                 } else if (isFocused && deviceClass == DeviceClass.MID) {
-                    Modifier.shadow(8.dp, cardShape, ambientColor = brandColor.copy(alpha = 0.3f), spotColor = brandColor.copy(alpha = 0.2f))
+                    Modifier.shadow(8.dp, cardShape, ambientColor = accentColor.copy(alpha = 0.3f), spotColor = accentColor.copy(alpha = 0.2f))
                 } else Modifier
             )
-            .clip(cardShape)
             .background(Color(0xFF141414))
             .clickable(
                 interactionSource = interactionSource,
@@ -136,7 +144,7 @@ fun MovieCard(
                 if (isFocused) {
                     val borderColor = when {
                         deviceClass == DeviceClass.HIGH -> Color.White
-                        deviceClass == DeviceClass.MID -> brandColor
+                        deviceClass == DeviceClass.MID -> accentColor
                         else -> Color.White.copy(alpha = 0.8f)
                     }
                     val borderWidth = when (deviceClass) {
@@ -147,7 +155,6 @@ fun MovieCard(
                     Modifier.border(BorderStroke(borderWidth, borderColor), cardShape)
                 } else Modifier
             )
-            .offset(y = translateY.dp)
     ) {
         AsyncImage(
             model = imageRequest,
@@ -180,16 +187,11 @@ fun MovieCard(
         }
 
         if (movie.provider != null) {
-            val providerColor = when (movie.provider) {
-                "Uakino" -> Color(0xFFFF6B35)
-                "Eneyida" -> Color(0xFF4ECDC4)
-                else -> Color(0xFF888888)
-            }
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(4.dp)
-                    .background(providerColor.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                    .background(brandColor.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
                     .padding(horizontal = 5.dp, vertical = 2.dp)
             ) {
                 Text(

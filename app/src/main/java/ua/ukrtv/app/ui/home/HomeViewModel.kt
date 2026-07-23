@@ -86,6 +86,16 @@ class HomeViewModel @Inject constructor(
     private val _gridError = MutableStateFlow<String?>(null)
     private val _retryTrigger = MutableStateFlow(0L)
     private val _isLoading = MutableStateFlow(true)
+    private val _bannerTop200 = MutableStateFlow<List<Top200Movie>>(emptyList())
+
+    init {
+        _bannerTop200.value = top200Repository.getRandom5()
+        viewModelScope.launch {
+            providerManager.activeProvider.drop(1).collect {
+                _bannerTop200.value = top200Repository.getRandom5()
+            }
+        }
+    }
 
     private val _navigateToDetail = MutableSharedFlow<Movie>()
     val navigateToDetail: SharedFlow<Movie> = _navigateToDetail.asSharedFlow()
@@ -133,8 +143,9 @@ class HomeViewModel @Inject constructor(
         .map { list -> stabilizeTrending(list) }
         .distinctUntilChanged()
         .onEach { list ->
-            // 3.1 Pre-warm colors
-            viewModelScope.launch { list.forEach { PosterColorCache.getColor(context, it.poster) } }
+            viewModelScope.launch {
+                list.take(8).forEach { PosterColorCache.getColor(context, it.poster) }
+            }
         }
 
     private val continueWatching: Flow<List<Movie>> = mediaRepository.getContinueWatching()
@@ -143,7 +154,11 @@ class HomeViewModel @Inject constructor(
         }
         .map { it.take(20) }
         .onEach { list ->
-            viewModelScope.launch { list.forEach { PosterColorCache.getColor(context, it.poster) } }
+            viewModelScope.launch {
+                list.forEach { movie ->
+                    PosterColorCache.getColor(context, movie.poster)
+                }
+            }
         }
 
     private val watchlist: Flow<List<Movie>> = watchlistRepository.getAllWatchlistAsMovies()
@@ -173,6 +188,7 @@ class HomeViewModel @Inject constructor(
     private val categories: Flow<Map<ContentCategory, List<Movie>>> = providerManager.activeProvider
         .flatMapLatest { provider ->
             flow {
+                kotlinx.coroutines.delay(3000)
                 val cats = listOf(
                     ContentCategory.MOVIES, ContentCategory.SERIES, ContentCategory.ANIME,
                     ContentCategory.CARTOONS, ContentCategory.CARTOON_SERIES
@@ -188,9 +204,8 @@ class HomeViewModel @Inject constructor(
             }
         }
         .onEach { map ->
-            // Pre-warm colors for all new items
             viewModelScope.launch {
-                map.values.flatten().forEach { movie ->
+                map.values.flatten().take(30).forEach { movie ->
                     PosterColorCache.getColor(context, movie.poster)
                 }
             }
@@ -199,7 +214,7 @@ class HomeViewModel @Inject constructor(
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<HomeUiState> = combine(
         _isLoading, _gridError, isOnline, homeTrending, continueWatching, watchlist,
-        bannerMovies, top200Repository.getRandom5Flow(), providerConfig, trendingLabel,
+        bannerMovies, _bannerTop200, providerConfig, trendingLabel,
         homePreferences.layout, categories
     ) { args ->
         val cats = args[11] as Map<ContentCategory, List<Movie>>
@@ -222,7 +237,7 @@ class HomeViewModel @Inject constructor(
             categoryCartoons = cats[ContentCategory.CARTOONS] ?: emptyList(),
             categoryCartoonSeries = cats[ContentCategory.CARTOON_SERIES] ?: emptyList()
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
+    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
 
     val focusColor: StateFlow<Color> = _focusColor.asStateFlow()
     val focusedMovie: StateFlow<Movie?> = _focusedMovie.asStateFlow()

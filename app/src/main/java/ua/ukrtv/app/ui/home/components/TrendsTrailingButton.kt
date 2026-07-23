@@ -15,6 +15,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
@@ -25,7 +28,7 @@ import androidx.tv.material3.Surface
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.util.DeviceClass
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun TrendsTrailingButton(
     brandColor: Color,
@@ -54,6 +57,13 @@ fun TrendsTrailingButton(
         modifier = Modifier
             .width((48.dp * cardScale))
             .height((276.dp * cardScale))
+            .focusProperties {
+                @Suppress("DEPRECATION")
+                enter = { fd ->
+                    if (fd == FocusDirection.Down) FocusRequester.Cancel
+                    else FocusRequester.Default
+                }
+            }
             .graphicsLayer {
                 scaleX = if (isFocused) 1.05f else 1f
                 scaleY = if (isFocused) 1.05f else 1f
