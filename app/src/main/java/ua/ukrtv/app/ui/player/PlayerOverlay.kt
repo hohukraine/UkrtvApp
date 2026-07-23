@@ -7,9 +7,13 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,10 +28,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.ColorPainter
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -36,8 +43,8 @@ import androidx.tv.material3.Border
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import kotlinx.coroutines.delay
 import ua.ukrtv.app.domain.model.Episode
 import ua.ukrtv.app.ui.theme.BrandBlue
@@ -48,18 +55,18 @@ import ua.ukrtv.app.ui.theme.Scrim
 import ua.ukrtv.app.ui.theme.Shapes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forward10
-import ua.ukrtv.app.ui.theme.LocalDeviceClass
-import ua.ukrtv.app.ui.theme.LocalIsMediatek
-import ua.ukrtv.app.ui.theme.deviceImage
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import android.view.MotionEvent
 
 
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 
 
 @OptIn(ExperimentalTvMaterial3Api::class)
@@ -91,12 +98,14 @@ fun PlayerOverlay(
     voiceover: String? = null,
     pickerColumns: List<PickerColumn> = emptyList(),
     pickerFocusedIndex: Int = 0,
+    deepResolutionPending: Boolean = false,
     onPickerColumnFocused: (Int) -> Unit = {},
     onPickerValueChange: (Int) -> Unit = {},
     onPickerCommit: () -> Unit = {},
     brandColor: Color = BrandBlue,
     playFocusRequester: FocusRequester = FocusRequester(),
     heldSeekDir: SeekDirection? = null,
+    heldSeekTarget: Long? = null,
     modifier: Modifier = Modifier
 ) {
     val progressProvider = remember(positionMs, durationMs) {
@@ -112,6 +121,10 @@ fun PlayerOverlay(
         val dir = seekDirection ?: return@LaunchedEffect
         delay(600)
         seekDirection = null
+    }
+
+    LaunchedEffect(heldSeekDir) {
+        if (heldSeekDir != null) seekDirection = heldSeekDir
     }
 
     fun onSeekWithIndicator(forward: Boolean) {
@@ -144,7 +157,16 @@ fun PlayerOverlay(
                     )
             )
 
-            if (seekDirection != null) {
+            if (heldSeekTarget != null && heldSeekDir != null) {
+                HeldSeekProgress(
+                    brandColor = brandColor,
+                    direction = heldSeekDir,
+                    positionMs = positionMs,
+                    targetMs = heldSeekTarget,
+                    durationMs = durationMs,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            } else if (seekDirection != null) {
                 SeekIndicator(
                     brandColor = brandColor,
                     direction = seekDirection,
@@ -152,13 +174,16 @@ fun PlayerOverlay(
                 )
             }
 
-            if (heldSeekDir != null) {
-                HeldSeekProgress(
+            AnimatedVisibility(
+                visible = nextCountdown != null || countdownEpisode != null,
+                enter = fadeIn(tween(300)),
+                exit = fadeOut(tween(300)),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                NextEpisodeOverlay(
                     brandColor = brandColor,
-                    direction = heldSeekDir,
-                    positionMs = positionMs,
-                    durationMs = durationMs,
-                    modifier = Modifier.align(Alignment.Center)
+                    episode = countdownEpisode,
+                    season = countdownSeason
                 )
             }
 
@@ -196,8 +221,6 @@ fun PlayerOverlay(
                         durationMs = durationMs,
                         progress = progressProvider,
                         bufferedProgress = bufferedProgressProvider,
-                        nextCountdown = nextCountdown,
-                        countdownEpisode = countdownEpisode,
                         hasEpisodes = hasEpisodes,
                         hasNextEpisode = hasNextEpisode,
                         hasPreviousEpisode = hasPreviousEpisode,
@@ -209,6 +232,7 @@ fun PlayerOverlay(
                         onSeekForward = { onSeekWithIndicator(true) },
                         pickerColumns = pickerColumns,
                         pickerFocusedIndex = pickerFocusedIndex,
+                        deepResolutionPending = deepResolutionPending,
                         onPickerColumnFocused = onPickerColumnFocused,
                         onPickerValueChange = onPickerValueChange,
                         onPickerCommit = onPickerCommit,
@@ -298,8 +322,6 @@ private fun BottomControls(
     durationMs: Long,
     progress: () -> Float,
     bufferedProgress: () -> Float,
-    nextCountdown: Int?,
-    countdownEpisode: Episode?,
     hasEpisodes: Boolean,
     hasNextEpisode: Boolean,
     hasPreviousEpisode: Boolean,
@@ -311,6 +333,7 @@ private fun BottomControls(
     onSeekForward: () -> Unit,
     pickerColumns: List<PickerColumn> = emptyList(),
     pickerFocusedIndex: Int = 0,
+    deepResolutionPending: Boolean = false,
     onPickerColumnFocused: (Int) -> Unit = {},
     onPickerValueChange: (Int) -> Unit = {},
     onPickerCommit: () -> Unit = {},
@@ -322,14 +345,6 @@ private fun BottomControls(
             .padding(start = 64.dp, end = 64.dp)
             .padding(bottom = 32.dp)
     ) {
-        if (nextCountdown != null) {
-            NextEpisodeCountdown(
-                brandColor = brandColor,
-                countdown = nextCountdown,
-                episode = countdownEpisode
-            )
-        }
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(20.dp),
@@ -375,6 +390,13 @@ private fun BottomControls(
                     onValueChange = onPickerValueChange,
                     onCommit = onPickerCommit
                 )
+            } else if (deepResolutionPending && hasEpisodes.not()) {
+                Text(
+                    text = "Завантаження серій...",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
 
         }
@@ -384,7 +406,8 @@ private fun BottomControls(
         NetflixProgressBar(
             brandColor = brandColor,
             progress = progress,
-            bufferedProgress = bufferedProgress
+            bufferedProgress = bufferedProgress,
+            durationMs = durationMs
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -397,65 +420,66 @@ private fun BottomControls(
 }
 
 @Composable
-private fun NextEpisodeCountdown(
+private fun NextEpisodeOverlay(
     brandColor: Color,
-    countdown: Int,
-    episode: Episode?
+    episode: Episode?,
+    season: Int?
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.padding(bottom = 16.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xCC000000))
     ) {
         if (episode != null) {
-            EpisodePoster(poster = episode.poster, number = episode.number, title = episode.title, brandColor = brandColor)
-        } else {
-            Text(
-                text = "НАСТУПНА СЕРІЯ ЧЕРЕЗ $countdown",
-                color = brandColor,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 1.5.sp
-            )
-        }
-    }
-}
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(24.dp),
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 64.dp)
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(episode.poster)
+                        .size(270, 405)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(width = 135.dp, height = 203.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop,
+                    placeholder = ColorPainter(Color(0xFF1A1A1A))
+                )
 
-@Composable
-private fun EpisodePoster(poster: String, number: Int, title: String, brandColor: Color) {
-    val deviceClass = LocalDeviceClass.current
-    val isMediatek = LocalIsMediatek.current
-    if (poster.isNotEmpty()) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
-                .data(poster)
-                .size(80, 120)
-                .deviceImage(deviceClass, isMediatek)
-                .build(),
-            contentDescription = null,
-            modifier = Modifier
-                .size(width = 50.dp, height = 75.dp)
-                .clip(RoundedCornerShape(6.dp)),
-            contentScale = ContentScale.Crop,
-            placeholder = ColorPainter(Color(0xFF1A1A1A))
-        )
-    }
-    Column {
-        Text(
-            text = "Серія $number",
-            color = brandColor,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.5.sp
-        )
-        if (title.isNotEmpty()) {
-            Text(
-                text = title,
-                color = Color(0xFFE1E1E1).copy(alpha = 0.7f),
-                fontSize = 13.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "НАСТУПНА СЕРІЯ",
+                        color = brandColor,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 2.sp
+                    )
+
+                    Text(
+                        text = if (season != null) "Сезон $season · Серія ${episode.number}" else "Серія ${episode.number}",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 14.sp
+                    )
+
+                    if (episode.title.isNotEmpty()) {
+                        Text(
+                            text = episode.title,
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -505,28 +529,53 @@ private fun SeekIndicator(
     direction: SeekDirection?,
     modifier: Modifier = Modifier
 ) {
+    val scale by animateFloatAsState(
+        targetValue = if (direction != null) 1f else 0.7f,
+        animationSpec = tween(200),
+        label = "seekScale"
+    )
+
     AnimatedVisibility(
         visible = direction != null,
-        enter = fadeIn(tween(200)),
-        exit = fadeOut(tween(400))
+        enter = fadeIn(tween(150)),
+        exit = fadeOut(tween(300))
     ) {
         Box(
             modifier = modifier
+                .graphicsLayer {
+                    scaleX = scale
+                    scaleY = scale
+                }
                 .background(Color(0x66000000), RoundedCornerShape(16.dp))
                 .padding(horizontal = 32.dp, vertical = 24.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = when (direction) {
-                    SeekDirection.Forward -> "+10"
-                    SeekDirection.Backward -> "-10"
-                    null -> ""
-                },
-                color = brandColor,
-                fontSize = 48.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 2.sp
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Icon(
+                    imageVector = when (direction) {
+                        SeekDirection.Forward -> Icons.Default.Forward10
+                        SeekDirection.Backward -> Icons.Default.Replay10
+                        null -> Icons.Default.Forward10
+                    },
+                    contentDescription = null,
+                    tint = brandColor,
+                    modifier = Modifier.size(40.dp)
+                )
+                Text(
+                    text = when (direction) {
+                        SeekDirection.Forward -> "+10с"
+                        SeekDirection.Backward -> "-10с"
+                        null -> ""
+                    },
+                    color = Color.White,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+            }
         }
     }
 }
@@ -536,14 +585,10 @@ private fun HeldSeekProgress(
     brandColor: Color,
     direction: SeekDirection,
     positionMs: Long,
+    targetMs: Long,
     durationMs: Long,
     modifier: Modifier = Modifier
 ) {
-    val seekStep = SEEK_STEP_MS
-    val targetMs = when (direction) {
-        SeekDirection.Forward -> (positionMs + seekStep).coerceAtMost(durationMs)
-        SeekDirection.Backward -> (positionMs - seekStep).coerceAtLeast(0L)
-    }
     val targetProgress = if (durationMs > 0) targetMs.toFloat() / durationMs.toFloat() else 0f
 
     Box(
@@ -553,11 +598,10 @@ private fun HeldSeekProgress(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val deltaMs = targetMs - positionMs
+            val deltaText = if (deltaMs >= 0) "+${deltaMs / 1000}" else "${deltaMs / 1000}"
             Text(
-                text = when (direction) {
-                    SeekDirection.Forward -> "+10"
-                    SeekDirection.Backward -> "-10"
-                },
+                text = deltaText,
                 color = brandColor,
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
@@ -638,61 +682,119 @@ private fun TimeLabelsRow(positionMs: Long, durationMs: Long) {
 private fun NetflixProgressBar(
     brandColor: Color,
     progress: () -> Float,
-    bufferedProgress: () -> Float
+    bufferedProgress: () -> Float,
+    durationMs: Long = 0L
 ) {
+    var isHovered by remember { mutableStateOf(false) }
+    var hoverXFraction by remember { mutableStateOf(0f) }
+    var barWidth by remember { mutableFloatStateOf(0f) }
+    val barHeight by animateFloatAsState(
+        targetValue = if (isHovered) 8f else 3f,
+        animationSpec = tween(200),
+        label = "barHeight"
+    )
+    val thumbRadius by animateFloatAsState(
+        targetValue = if (isHovered) 10f else 6f,
+        animationSpec = tween(200),
+        label = "thumbRadius"
+    )
     val bufferedWidthProvider = remember { { bufferedProgress().coerceIn(0f, 1f) } }
     val progressWidthProvider = remember { { progress().coerceIn(0f, 1f) } }
 
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(8.dp)
-    ) {
-        val w = size.width
-        val h = size.height
-        val barHeight = 3.dp.toPx()
-        val barY = (h - barHeight) / 2f
-        val corner = CornerRadius(barHeight / 2)
+    Box(modifier = Modifier.fillMaxWidth()) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(16.dp)
+                .onSizeChanged { barWidth = it.width.toFloat() }
+                .pointerInteropFilter { event ->
+                    when (event.action) {
+                        MotionEvent.ACTION_HOVER_ENTER -> {
+                            hoverXFraction = (event.x / barWidth).coerceIn(0f, 1f)
+                            isHovered = true
+                            false
+                        }
+                        MotionEvent.ACTION_HOVER_MOVE -> {
+                            hoverXFraction = (event.x / barWidth).coerceIn(0f, 1f)
+                            false
+                        }
+                        MotionEvent.ACTION_HOVER_EXIT -> {
+                            isHovered = false
+                            false
+                        }
+                        else -> false
+                    }
+                }
+        ) {
+            val w = size.width
+            val h = size.height
+            val currentBarHeight = barHeight.dp.toPx()
+            val barY = (h - currentBarHeight) / 2f
+            val corner = CornerRadius(currentBarHeight / 2)
 
-        drawRoundRect(
-            color = Color.Gray.copy(alpha = 0.3f),
-            topLeft = Offset(0f, barY),
-            size = Size(w, barHeight),
-            cornerRadius = corner
-        )
-        
-        val bufferedWidth = bufferedWidthProvider()
-        if (bufferedWidth > 0f) {
             drawRoundRect(
-                color = brandColor.copy(alpha = 0.35f),
+                color = Color.Gray.copy(alpha = 0.3f),
                 topLeft = Offset(0f, barY),
-                size = Size(w * bufferedWidth, barHeight),
+                size = Size(w, currentBarHeight),
                 cornerRadius = corner
             )
-        }
-        
-        val progressWidth = progressWidthProvider()
-        if (progressWidth > 0f) {
-            drawRoundRect(
+
+            val bufferedWidth = bufferedWidthProvider()
+            if (bufferedWidth > 0f) {
+                drawRoundRect(
+                    color = brandColor.copy(alpha = 0.35f),
+                    topLeft = Offset(0f, barY),
+                    size = Size(w * bufferedWidth, currentBarHeight),
+                    cornerRadius = corner
+                )
+            }
+
+            val progressWidth = progressWidthProvider()
+            if (progressWidth > 0f) {
+                drawRoundRect(
+                    color = brandColor,
+                    topLeft = Offset(0f, barY),
+                    size = Size(w * progressWidth, currentBarHeight),
+                    cornerRadius = corner
+                )
+            }
+
+            val thumbX = (w * progressWidth).coerceIn(0f, w)
+            val currentThumbRadius = thumbRadius.dp.toPx()
+            drawCircle(
                 color = brandColor,
-                topLeft = Offset(0f, barY),
-                size = Size(w * progressWidth, barHeight),
-                cornerRadius = corner
+                radius = currentThumbRadius,
+                center = Offset(thumbX, h / 2f)
+            )
+            drawCircle(
+                color = Color.White,
+                radius = currentThumbRadius * 0.6f,
+                center = Offset(thumbX, h / 2f)
             )
         }
 
-        val thumbX = (w * progressWidth).coerceIn(0f, w)
-        val thumbRadius = 6.dp.toPx()
-        drawCircle(
-            color = brandColor,
-            radius = thumbRadius,
-            center = Offset(thumbX, h / 2f)
-        )
-        drawCircle(
-            color = Color.White,
-            radius = thumbRadius * 0.6f,
-            center = Offset(thumbX, h / 2f)
-        )
+        if (isHovered && durationMs > 0) {
+            val hoverTime = (hoverXFraction * durationMs).toLong()
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 4.dp)
+                    .offset(
+                        x = with(LocalDensity.current) {
+                            ((hoverXFraction - 0.5f) * barWidth).toDp()
+                        }
+                    )
+                    .background(Color(0xCC000000), RoundedCornerShape(6.dp))
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = formatTime(hoverTime),
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
     }
 }
 

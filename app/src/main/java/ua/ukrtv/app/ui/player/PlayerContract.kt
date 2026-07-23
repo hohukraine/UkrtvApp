@@ -33,12 +33,12 @@ data class PlayerState(
     val currentSeason: Int? = null,
     val currentEpisode: Int? = null,
     val currentVoiceover: String? = null,
-    val thermalStatus: Int = 0, // PowerManager.THERMAL_STATUS_NONE = 0
     val audioMode: AudioMode = AudioMode.NORMAL,
     val pickerColumns: List<PickerColumn> = emptyList(),
     val pickerFocusedIndex: Int = 0,
     val currentCodecDisplay: String = "",
-    val availableCodecs: List<CodecInfo> = emptyList()
+    val availableCodecs: List<CodecInfo> = emptyList(),
+    val deepResolutionPending: Boolean = false
 )
 
 sealed class ExternalPlayerReturnResult {

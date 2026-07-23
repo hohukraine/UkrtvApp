@@ -26,13 +26,14 @@ interface PlaybackEngine {
     val supportsNativeScaling: Boolean get() = false
 
     fun setSurface(surfaceView: SurfaceView)
-    fun setMedia(url: String, positionMs: Long = 0, referer: String = "")
+    fun setMedia(url: String, positionMs: Long = 0, referer: String = "", streamType: ua.ukrtv.app.domain.model.StreamType = ua.ukrtv.app.domain.model.StreamType.HLS)
     fun play()
     fun pause()
     fun seekTo(positionMs: Long)
     fun release()
     fun setVideoScalingMode(mode: Int)
     fun setVolume(volume: Float)
+    fun setPlaybackSpeed(speed: Float) {}
 
     fun getVideoTracks(): Array<TrackDescription>
     fun setVideoTrack(trackId: Int)
@@ -51,6 +52,7 @@ interface PlaybackEngine {
     interface EngineListener {
         fun onIsPlayingChanged(isPlaying: Boolean) {}
         fun onPlaybackStateChanged(state: Int) {}
+        fun onRebuffer() {}
         fun onPositionChanged(positionMs: Long) {}
         fun onLengthChanged(lengthMs: Long) {}
         fun onError(message: String) {}

@@ -2,6 +2,7 @@ package ua.ukrtv.app.ui.player
 
 import android.view.KeyEvent
 import android.app.Activity
+import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import androidx.compose.foundation.background
@@ -13,6 +14,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -21,8 +24,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FastForward
 import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.ScreenRotation
@@ -39,8 +44,12 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -58,30 +67,22 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import ua.ukrtv.app.util.AppLogger
 import kotlin.math.roundToLong
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.crossfade
+import coil3.request.ImageRequest
 import androidx.compose.ui.layout.ContentScale
 
 
 internal const val SEEK_STEP_MS = 10_000L
-private const val CONTROLS_HIDE_DELAY_MS = 5_000L
 private const val PHONE_CONTROLS_HIDE_DELAY_MS = 3_000L
 internal const val SKIP_INTRO_WINDOW_MS = 120_000L
 internal const val SKIP_INTRO_STEP_MS = 90_000L
 internal const val NEXT_EPISODE_COUNTDOWN_SEC = 10
-
-private const val HELD_SEEK_INITIAL_STEP_MS = 10_000L
-private const val HELD_SEEK_INITIAL_INTERVAL_MS = 250L
-private const val HELD_SEEK_MID_STEP_MS = 30_000L
-private const val HELD_SEEK_MID_INTERVAL_MS = 200L
-private const val HELD_SEEK_MAX_STEP_MS = 60_000L
-private const val HELD_SEEK_MAX_INTERVAL_MS = 167L
-private const val HELD_SEEK_MID_THRESHOLD_MS = 1_000L
-private const val HELD_SEEK_MAX_THRESHOLD_MS = 3_000L
-
-private enum class HeldSeekDir { FORWARD, BACKWARD }
 
 @UnstableApi
 @Composable
@@ -114,7 +115,9 @@ fun PlayerScreen(
     }
 
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val engine = remember { viewModel.getOrCreateEngine(context) }
+    val engine = remember(playerType) {
+        if (playerType == ua.ukrtv.app.util.PlayerType.BUILTIN) viewModel.getOrCreateEngine(context) else null
+    }
 
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
 
@@ -170,252 +173,6 @@ fun PlayerScreen(
 
 @UnstableApi
 @Composable
-private fun TvPlayerContent(
-    state: PlayerState,
-    engine: PlaybackEngine?,
-    viewModel: PlayerViewModel,
-    brandColor: Color = BrandBlue,
-    onBack: () -> Unit,
-    title: String,
-    poster: String = ""
-) {
-    val playFocusRequester = remember { FocusRequester() }
-    val playButtonFocusRequester = remember { FocusRequester() }
-
-    var lastInteractionTime by remember { mutableStateOf(System.currentTimeMillis()) }
-
-    LaunchedEffect(state.isShowingControls) {
-        if (state.isShowingControls && state.status is PlayerStatus.Ready) {
-            lastInteractionTime = System.currentTimeMillis()
-            withFrameNanos { }
-            try {
-                playButtonFocusRequester.requestFocus()
-                AppLogger.d("PlayerScreen", "Focus requested successfully")
-            } catch (e: Exception) {
-                AppLogger.w("PlayerScreen", "Focus request failed: ${e.message}")
-            }
-        }
-    }
-
-    LaunchedEffect(state.isShowingControls) {
-        if (state.isShowingControls) {
-            while (true) {
-                delay(1000)
-                val elapsed = System.currentTimeMillis() - lastInteractionTime
-                if (elapsed >= CONTROLS_HIDE_DELAY_MS) {
-                    viewModel.setShowControls(false)
-                    break
-                }
-            }
-        } else {
-            try {
-                playFocusRequester.requestFocus()
-            } catch (_: Exception) {}
-        }
-    }
-
-    var heldSeekDir by remember { mutableStateOf<HeldSeekDir?>(null) }
-
-    LaunchedEffect(heldSeekDir) {
-        val dir = heldSeekDir ?: return@LaunchedEffect
-        val startTime = System.currentTimeMillis()
-        while (true) {
-            val elapsed = System.currentTimeMillis() - startTime
-            val step = when {
-                elapsed >= HELD_SEEK_MAX_THRESHOLD_MS -> HELD_SEEK_MAX_STEP_MS
-                elapsed >= HELD_SEEK_MID_THRESHOLD_MS -> HELD_SEEK_MID_STEP_MS
-                else -> HELD_SEEK_INITIAL_STEP_MS
-            }
-            val interval = when {
-                elapsed >= HELD_SEEK_MAX_THRESHOLD_MS -> HELD_SEEK_MAX_INTERVAL_MS
-                elapsed >= HELD_SEEK_MID_THRESHOLD_MS -> HELD_SEEK_MID_INTERVAL_MS
-                else -> HELD_SEEK_INITIAL_INTERVAL_MS
-            }
-            delay(interval)
-            val pos = engine?.currentPosition ?: 0L
-            if (dir == HeldSeekDir.FORWARD) {
-                viewModel.seekTo(minOf(engine?.duration ?: 0L, pos + step))
-            } else {
-                viewModel.seekTo(maxOf(0L, pos - step))
-            }
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .focusRequester(playFocusRequester)
-            .focusable()
-            .onKeyEvent { event ->
-                val ke = event.nativeKeyEvent
-                
-                when (ke.keyCode) {
-                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
-                        if (state.isShowingControls) {
-                            lastInteractionTime = System.currentTimeMillis()
-                            return@onKeyEvent false
-                        }
-                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
-                            heldSeekDir = HeldSeekDir.BACKWARD
-                            viewModel.seekTo(maxOf(0L, (engine?.currentPosition ?: 0L) - SEEK_STEP_MS))
-                            return@onKeyEvent true
-                        } else if (ke.action == android.view.KeyEvent.ACTION_UP) {
-                            heldSeekDir = null
-                            return@onKeyEvent true
-                        }
-                        return@onKeyEvent false
-                    }
-                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        if (state.isShowingControls) {
-                            lastInteractionTime = System.currentTimeMillis()
-                            return@onKeyEvent false
-                        }
-                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
-                            heldSeekDir = HeldSeekDir.FORWARD
-                            viewModel.seekTo((engine?.currentPosition ?: 0L) + SEEK_STEP_MS)
-                            return@onKeyEvent true
-                        } else if (ke.action == android.view.KeyEvent.ACTION_UP) {
-                            heldSeekDir = null
-                            return@onKeyEvent true
-                        }
-                        return@onKeyEvent false
-                    }
-                    android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
-                        if (state.isShowingControls) {
-                            lastInteractionTime = System.currentTimeMillis()
-                        }
-                        return@onKeyEvent false
-                    }
-                    android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER -> {
-                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
-                        if (state.isShowingControls) return@onKeyEvent false
-                        lastInteractionTime = System.currentTimeMillis()
-                        viewModel.setShowControls(true)
-                        return@onKeyEvent true
-                    }
-                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
-                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
-                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
-                        lastInteractionTime = System.currentTimeMillis()
-                        viewModel.togglePlay()
-                        return@onKeyEvent true
-                    }
-                    android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS,
-                    android.view.KeyEvent.KEYCODE_MEDIA_SKIP_BACKWARD -> {
-                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
-                        if (!viewModel.hasPreviousEpisode()) return@onKeyEvent false
-                        lastInteractionTime = System.currentTimeMillis()
-                        engine?.let { viewModel.saveProgress(it.currentPosition, it.duration) }
-                        viewModel.navigateToPreviousEpisode()
-                        return@onKeyEvent true
-                    }
-                    android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
-                    android.view.KeyEvent.KEYCODE_MEDIA_SKIP_FORWARD -> {
-                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
-                        if (!viewModel.hasNextEpisode()) return@onKeyEvent false
-                        lastInteractionTime = System.currentTimeMillis()
-                        engine?.let { viewModel.saveProgress(it.currentPosition, it.duration) }
-                        viewModel.navigateToNextEpisode()
-                        return@onKeyEvent true
-                    }
-                    android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
-                        lastInteractionTime = System.currentTimeMillis()
-                        viewModel.setShowControls(true)
-                        viewModel.seekTo((engine?.currentPosition ?: 0L) + SEEK_STEP_MS)
-                        return@onKeyEvent true
-                    }
-                    android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
-                        lastInteractionTime = System.currentTimeMillis()
-                        viewModel.setShowControls(true)
-                        viewModel.seekTo(maxOf(0L, (engine?.currentPosition ?: 0L) - SEEK_STEP_MS))
-                        return@onKeyEvent true
-                    }
-                    android.view.KeyEvent.KEYCODE_BACK -> {
-                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
-                        onBack()
-                        return@onKeyEvent true
-                    }
-                    else -> {
-                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
-                            AppLogger.d("PlayerScreen", "Unhandled key: keyCode=${ke.keyCode}")
-                        }
-                    }
-                }
-                false
-            }
-    ) {
-        PlayerReadyContent(
-            status = state.status,
-            playerState = state,
-            engine = engine,
-            viewModel = viewModel,
-            title = title,
-            brandColor = brandColor,
-            scaleMode = state.scaleMode,
-            hasEpisodes = state.availableSeasons?.isNotEmpty() == true,
-            playFocusRequester = playFocusRequester,
-            playButtonFocusRequester = playButtonFocusRequester,
-            isShowingControls = state.isShowingControls,
-            heldSeekDir = heldSeekDir?.let {
-                when (it) {
-                    HeldSeekDir.FORWARD -> SeekDirection.Forward
-                    HeldSeekDir.BACKWARD -> SeekDirection.Backward
-                }
-            },
-            showOverlay = true,
-            onSeek = { engine?.seekTo(it) }
-        )
-
-        val currentStatus = state.status
-        if (currentStatus is PlayerStatus.Loading) {
-            EpisodeLoadingOverlay(
-                poster = poster,
-                season = state.currentSeason,
-                episode = state.currentEpisode
-            )
-        }
-
-        if (currentStatus is PlayerStatus.Error) {
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.8f)), Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(currentStatus.message, color = Color.Red, fontSize = 18.sp)
-                    androidx.tv.material3.Button(onClick = { viewModel.retry() }) {
-                        Text("Retry")
-                    }
-                }
-            }
-        }
-
-        val isPaused = currentStatus is PlayerStatus.Ready && !state.isPlaying
-        AnimatedVisibility(
-            visible = isPaused,
-            enter = fadeIn(tween(350)),
-            exit = fadeOut(tween(350)),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.radialGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.55f)
-                            ),
-                            radius = 0.75f
-                        )
-                    )
-            )
-        }
-    }
-}
-
-@UnstableApi
-@Composable
 private fun PhonePlayerContent(
     state: PlayerState,
     engine: PlaybackEngine?,
@@ -430,10 +187,21 @@ private fun PhonePlayerContent(
     var duration by remember(engine) { mutableStateOf(engine?.duration ?: 0L) }
     var seekIndicator by remember { mutableStateOf<Pair<String, Float>?>(null) }
     var showControls by remember { mutableStateOf(false) }
+    var seekProgress by remember { mutableFloatStateOf(0f) }
+    var isSeeking by remember { mutableStateOf(false) }
+    var showSeekOverlay by remember { mutableStateOf(false) }
+    var volume by remember { mutableFloatStateOf(1f) }
+    var brightness by remember { mutableFloatStateOf(-1f) }
+    var gestureType by remember { mutableStateOf<GestureType?>(null) }
+    var gestureStartX by remember { mutableFloatStateOf(0f) }
+    var gestureStartY by remember { mutableFloatStateOf(0f) }
+    var dragBasePosition by remember { mutableLongStateOf(0L) }
+    var pendingSeekTarget by remember { mutableStateOf<Long?>(null) }
     val isPlaying = engine?.isPlaying ?: false
 
     val activity = LocalContext.current as? Activity
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val windowManager = LocalContext.current.getSystemService(Context.WINDOW_SERVICE) as? android.view.WindowManager
 
     DisposableEffect(Unit) {
         activity?.applyPlayerOrientation(allowRotation = true)
@@ -448,8 +216,10 @@ private fun PhonePlayerContent(
     LaunchedEffect(showControls) {
         if (showControls) {
             while (true) {
-                delay(500)
-                currentPosition = engine?.currentPosition ?: 0L
+                delay(200)
+                if (!isSeeking) {
+                    currentPosition = engine?.currentPosition ?: 0L
+                }
                 duration = engine?.duration ?: 0L
                 val elapsed = System.currentTimeMillis() - lastInteractionTime
                 if (elapsed >= PHONE_CONTROLS_HIDE_DELAY_MS) {
@@ -462,12 +232,34 @@ private fun PhonePlayerContent(
 
     LaunchedEffect(seekIndicator) {
         seekIndicator?.let {
-            delay(700)
+            delay(600)
             seekIndicator = null
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    LaunchedEffect(isSeeking) {
+        if (!isSeeking) {
+            while (true) {
+                delay(16)
+                pendingSeekTarget?.let { target ->
+                    val enginePos = engine?.currentPosition ?: 0L
+                    if (kotlin.math.abs(enginePos - target) < 500) {
+                        pendingSeekTarget = null
+                    }
+                }
+                currentPosition = pendingSeekTarget ?: (engine?.currentPosition ?: 0L)
+                duration = engine?.duration ?: 0L
+            }
+        }
+    }
+
+    val animatedCenterAlpha by animateFloatAsState(
+        targetValue = if (showControls && state.status is PlayerStatus.Ready) 1f else 0f,
+        animationSpec = tween(200),
+        label = "centerAlpha"
+    )
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         PlayerReadyContent(
             status = state.status,
             playerState = state,
@@ -489,34 +281,103 @@ private fun PhonePlayerContent(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(Unit) {
+                    .pointerInput(isSeeking) {
+                        if (isSeeking) return@pointerInput
                         detectTapGestures(
                             onTap = {
+                                engine?.setPlaybackSpeed(1f)
                                 showControls = !showControls
                                 lastInteractionTime = System.currentTimeMillis()
                             },
                             onDoubleTap = { offset ->
                                 val w = size.width
-                                if (offset.x < w / 2f) {
+                                if (offset.x < w / 3f) {
                                     val pos = maxOf(0L, (engine?.currentPosition ?: 0L) - 10_000L)
                                     engine?.seekTo(pos)
                                     seekIndicator = Pair("-10s", -1f)
-                                } else {
+                                } else if (offset.x > w * 2f / 3f) {
                                     val pos = minOf(engine?.duration ?: 0L, (engine?.currentPosition ?: 0L) + 10_000L)
                                     engine?.seekTo(pos)
                                     seekIndicator = Pair("+10s", 1f)
+                                } else {
+                                    viewModel.togglePlay()
                                 }
+                                lastInteractionTime = System.currentTimeMillis()
+                            },
+                            onLongPress = {
+                                engine?.setPlaybackSpeed(2f)
                                 lastInteractionTime = System.currentTimeMillis()
                             }
                         )
                     }
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                gestureStartX = offset.x
+                                gestureStartY = offset.y
+                                gestureType = null
+                                dragBasePosition = engine?.currentPosition ?: currentPosition
+                            },
+                            onDragEnd = {
+                                if (gestureType == GestureType.VOLUME) {
+                                    engine?.setVolume(volume)
+                                } else if (gestureType == GestureType.BRIGHTNESS) {
+                                    val lp = activity?.window?.attributes
+                                    if (lp != null && brightness >= 0f) {
+                                        lp.screenBrightness = brightness.coerceIn(0.01f, 1f)
+                                        activity.window?.attributes = lp
+                                    }
+                                } else if (gestureType == GestureType.SEEK && isSeeking) {
+                                    val targetMs = (seekProgress * duration).toLong()
+                                    engine?.seekTo(targetMs)
+                                    currentPosition = targetMs
+                                    pendingSeekTarget = targetMs
+                                    isSeeking = false
+                                }
+                                gestureType = null
+                                showSeekOverlay = false
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                val dx = change.position.x - gestureStartX
+                                val dy = change.position.y - gestureStartY
+                                if (gestureType == null) {
+                                    if (kotlin.math.abs(dx) > 30f || kotlin.math.abs(dy) > 30f) {
+                                        val isHorizontal = kotlin.math.abs(dx) > kotlin.math.abs(dy)
+                                        gestureType = if (isHorizontal) {
+                                            GestureType.SEEK
+                                        } else {
+                                            if (gestureStartX > size.width / 2f) GestureType.VOLUME else GestureType.BRIGHTNESS
+                                        }
+                                        if (isHorizontal) showSeekOverlay = true
+                                    }
+                                }
+                                when (gestureType) {
+                                    GestureType.SEEK -> {
+                                        isSeeking = true
+                                        val seekDelta = (dx / size.width) * duration * 0.5f
+                                        seekProgress = ((dragBasePosition + seekDelta) / duration).coerceIn(0f, 1f)
+                                        currentPosition = (seekProgress * duration).toLong()
+                                    }
+                                    GestureType.VOLUME -> {
+                                        volume = (volume - dragAmount.y / size.height).coerceIn(0f, 1f)
+                                        engine?.setVolume(volume)
+                                    }
+                                    GestureType.BRIGHTNESS -> {
+                                        val currentBright = activity?.window?.attributes?.screenBrightness ?: 0.5f
+                                        brightness = (currentBright - dragAmount.y / size.height).coerceIn(0.01f, 1f)
+                                        val lp = activity?.window?.attributes
+                                        if (lp != null) {
+                                            lp.screenBrightness = brightness
+                                            activity.window?.attributes = lp
+                                        }
+                                    }
+                                    null -> {}
+                                }
+                            }
+                        )
+                    }
             ) {
-                val indicatorAlpha by animateFloatAsState(
-                    targetValue = if (seekIndicator != null) 1f else 0f,
-                    animationSpec = tween(if (seekIndicator != null) 120 else 250),
-                    label = "seekAlpha"
-                )
-
                 AnimatedVisibility(
                     visible = seekIndicator != null,
                     enter = fadeIn(tween(120)),
@@ -531,14 +392,13 @@ private fun PhonePlayerContent(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier
                                 .offset(x = offsetX)
-                                .alpha(indicatorAlpha)
-                                .background(Color.Black.copy(alpha = 0.6f), CircleShape)
+                                .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(12.dp))
                                 .padding(horizontal = 20.dp, vertical = 14.dp)
                         ) {
                             Icon(
                                 imageVector = if (indicator.second < 0) Icons.Default.FastRewind else Icons.Default.FastForward,
                                 contentDescription = null,
-                                tint = Color.White,
+                                tint = brandColor,
                                 modifier = Modifier.size(28.dp)
                             )
                             Text(
@@ -550,185 +410,216 @@ private fun PhonePlayerContent(
                         }
                     }
                 }
+
+                if (showSeekOverlay) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .background(Color(0xCC111111), RoundedCornerShape(24.dp))
+                            .padding(horizontal = 48.dp, vertical = 32.dp)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = formatTime(currentPosition),
+                                color = Color.White,
+                                fontSize = 56.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                val diff = currentPosition - dragBasePosition
+                                Text(
+                                    text = formatTime(duration),
+                                    color = Color.White.copy(alpha = 0.45f),
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                if (kotlin.math.abs(diff) >= 1000) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(if (diff > 0) Color(0xFF2E7D32) else Color(0xFFC62828), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = if (diff > 0) "+${formatTime(diff)}" else formatTime(-diff),
+                                            color = Color.White,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Canvas(
+                                modifier = Modifier
+                                    .width(240.dp)
+                                    .height(6.dp)
+                            ) {
+                                val w = size.width
+                                val seekFraction = (currentPosition.toFloat() / (duration.coerceAtLeast(1L).toFloat())).coerceIn(0f, 1f)
+                                drawRoundRect(
+                                    color = Color.White.copy(alpha = 0.15f),
+                                    topLeft = Offset.Zero,
+                                    size = Size(w, size.height),
+                                    cornerRadius = CornerRadius(size.height / 2)
+                                )
+                                drawRoundRect(
+                                    color = Color.White,
+                                    topLeft = Offset.Zero,
+                                    size = Size(w * seekFraction, size.height),
+                                    cornerRadius = CornerRadius(size.height / 2)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (gestureType == GestureType.VOLUME) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 20.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 12.dp, vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = if (volume > 0f) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Canvas(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .height(80.dp)
+                            ) {
+                                drawRoundRect(
+                                    color = Color.White.copy(alpha = 0.3f),
+                                    topLeft = Offset.Zero,
+                                    size = Size(size.width, size.height),
+                                    cornerRadius = CornerRadius(size.width / 2)
+                                )
+                                drawRoundRect(
+                                    color = brandColor,
+                                    topLeft = Offset.Zero,
+                                    size = Size(size.width, size.height * volume),
+                                    cornerRadius = CornerRadius(size.width / 2)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (gestureType == GestureType.BRIGHTNESS) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 20.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 12.dp, vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.ScreenRotation,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Canvas(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .height(80.dp)
+                            ) {
+                                val brightVal = if (brightness < 0f) 0.5f else brightness
+                                drawRoundRect(
+                                    color = Color.White.copy(alpha = 0.3f),
+                                    topLeft = Offset.Zero,
+                                    size = Size(size.width, size.height),
+                                    cornerRadius = CornerRadius(size.width / 2)
+                                )
+                                drawRoundRect(
+                                    color = brandColor,
+                                    topLeft = Offset(size.width, size.height * (1f - brightVal)),
+                                    size = Size(size.width, size.height * brightVal),
+                                    cornerRadius = CornerRadius(size.width / 2)
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        AnimatedVisibility(
-            visible = showControls && state.status is PlayerStatus.Ready,
-            enter = fadeIn(tween(200)),
-            exit = fadeOut(tween(250)),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Column(
+        if (showControls && state.status is PlayerStatus.Ready) {
+            PhonePlayerControls(
+                title = title,
+                currentPosition = currentPosition,
+                duration = duration,
+                seekProgress = seekProgress,
+                isPlaying = isPlaying,
+                isSeeking = isSeeking,
+                showSeekOverlay = showSeekOverlay,
+                hasPrevious = viewModel.hasPreviousEpisode(),
+                hasNext = viewModel.hasNextEpisode(),
+                brandColor = brandColor,
+                onBack = onBack,
+                onTogglePlay = { viewModel.togglePlay() },
+                onSeekTo = { pos -> engine?.seekTo(pos) },
+                onPreviousEpisode = {
+                    viewModel.navigateToPreviousEpisode()
+                    lastInteractionTime = System.currentTimeMillis()
+                },
+                onNextEpisode = {
+                    viewModel.saveProgress(currentPosition, duration)
+                    viewModel.navigateToNextEpisode()
+                    lastInteractionTime = System.currentTimeMillis()
+                },
+                onSeekStart = {
+                    isSeeking = true
+                    gestureType = GestureType.SEEK
+                    showSeekOverlay = true
+                    dragBasePosition = engine?.currentPosition ?: currentPosition
+                },
+                onSeekEnd = { targetMs ->
+                    engine?.seekTo(targetMs)
+                    currentPosition = targetMs
+                    pendingSeekTarget = targetMs
+                    isSeeking = false
+                    gestureType = null
+                    showSeekOverlay = false
+                },
+                onSeekDrag = { progress ->
+                    seekProgress = progress
+                    currentPosition = (progress * duration).toLong()
+                },
+                onRotate = { activity?.togglePlayerRotation(isLandscape) },
+                onInteract = { lastInteractionTime = System.currentTimeMillis() },
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .windowInsetsPadding(WindowInsets.safeDrawing)
-                    .pointerInput(Unit) {
-                        detectTapGestures {
-                            lastInteractionTime = System.currentTimeMillis()
-                        }
+                    .pointerInput(isSeeking) {
+                        if (isSeeking) return@pointerInput
+                        detectTapGestures { lastInteractionTime = System.currentTimeMillis() }
                     }
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.4f))
-                        .padding(horizontal = 4.dp, vertical = 4.dp)
-                ) {
-                    IconButton(onClick = { onBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
-                    }
-                    Text(
-                        text = title,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        modifier = Modifier.align(Alignment.Center).padding(horizontal = 80.dp)
-                    )
-                    IconButton(
-                        onClick = { activity?.togglePlayerRotation(isLandscape) },
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    ) {
-                        Icon(Icons.Default.ScreenRotation, contentDescription = "Повернути екран", tint = Color.White)
-                    }
-                }
-
-                Spacer(Modifier.weight(1f))
-
-                Box(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    IconButton(
-                        onClick = {
-                            viewModel.togglePlay()
-                            lastInteractionTime = System.currentTimeMillis()
-                        },
-                        modifier = Modifier.size(64.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (isPlaying) "Пауза" else "Відтворити",
-                            tint = Color.White,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-                }
-
-                Spacer(Modifier.weight(1f))
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color.Black.copy(alpha = 0.4f))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Slider(
-                        value = if (duration > 0) (currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f,
-                        onValueChange = { ratio ->
-                            engine?.seekTo((ratio * duration).roundToLong())
-                            currentPosition = engine?.currentPosition ?: 0L
-                            lastInteractionTime = System.currentTimeMillis()
-                        },
-                        colors = SliderDefaults.colors(
-                            thumbColor = brandColor,
-                            activeTrackColor = brandColor,
-                            inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                        ),
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = formatTime(currentPosition),
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 12.sp
-                        )
-                        Text(
-                            text = formatTime(duration),
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    Spacer(Modifier.height(4.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (viewModel.hasPreviousEpisode()) {
-                            IconButton(onClick = {
-                                viewModel.navigateToPreviousEpisode()
-                                lastInteractionTime = System.currentTimeMillis()
-                            }, modifier = Modifier.size(40.dp)) {
-                                Icon(Icons.Default.SkipPrevious, contentDescription = "Попередня серія", tint = Color.White, modifier = Modifier.size(26.dp))
-                            }
-                        } else {
-                            Spacer(Modifier.size(40.dp))
-                        }
-
-                        IconButton(onClick = {
-                            engine?.let {
-                                it.seekTo(maxOf(0L, it.currentPosition - 10_000L))
-                            }
-                            lastInteractionTime = System.currentTimeMillis()
-                        }, modifier = Modifier.size(40.dp)) {
-                            Icon(Icons.Default.FastRewind, contentDescription = "-10с", tint = Color.White, modifier = Modifier.size(24.dp))
-                        }
-
-                        IconButton(onClick = {
-                            viewModel.togglePlay()
-                            lastInteractionTime = System.currentTimeMillis()
-                        }, modifier = Modifier.size(48.dp)) {
-                            Icon(
-                                imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlaying) "Пауза" else "Відтворити",
-                                tint = Color.White,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-
-                        IconButton(onClick = {
-                            engine?.let {
-                                it.seekTo(minOf(it.duration, it.currentPosition + 10_000L))
-                            }
-                            lastInteractionTime = System.currentTimeMillis()
-                        }, modifier = Modifier.size(40.dp)) {
-                            Icon(Icons.Default.FastForward, contentDescription = "+10с", tint = Color.White, modifier = Modifier.size(24.dp))
-                        }
-
-                        if (viewModel.hasNextEpisode()) {
-                            IconButton(onClick = {
-                                viewModel.saveProgress(currentPosition, duration)
-                                viewModel.navigateToNextEpisode()
-                                lastInteractionTime = System.currentTimeMillis()
-                            }, modifier = Modifier.size(40.dp)) {
-                                Icon(Icons.Default.SkipNext, contentDescription = "Наступна серія", tint = Color.White, modifier = Modifier.size(26.dp))
-                            }
-                        } else {
-                            Spacer(Modifier.size(40.dp))
-                        }
-                    }
-
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
+            )
         }
 
         val currentStatus = state.status
-        if (currentStatus is PlayerStatus.Loading) {
-            EpisodeLoadingOverlay(
-                poster = poster,
-                season = state.currentSeason,
-                episode = state.currentEpisode
-            )
-        }
+        EpisodeLoadingOverlay(
+            poster = poster,
+            season = state.currentSeason,
+            episode = state.currentEpisode,
+            visible = currentStatus is PlayerStatus.Loading
+        )
 
         if (currentStatus is PlayerStatus.Error) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.85f)), Alignment.Center) {
@@ -749,44 +640,7 @@ private fun PhonePlayerContent(
     }
 }
 
-@Composable
-private fun EpisodeLoadingOverlay(
-    poster: String,
-    season: Int?,
-    episode: Int?
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            if (poster.isNotBlank()) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(poster)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .width(200.dp)
-                        .height(280.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop
-                )
-            }
-            if (season != null && episode != null) {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "Сезон $season, Серія $episode",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 14.sp
-                )
-            }
-        }
-    }
-}
+private enum class GestureType { SEEK, VOLUME, BRIGHTNESS }
 
 private fun formatTime(ms: Long): String {
     if (ms <= 0L) return "0:00"
@@ -796,103 +650,4 @@ private fun formatTime(ms: Long): String {
     return "$minutes:${seconds.toString().padStart(2, '0')}"
 }
 
-@UnstableApi
-@Composable
-private fun ExternalPlayerScreen(
-    url: String,
-    contentId: String,
-    title: String,
-    poster: String,
-    season: Int?,
-    episode: Int?,
-    onBack: () -> Unit,
-    viewModel: PlayerViewModel
-) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    var playerLaunched by remember { mutableStateOf(viewModel.hasPendingExternalPlayerResult()) }
 
-    val externalPlayerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        AppLogger.d("ExternalPlayer", "Result received: code=${result.resultCode} hasData=${result.data != null}")
-        val returnResult = viewModel.handleExternalPlayerResult(result.resultCode, result.data)
-        when (returnResult) {
-            is ua.ukrtv.app.ui.player.ExternalPlayerReturnResult.Advanced -> {
-                playerLaunched = false
-            }
-            else -> {
-                onBack()
-            }
-        }
-    }
-
-    LaunchedEffect(url, contentId, season, episode) {
-        viewModel.initialize(contentId, title, url, season, episode, poster)
-    }
-
-    LaunchedEffect(state.status) {
-        val status = state.status
-        if (status is PlayerStatus.Ready && !playerLaunched) {
-            delay(1500)
-            playerLaunched = true
-            viewModel.saveBeforeExternalPlayerLaunch()
-            val intent = viewModel.createExternalPlayerIntent()
-            if (intent != null) {
-                try {
-                    externalPlayerLauncher.launch(intent)
-                } catch (e: android.content.ActivityNotFoundException) {
-                    val playerLabel = viewModel.getCurrentExternalPlayerInfo()?.label ?: "плеєр"
-                    AppLogger.w("ExternalPlayer", "Player not found: $playerLabel")
-                    onBack()
-                }
-            } else {
-                onBack()
-            }
-        }
-    }
-
-    val currentStatus = state.status
-
-    Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black),
-        contentAlignment = Alignment.Center
-    ) {
-        when {
-            currentStatus is PlayerStatus.Error -> {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(currentStatus.message, color = Color.Red, fontSize = 16.sp)
-                    Spacer(Modifier.height(16.dp))
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF6E85B7), RoundedCornerShape(8.dp))
-                            .clickable { onBack() }
-                            .padding(horizontal = 24.dp, vertical = 12.dp)
-                    ) {
-                        Text("Назад", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-            currentStatus is PlayerStatus.Loading -> {
-                EpisodeLoadingOverlay(
-                    poster = poster,
-                    season = state.currentSeason,
-                    episode = state.currentEpisode
-                )
-            }
-            currentStatus is PlayerStatus.Ready && playerLaunched -> {
-                EpisodeLoadingOverlay(
-                    poster = poster,
-                    season = state.currentSeason,
-                    episode = state.currentEpisode
-                )
-            }
-            else -> {
-                EpisodeLoadingOverlay(
-                    poster = poster,
-                    season = state.currentSeason,
-                    episode = state.currentEpisode
-                )
-            }
-        }
-    }
-}

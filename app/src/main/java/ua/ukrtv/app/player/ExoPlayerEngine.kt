@@ -10,16 +10,20 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 
 @UnstableApi
 class ExoPlayerEngine(
-    private val player: ExoPlayer,
-    private val httpDataSourceFactory: OkHttpDataSource.Factory
+    val player: ExoPlayer,
+    private val dataSourceFactory: DataSource.Factory,
+    private val httpDataSourceFactory: OkHttpDataSource.Factory? = null
 ) : PlaybackEngine {
 
     private val listeners = mutableListOf<PlaybackEngine.EngineListener>()
+
+    private var previousPlaybackState = Player.STATE_IDLE
 
     override val currentPosition: Long get() = player.currentPosition
     override val duration: Long get() = player.duration
@@ -34,6 +38,12 @@ class ExoPlayerEngine(
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             listeners.forEach { it.onPlaybackStateChanged(playbackState) }
+            if (playbackState == Player.STATE_BUFFERING &&
+                previousPlaybackState == Player.STATE_READY
+            ) {
+                listeners.forEach { it.onRebuffer() }
+            }
+            previousPlaybackState = playbackState
             if (playbackState == Player.STATE_ENDED) {
                 listeners.forEach { it.onEndReached() }
             }
@@ -66,25 +76,31 @@ class ExoPlayerEngine(
 
     override fun setSurface(surfaceView: SurfaceView) {
         player.setVideoSurfaceView(surfaceView)
-        player.setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS)
     }
 
-    override fun setMedia(url: String, positionMs: Long, referer: String) {
+    override fun setMedia(url: String, positionMs: Long, referer: String, streamType: ua.ukrtv.app.domain.model.StreamType) {
         applyReferer(referer)
+        val mimeType = when (streamType) {
+            ua.ukrtv.app.domain.model.StreamType.HLS -> androidx.media3.common.MimeTypes.APPLICATION_M3U8
+            ua.ukrtv.app.domain.model.StreamType.MPD -> androidx.media3.common.MimeTypes.APPLICATION_MPD
+            ua.ukrtv.app.domain.model.StreamType.MP4 -> androidx.media3.common.MimeTypes.VIDEO_MP4
+            else -> null
+        }
         val mediaItem = MediaItem.Builder()
             .setUri(url)
+            .setMimeType(mimeType)
             .build()
         player.setMediaItem(mediaItem)
-        if (positionMs > 0) player.seekTo(positionMs)
         player.prepare()
+        if (positionMs > 0) player.seekTo(positionMs)
         player.playWhenReady = true
     }
 
     private fun applyReferer(referer: String) {
         if (referer.isNotBlank()) {
-            httpDataSourceFactory.setDefaultRequestProperties(mapOf("Referer" to referer))
+            httpDataSourceFactory?.setDefaultRequestProperties(mapOf("Referer" to referer))
         } else {
-            httpDataSourceFactory.setDefaultRequestProperties(emptyMap())
+            httpDataSourceFactory?.setDefaultRequestProperties(emptyMap())
         }
     }
 
@@ -105,6 +121,11 @@ class ExoPlayerEngine(
         player.release()
     }
 
+    fun detachPlayer(): ExoPlayer? {
+        player.removeListener(exoListener)
+        return player
+    }
+
     override fun setVideoScalingMode(mode: Int) {
         val exoMode = when (mode) {
             PlaybackEngine.SCALING_ZOOM,
@@ -116,6 +137,10 @@ class ExoPlayerEngine(
 
     override fun setVolume(volume: Float) {
         player.volume = volume
+    }
+
+    override fun setPlaybackSpeed(speed: Float) {
+        player.setPlaybackSpeed(speed)
     }
 
     override fun getVideoTracks(): Array<PlaybackEngine.TrackDescription> {

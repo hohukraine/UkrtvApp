@@ -32,6 +32,7 @@ fun PlayerReadyContent(
     isShowingControls: Boolean,
     brandColor: Color = BrandBlue,
     heldSeekDir: SeekDirection? = null,
+    heldSeekTarget: Long? = null,
     showOverlay: Boolean = true,
     onSeek: (Long) -> Unit
 ) {
@@ -39,9 +40,10 @@ fun PlayerReadyContent(
     var countdownEpisode by remember { mutableStateOf<Episode?>(null) }
 
     fun resolveCountdownEpisode(): Episode? {
+        val prepared = viewModel.getPreparedEpisode()
         val seasons = playerState.availableSeasons ?: return null
-        val sNum = playerState.currentSeason ?: return null
-        val eNum = playerState.currentEpisode ?: return null
+        val sNum = prepared?.first ?: playerState.currentSeason ?: return null
+        val eNum = prepared?.second ?: playerState.currentEpisode ?: return null
         return seasons.find { it.number == sNum }
             ?.episodes?.find { it.number == eNum }
     }
@@ -83,7 +85,7 @@ fun PlayerReadyContent(
             factory = { ctx ->
                 SurfaceView(ctx).also { surfaceView ->
                     surfaceView.keepScreenOn = true
-                    surfaceView.setZOrderMediaOverlay(true)
+                    surfaceRef = surfaceView
                 }
             },
             update = { surfaceView ->
@@ -117,6 +119,15 @@ fun PlayerReadyContent(
             },
             modifier = surfaceModifier
         )
+
+        LaunchedEffect(readyStatus, surfaceRef, engine) {
+            if (readyStatus != null && surfaceRef != null && engine != null && !surfaceAttached) {
+                AppLogger.d("PlayerViewport", "setSurface fallback called (engine=${engine::class.simpleName})")
+                engine.setSurface(surfaceRef!!)
+                surfaceAttached = true
+                engine.setVideoScalingMode(scaleMode.ordinal)
+            }
+        }
 
         val isPlaying = engine?.isPlaying ?: false
 
@@ -209,13 +220,14 @@ fun PlayerReadyContent(
             DisposableEffect(readyStatus.loadTrigger) {
                 onDispose {
                     endedCountdown = null
+                    countdownEpisode = null
                 }
             }
 
             LaunchedEffect(readyStatus.url, readyStatus.loadTrigger) {
                 if (readyStatus.url.isNotEmpty()) {
                     AppLogger.d("PlayerScreen", "Preparing: ${readyStatus.url.take(30)} (engine=${engine::class.simpleName})")
-                    engine.setMedia(readyStatus.url, readyStatus.positionMs, readyStatus.referer)
+                    engine.setMedia(readyStatus.url, readyStatus.positionMs, readyStatus.referer, readyStatus.streamType)
                 }
             }
 
@@ -254,12 +266,14 @@ fun PlayerReadyContent(
                         viewModel.navigateToNextEpisode()
                     },
                     heldSeekDir = heldSeekDir,
+                    heldSeekTarget = heldSeekTarget,
                     season = playerState.currentSeason,
                     episode = playerState.currentEpisode,
                     showSeasonEpisode = !allEpisodesAreOne,
                     playFocusRequester = playButtonFocusRequester,
                     pickerColumns = playerState.pickerColumns,
                     pickerFocusedIndex = playerState.pickerFocusedIndex,
+                    deepResolutionPending = playerState.deepResolutionPending,
                     onPickerColumnFocused = { viewModel.onPickerColumnFocused(it) },
                     onPickerValueChange = { viewModel.onPickerValueChange(it) },
                     onPickerCommit = { viewModel.onPickerCommit() },
