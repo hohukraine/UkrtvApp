@@ -56,7 +56,7 @@ object Modules {
     @Provides @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
         return Room.databaseBuilder(context, AppDatabase::class.java, "ukrtv_db")
-            .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+            .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
             .build()
     }
 
@@ -118,10 +118,11 @@ object Modules {
         @ApplicationContext context: Context,
         cookieJar: CookieJar
     ): OkHttpClient {
-        val isLowDevice = getDeviceClass(context) == ua.ukrtv.app.util.DeviceClass.LOW
+        val deviceClass = getDeviceClass(context)
+        val isLowDevice = deviceClass == ua.ukrtv.app.util.DeviceClass.LOW
         val isMediatek = hasMediatekChipset()
 
-        val cacheSize = 50L * 1024 * 1024
+        val cacheSize = if (deviceClass == ua.ukrtv.app.util.DeviceClass.HIGH) 100L * 1024 * 1024 else 50L * 1024 * 1024
         val cache = Cache(context.cacheDir.resolve("http_cache"), cacheSize)
 
         val (sslSocketFactory, trustManager) = createCompositeSslSocketFactory(context)
@@ -137,6 +138,7 @@ object Modules {
                 ConnectionSpec.COMPATIBLE_TLS,
                 ConnectionSpec.CLEARTEXT
             ))
+            .addInterceptor(ua.ukrtv.app.data.network.WebpToJpegInterceptor())
             .addInterceptor { chain ->
                 val request = chain.request()
                 val url = request.url.toString()
@@ -278,5 +280,17 @@ private val MIGRATION_12_13 = object : Migration(12, 13) {
 private val MIGRATION_13_14 = object : Migration(13, 14) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE watch_progress ADD COLUMN referer TEXT DEFAULT NULL")
+    }
+}
+
+private val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE watch_progress ADD COLUMN seasonsJson TEXT DEFAULT NULL")
+    }
+}
+
+private val MIGRATION_15_16 = object : Migration(15, 16) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE watch_progress ADD COLUMN fallbackUrls TEXT DEFAULT NULL")
     }
 }

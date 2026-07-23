@@ -11,7 +11,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import ua.ukrtv.app.ui.theme.detectFormFactor
 import ua.ukrtv.app.ui.theme.FormFactor
 import androidx.navigation.NavType
@@ -39,6 +38,8 @@ import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.UkrtvTheme
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.PerformancePreferences
+import ua.ukrtv.app.ui.splash.SplashScreen
+import ua.ukrtv.app.ui.theme.BrandBlue
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -46,7 +47,19 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val t0 = System.nanoTime()
-        installSplashScreen()
+
+        val providerColor = try {
+            val prefs = getSharedPreferences("home_prefs", MODE_PRIVATE)
+            val providerName = prefs.getString("default_provider", "Eneyida") ?: "Eneyida"
+            val hex = when (providerName) {
+                "Uakino" -> "#ca563f"
+                else -> "#31C469"
+            }
+            androidx.compose.ui.graphics.Color(android.graphics.Color.parseColor(hex))
+        } catch (_: Exception) {
+            androidx.compose.ui.graphics.Color(0xFF31C469)
+        }
+
         window.decorView.keepScreenOn = true
         window.setBackgroundDrawable(null)
         super.onCreate(savedInstanceState)
@@ -62,7 +75,16 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             UkrtvTheme(performancePreferences = performancePreferences, formFactor = formFactor) {
-                UkrtvTVApp()
+                var showMain by remember { mutableStateOf(false) }
+
+                if (showMain) {
+                    UkrtvTVApp()
+                } else {
+                    SplashScreen(
+                        providerColor = providerColor,
+                        onSplashFinished = { showMain = true }
+                    )
+                }
             }
         }
         if (ua.ukrtv.app.BuildConfig.DEBUG) {
@@ -107,7 +129,7 @@ fun UkrtvTVApp() {
 
     val onMovieClick = remember(navController) {
         { movie: ua.ukrtv.app.domain.model.Movie ->
-            ua.ukrtv.app.util.AppLogger.d("Navigation", "home→detail: movie=${movie.title} url=${movie.pageUrl?.take(40)}")
+            ua.ukrtv.app.util.AppLogger.d("Navigation", "home→detail: movie=${movie.title} url=${movie.pageUrl.take(40)}")
             navController.navigate(AppNavigation.detailRoute(movie.id, movie.pageUrl, movie.alternatePageUrl)) {
                 launchSingleTop = true
             }
@@ -120,10 +142,11 @@ fun UkrtvTVApp() {
                 AppNavigation.playerRoute(
                     id = movie.id,
                     title = movie.title,
-                    url = movie.pageUrl ?: "",
+                    url = movie.pageUrl,
                     poster = movie.poster,
                     season = movie.season,
-                    episode = movie.episode
+                    episode = movie.episode,
+                    brandColor = movie.brandColor
                 )
             ) {
                 launchSingleTop = true
@@ -149,10 +172,34 @@ fun UkrtvTVApp() {
         NavHost(
             navController = navController,
             startDestination = AppNavigation.HOME,
-            enterTransition = { slideInHorizontally(tween(navEnterDur)) { it } },
-            exitTransition = { slideOutHorizontally(tween(navExitDur)) { -it / 3 } },
-            popEnterTransition = { slideInHorizontally(tween(navEnterDur)) { -it / 3 } },
-            popExitTransition = { slideOutHorizontally(tween(navExitDur)) { it } }
+            enterTransition = {
+                if (targetState.destination.route == AppNavigation.SETTINGS) {
+                    fadeIn(tween(navEnterDur))
+                } else {
+                    slideInHorizontally(tween(navEnterDur)) { it }
+                }
+            },
+            exitTransition = {
+                if (targetState.destination.route == AppNavigation.SETTINGS || initialState.destination.route == AppNavigation.SETTINGS) {
+                    fadeOut(tween(navExitDur))
+                } else {
+                    slideOutHorizontally(tween(navExitDur)) { -it / 3 }
+                }
+            },
+            popEnterTransition = {
+                if (initialState.destination.route == AppNavigation.SETTINGS) {
+                    fadeIn(tween(navEnterDur))
+                } else {
+                    slideInHorizontally(tween(navEnterDur)) { -it / 3 }
+                }
+            },
+            popExitTransition = {
+                if (initialState.destination.route == AppNavigation.SETTINGS) {
+                    fadeOut(tween(navExitDur))
+                } else {
+                    slideOutHorizontally(tween(navExitDur)) { it }
+                }
+            }
         ) {
             composable(AppNavigation.HOME) {
                 HomeScreen(
@@ -207,7 +254,8 @@ fun UkrtvTVApp() {
                                     url = launchState.streamResult.sourcePageUrl,
                                     poster = launchState.posterUrl,
                                     season = launchState.season,
-                                    episode = launchState.episode
+                                    episode = launchState.episode,
+                                    brandColor = launchState.brandColor
                                 )
                             ) { launchSingleTop = true }
                         }
@@ -239,34 +287,42 @@ fun UkrtvTVApp() {
                     onBack = { navController.popBackStack() }
                 )
             }
-            composable(
-                route = AppNavigation.PLAYER,
-                arguments = listOf(
-                    navArgument("id") { type = NavType.StringType },
-                    navArgument("title") { type = NavType.StringType },
-                    navArgument("url") { type = NavType.StringType },
-                    navArgument("season") { type = NavType.IntType; defaultValue = -1 },
-                    navArgument("episode") { type = NavType.IntType; defaultValue = -1 },
-                    navArgument("poster") { type = NavType.StringType; defaultValue = "" }
-                )
-            ) { backStackEntry ->
-                val id = backStackEntry.arguments?.getString("id") ?: ""
-                val title = backStackEntry.arguments?.getString("title") ?: ""
-                val url = backStackEntry.arguments?.getString("url") ?: ""
-                val poster = backStackEntry.arguments?.getString("poster") ?: ""
-                val season = backStackEntry.arguments?.getInt("season")?.takeIf { it != -1 }
-                val episode = backStackEntry.arguments?.getInt("episode")?.takeIf { it != -1 }
+                composable(
+                    route = AppNavigation.PLAYER,
+                    arguments = listOf(
+                        navArgument("id") { type = NavType.StringType },
+                        navArgument("title") { type = NavType.StringType },
+                        navArgument("url") { type = NavType.StringType },
+                        navArgument("season") { type = NavType.IntType; defaultValue = -1 },
+                        navArgument("episode") { type = NavType.IntType; defaultValue = -1 },
+                        navArgument("poster") { type = NavType.StringType; defaultValue = "" },
+                        navArgument("brandColor") { type = NavType.StringType; defaultValue = "" }
+                    )
+                ) { backStackEntry ->
+                    val id = backStackEntry.arguments?.getString("id") ?: ""
+                    val title = backStackEntry.arguments?.getString("title") ?: ""
+                    val url = backStackEntry.arguments?.getString("url") ?: ""
+                    val poster = backStackEntry.arguments?.getString("poster") ?: ""
+                    val season = backStackEntry.arguments?.getInt("season")?.takeIf { it != -1 }
+                    val episode = backStackEntry.arguments?.getInt("episode")?.takeIf { it != -1 }
+                    val brandColorStr = backStackEntry.arguments?.getString("brandColor")
+                    val brandColor = remember(brandColorStr) {
+                        if (brandColorStr.isNullOrBlank()) BrandBlue
+                        else try { Color(android.graphics.Color.parseColor(brandColorStr)) } catch (_: Exception) { BrandBlue }
+                    }
 
-                PlayerScreen(
-                    url = url,
-                    contentId = id,
-                    title = title,
-                    poster = poster,
-                    season = season,
-                    episode = episode,
-                    onBack = { navController.popBackStack() }
-                )
-            }
+                    @OptIn(UnstableApi::class)
+                    PlayerScreen(
+                        url = url,
+                        contentId = id,
+                        title = title,
+                        poster = poster,
+                        season = season,
+                        episode = episode,
+                        brandColor = brandColor,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
         }
     }
 }

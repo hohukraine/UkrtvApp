@@ -5,12 +5,16 @@ import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
 import android.os.StrictMode
-import coil.Coil
-import coil.ImageLoader
-import coil.ImageLoaderFactory
-import coil.disk.DiskCache
-import coil.memory.MemoryCache
-import coil.request.CachePolicy
+import coil3.SingletonImageLoader
+import coil3.ImageLoader
+import coil3.request.allowHardware
+import coil3.request.allowRgb565
+import coil3.request.bitmapConfig
+import coil3.request.crossfade
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
+import okio.Path.Companion.toPath
+import coil3.request.CachePolicy
 import dagger.Lazy
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +26,8 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import ua.ukrtv.app.data.providers.ProviderManager
+import ua.ukrtv.app.player.MediaPrefetcher
+import ua.ukrtv.app.player.PlayerPool
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.getDeviceClass
@@ -38,13 +44,13 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltAndroidApp
-class UkrtvApplication : Application(), ImageLoaderFactory, Configuration.Provider {
+class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configuration.Provider {
     companion object {
         val appStartTime = System.nanoTime()
     }
 
     @Inject
-    lateinit var okHttpClient: OkHttpClient
+    lateinit var okHttpClient: Lazy<OkHttpClient>
 
     @Inject
     lateinit var providerManager: Lazy<ProviderManager>
@@ -61,9 +67,15 @@ class UkrtvApplication : Application(), ImageLoaderFactory, Configuration.Provid
     @Inject
     lateinit var watchProgressRepository: Lazy<ua.ukrtv.app.data.repository.WatchProgressRepository>
 
+    @Inject
+    lateinit var playerPool: PlayerPool
+
+    @Inject
+    lateinit var mediaPrefetcher: MediaPrefetcher
+
     private var imageLoader: ImageLoader? = null
-    private val sharedImageDispatcher: kotlinx.coroutines.ExecutorCoroutineDispatcher by lazy {
-        java.util.concurrent.Executors.newFixedThreadPool(2).asCoroutineDispatcher()
+    private val sharedImageDispatcher by lazy {
+        Dispatchers.IO.limitedParallelism(4)
     }
 
     override val workManagerConfiguration: Configuration
@@ -73,13 +85,23 @@ class UkrtvApplication : Application(), ImageLoaderFactory, Configuration.Provid
 
     override fun onCreate() {
         super.onCreate()
-        if (ua.ukrtv.app.BuildConfig.DEBUG) {
+        AppLogger.init(this)
+        AppLogger.d("UkrtvApplication", "onCreate")
+
+        val hardware = getDeviceClass(this)
+        val isMediatek = hasMediatekChipset()
+
+        SingletonImageLoader.setSafe(object : SingletonImageLoader.Factory {
+            override fun newImageLoader(context: Context): ImageLoader {
+                return buildImageLoader(this@UkrtvApplication, hardware, isMediatek, reuseCurrent = true)
+            }
+        })
+
+        if (BuildConfig.DEBUG) {
             AppLogger.d("Startup", "Hilt init: ${(System.nanoTime() - appStartTime) / 1_000_000}ms")
         }
         val prewarmScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         
-        // Critical logging init
-        AppLogger.init(this)
         CrashReporter.init(this)
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(
@@ -112,7 +134,20 @@ class UkrtvApplication : Application(), ImageLoaderFactory, Configuration.Provid
         )
 
         prewarmScope.launch {
-            if (ua.ukrtv.app.BuildConfig.DEBUG) {
+            delay(5000)
+            try {
+                val httpFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient.get())
+                    .setUserAgent(ua.ukrtv.app.Constants.USER_AGENT)
+                val dsFactory = mediaPrefetcher.getCachedDataSourceFactory(this@UkrtvApplication, httpFactory)
+                playerPool.prewarm(this@UkrtvApplication, dsFactory)
+                AppLogger.d("PlayerPool", "Player prewarm completed")
+            } catch (e: Exception) {
+                AppLogger.e("PlayerPool", "Player prewarm failed", e)
+            }
+        }
+
+        prewarmScope.launch {
+            if (BuildConfig.DEBUG) {
                 delay(10000) // Even longer delay for StrictMode to avoid false positives during heavy init
                 StrictMode.setVmPolicy(
                     StrictMode.VmPolicy.Builder()
@@ -162,9 +197,12 @@ class UkrtvApplication : Application(), ImageLoaderFactory, Configuration.Provid
     private fun clearCaches() {
         imageLoader?.memoryCache?.clear()
         providerManager.get().clearCaches()
+        try { htmlHttpClient.get().clearMemoryCache() } catch(_: Exception) {}
+        try { contentRepository.get().clearTrendsCache() } catch(_: Exception) {}
     }
 
-    override fun newImageLoader(): ImageLoader {
+    override fun newImageLoader(context: android.content.Context): ImageLoader {
+        AppLogger.d("UkrtvApplication", "newImageLoader requested")
         val hardware = getDeviceClass(this)
         val loader = buildImageLoader(this, hardware, hasMediatekChipset(), reuseCurrent = false)
         imageLoader = loader
@@ -172,7 +210,12 @@ class UkrtvApplication : Application(), ImageLoaderFactory, Configuration.Provid
     }
 
     fun applyImageLoaderFor(deviceClass: DeviceClass, isMediatek: Boolean) {
-        Coil.setImageLoader(buildImageLoader(this, deviceClass, isMediatek, reuseCurrent = true))
+        AppLogger.d("UkrtvApplication", "applyImageLoaderFor: $deviceClass")
+        SingletonImageLoader.setSafe(object : SingletonImageLoader.Factory {
+            override fun newImageLoader(context: Context): ImageLoader {
+                return buildImageLoader(this@UkrtvApplication, deviceClass, isMediatek, reuseCurrent = true)
+            }
+        })
     }
 
     private fun buildImageLoader(
@@ -186,38 +229,47 @@ class UkrtvApplication : Application(), ImageLoaderFactory, Configuration.Provid
         val memPct = when (deviceClass) {
             DeviceClass.LOW -> 0.08
             DeviceClass.MID -> 0.12
-            DeviceClass.HIGH -> 0.15
+            DeviceClass.HIGH -> 0.20
         }
         val adaptiveSize = (maxHeapBytes * memPct).toInt()
         val diskCacheSize = when (deviceClass) {
             DeviceClass.LOW -> 32L * 1024 * 1024
             DeviceClass.MID -> 64L * 1024 * 1024
-            DeviceClass.HIGH -> 128L * 1024 * 1024
+            DeviceClass.HIGH -> 200L * 1024 * 1024
         }
-        val allowHardware = deviceClass != DeviceClass.LOW && !isMediatek
 
         return ImageLoader.Builder(context)
-            .okHttpClient(okHttpClient)
-            .dispatcher(sharedImageDispatcher)
+            .components {
+                add(coil3.network.okhttp.OkHttpNetworkFetcherFactory(callFactory = { okHttpClient.get() }))
+            }
+            .eventListener(object : coil3.EventListener() {
+                override fun onError(request: coil3.request.ImageRequest, result: coil3.request.ErrorResult) {
+                    AppLogger.e("Coil", "Error loading ${request.data}: ${result.throwable.message}")
+                }
+            })
+            .coroutineContext(sharedImageDispatcher)
             .memoryCache {
-                MemoryCache.Builder(context)
-                    .maxSizeBytes(adaptiveSize)
+                MemoryCache.Builder()
+                    .maxSizeBytes { adaptiveSize.toLong() }
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
-                    .directory(context.cacheDir.resolve("image_cache"))
+                    .directory(context.cacheDir.resolve("image_cache").absolutePath.toPath())
                     .maxSizeBytes(diskCacheSize)
                     .build()
             }
-            .allowRgb565(true)
-            .bitmapConfig(Bitmap.Config.RGB_565)
-            .allowHardware(allowHardware)
+            .allowRgb565(false)
+            .bitmapConfig(Bitmap.Config.ARGB_8888)
+            .allowHardware(deviceClass != DeviceClass.LOW && !isMediatek)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
-            .crossfade(true)
+            .crossfade(100)
             .build()
-            .also { if (reuseCurrent) imageLoader = it }
+            .also { if (reuseCurrent) {
+                AppLogger.d("UkrtvApplication", "ImageLoader initialized for class $deviceClass")
+                imageLoader = it
+            } }
     }
 
     @Suppress("DEPRECATION")
@@ -226,6 +278,10 @@ class UkrtvApplication : Application(), ImageLoaderFactory, Configuration.Provid
         if (level >= TRIM_MEMORY_RUNNING_LOW) {
             imageLoader?.memoryCache?.clear()
             providerManager.get().clearCaches()
+            try { htmlHttpClient.get().clearMemoryCache() } catch(_: Exception) {}
+            try { contentRepository.get().clearTrendsCache() } catch(_: Exception) {}
+            try { playerPool.clear() } catch(_: Exception) {}
+            try { mediaPrefetcher.cancelPrefetch() } catch(_: Exception) {}
         }
         if (level >= TRIM_MEMORY_RUNNING_CRITICAL) {
             clearCaches()

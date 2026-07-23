@@ -27,7 +27,8 @@ sealed class MediaLaunchState : Parcelable {
         val season: Int? = null,
         val episode: Int? = null,
         val voiceover: String? = null,
-        val seasons: List<Season>? = null
+        val seasons: List<Season>? = null,
+        val brandColor: String? = null
     ) : MediaLaunchState()
     
     @Stable
