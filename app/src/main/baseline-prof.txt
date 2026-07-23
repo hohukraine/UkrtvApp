@@ -27,6 +27,14 @@ Landroidx/navigation/compose/rememberNavController
 Landroidx/compose/animation/AnimatedContentTransitionScopeImpl
 Landroidx/activity/compose/BackHandler
 
+# ── Theme + Utils ──
+Lua/ukrtv/app/ui/theme/UkrtvTheme
+Lua/ukrtv/app/ui/theme/TvTheme
+Lua/ukrtv/app/ui/theme/DeviceImageExtKt
+Lua/ukrtv/app/util/PerformancePreferences
+Lua/ukrtv/app/util/PerformanceProfile
+Lua/ukrtv/app/util/HomePreferences
+
 # ── Composables: Home Screen ──
 Lua/ukrtv/app/ui/home/HomeScreenKt
 Lua/ukrtv/app/ui/home/HomeViewModel
@@ -41,6 +49,11 @@ Lua/ukrtv/app/ui/home/MovieCard
 Lua/ukrtv/app/ui/home/CompactMovieCard
 Lua/ukrtv/app/ui/home/ContinueWatchingCard
 Lua/ukrtv/app/ui/home/components/MovieInfoHeader
+Lua/ukrtv/app/ui/home/components/BottomNavBar
+Lua/ukrtv/app/ui/home/components/SectionHeader
+Lua/ukrtv/app/ui/home/components/PhoneProviderSwitcher
+Lua/ukrtv/app/ui/home/components/DynamicBackground
+Lua/ukrtv/app/ui/home/components/HomeBackground
 
 # ── Composables: Detail Screen ──
 Lua/ukrtv/app/ui/detail/DetailScreen
@@ -65,10 +78,18 @@ Lua/ukrtv/app/ui/trends/FullTrendsGridScreenKt
 Lua/ukrtv/app/ui/category/FullCategoryGridScreenKt
 Lua/ukrtv/app/ui/top200/Top200ScreenKt
 
+# ── Composables: Settings ──
+Lua/ukrtv/app/ui/settings/SettingsScreen
+Lua/ukrtv/app/ui/settings/SettingsViewModel
+
 # ── Composables: Components ──
 Lua/ukrtv/app/ui/components/ShimmerEffectKt
 Lua/ukrtv/app/ui/detail/SeasonEpisodePickerKt
 Lua/ukrtv/app/ui/detail/CommentsSectionKt
+
+# ── Managers ──
+Lua/ukrtv/app/data/providers/ProviderManager
+Lua/ukrtv/app/data/streaming/StreamResolver
 
 # ── Coil Image Loading ──
 Lcoil/Coil

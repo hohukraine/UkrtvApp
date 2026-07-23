@@ -62,6 +62,8 @@ android {
 
 composeCompiler {
     stabilityConfigurationFiles.add(rootProject.layout.projectDirectory.file("compose_stability_config.conf"))
+    metricsDestination = layout.buildDirectory.dir("compose-metrics")
+    reportsDestination = layout.buildDirectory.dir("compose-reports")
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
@@ -88,9 +90,7 @@ tasks.register<JavaExec>("generateCatalogDb") {
 
     configurations.all {
         resolutionStrategy {
-            force("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
-            force("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-            force("org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.8.1")
+            // Removed force 1.8.1 to fix limitedParallelism compatibility with Coil 3
         }
     }
 
@@ -115,6 +115,8 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.hls)
     implementation(libs.media3.dash)
+    implementation(libs.media3.datasource)
+    implementation(libs.media3.database)
     implementation(libs.media3.okhttp)
     implementation(libs.media3.ui)
     
@@ -142,9 +144,13 @@ dependencies {
 
     // Serialization
     implementation(libs.kotlinx.serialization.json)
+
+    // Immutable Collections
+    implementation(libs.kotlinx.collections.immutable)
     
     // UI & Utils
     implementation(libs.coil.compose)
+    implementation(libs.coil.network.okhttp)
     implementation(libs.palette.ktx)
     implementation(libs.tvprovider)
     implementation(libs.core.ktx)
