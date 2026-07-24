@@ -25,7 +25,7 @@ fun PlayerViewModel.setExternalPlayerPackage(packageName: String) {
     playerPreferences.setExternalPlayerPackage(packageName)
 }
 
-fun PlayerViewModel.openInExternalPlayer(): Boolean {
+suspend fun PlayerViewModel.openInExternalPlayer(): Boolean {
     val intent = createExternalPlayerIntent() ?: return false
     val ctx = appContext
     return try {
@@ -33,7 +33,7 @@ fun PlayerViewModel.openInExternalPlayer(): Boolean {
         true
     } catch (e: android.content.ActivityNotFoundException) {
         val playerInfo = getCurrentExternalPlayerInfo()
-        Toast.makeText(ctx, "Не знайдено зовнішній плеєр (${playerInfo?.label ?: ""})", Toast.LENGTH_LONG).show()
+        android.widget.Toast.makeText(ctx, "Не знайдено зовнішній плеєр (${playerInfo?.label ?: ""})", android.widget.Toast.LENGTH_LONG).show()
         false
     }
 }

@@ -1,17 +1,13 @@
 package ua.ukrtv.app.ui.home.components
 
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,12 +15,13 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
+import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.util.DeviceClass
 
@@ -32,7 +29,8 @@ import ua.ukrtv.app.util.DeviceClass
 @Composable
 fun TrendsTrailingButton(
     brandColor: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    useLargeCards: Boolean = false
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -46,36 +44,48 @@ fun TrendsTrailingButton(
         }
     }
 
+    val baseHeight = if (useLargeCards) CardDefaults.posterHeight * 1.15f else CardDefaults.posterHeight
+    val baseWidth = 100.dp // Збільшено ширину
+
     Surface(
         onClick = onClick,
         interactionSource = interactionSource,
         shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
         colors = ClickableSurfaceDefaults.colors(
-            containerColor = Color.Transparent,
-            focusedContainerColor = brandColor.copy(alpha = 0.15f)
+            containerColor = Color.White.copy(alpha = 0.08f),
+            focusedContainerColor = brandColor.copy(alpha = 0.25f)
         ),
         modifier = Modifier
-            .width((48.dp * cardScale))
-            .height((276.dp * cardScale))
+            .width((baseWidth * cardScale))
+            .height((baseHeight * cardScale))
             .focusProperties {
-                @Suppress("DEPRECATION")
-                enter = { fd ->
-                    if (fd == FocusDirection.Down) FocusRequester.Cancel
+                exit = { focusDirection ->
+                    if (focusDirection == FocusDirection.Right) FocusRequester.Cancel
                     else FocusRequester.Default
                 }
             }
-            .graphicsLayer {
-                scaleX = if (isFocused) 1.05f else 1f
-                scaleY = if (isFocused) 1.05f else 1f
-            }
     ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = "Всі тренди",
-                tint = if (isFocused) Color.White else Color.White.copy(alpha = 0.4f),
-                modifier = Modifier.width(24.dp * cardScale)
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = if (isFocused) Color.White else Color.White.copy(alpha = 0.6f),
+                modifier = Modifier.size(32.dp * cardScale)
             )
+            if (isFocused) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Більше",
+                    color = Color.White,
+                    fontSize = (14.sp.value * cardScale).sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

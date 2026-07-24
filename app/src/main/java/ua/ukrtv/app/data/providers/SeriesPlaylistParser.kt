@@ -48,20 +48,20 @@ object SeriesPlaylistParser {
                 }
                 usedVoiceoverNames.add(episodeVoice)
 
+                val urls = DleResolutionUtils.findMediaUrlsInText(file)
+                val bestUrl = if (urls.size > 1) DleResolutionUtils.pickBestQuality(urls) ?: urls.first() else file
+
                 val epNumMatch = DIGITS_REGEX.find(li.text())
-                val epNum = epNumMatch?.groupValues?.get(1)?.toIntOrNull() ?: 1 // Default to 1 if no number found (movie mode)
+                val epNum = epNumMatch?.groupValues?.get(1)?.toIntOrNull() ?: 1
                 
                 if (episodesByNumber.containsKey(epNum) && episodesByNumber[epNum]?.containsKey(episodeVoice) == true && epNumMatch == null) {
-                    // If we already have episode 1 for this voice and current li also has no number, 
-                    // it might be a truly multi-episode list without numbers (unlikely) or just duplicate data.
-                    // We'll increment to avoid overwriting if it's clearly a list.
                     var nextEp = epNum + 1
                     while (episodesByNumber.containsKey(nextEp) && episodesByNumber[nextEp]?.containsKey(episodeVoice) == true) {
                         nextEp++
                     }
-                    episodesByNumber.getOrPut(nextEp) { mutableMapOf() }[episodeVoice] = file
+                    episodesByNumber.getOrPut(nextEp) { mutableMapOf() }[episodeVoice] = bestUrl
                 } else {
-                    episodesByNumber.getOrPut(epNum) { mutableMapOf() }[episodeVoice] = file
+                    episodesByNumber.getOrPut(epNum) { mutableMapOf() }[episodeVoice] = bestUrl
                 }
             }
         }
@@ -202,10 +202,13 @@ object SeriesPlaylistParser {
                 val vName = cleanVoiceNames.getOrNull(vIdx) ?: "Озвучка ${vIdx + 1}"
                 for (ep in eps) {
                     val em = ep as? JsonObject ?: continue
-                    val url = em["file"]?.jsonPrimitive?.content ?: continue
+                    val rawFile = em["file"]?.jsonPrimitive?.content ?: continue
+                    val urls = DleResolutionUtils.findMediaUrlsInText(rawFile)
+                    val bestUrl = if (urls.size > 1) DleResolutionUtils.pickBestQuality(urls) ?: urls.first() else rawFile
+                    
                     val title = em["title"]?.jsonPrimitive?.content ?: ""
                     val epNum = EP_TITLE_DIGITS.find(title)?.groupValues?.get(1)?.toIntOrNull() ?: continue
-                    episodesByNum.getOrPut(epNum) { mutableMapOf() }[vName] = url
+                    episodesByNum.getOrPut(epNum) { mutableMapOf() }[vName] = bestUrl
                 }
             }
 
@@ -236,9 +239,12 @@ object SeriesPlaylistParser {
             val folder = item["folder"]?.jsonArray ?: continue
             for (ep in folder) {
                 val em = ep as? JsonObject ?: continue
-                val url = em["file"]?.jsonPrimitive?.content ?: continue
+                val rawFile = em["file"]?.jsonPrimitive?.content ?: continue
+                val urls = DleResolutionUtils.findMediaUrlsInText(rawFile)
+                val bestUrl = if (urls.size > 1) DleResolutionUtils.pickBestQuality(urls) ?: urls.first() else rawFile
+                
                 val epNum = EP_TITLE_DIGITS.find(em["title"]?.jsonPrimitive?.content ?: "")?.groupValues?.get(1)?.toIntOrNull() ?: continue
-                epsByNum.getOrPut(epNum) { mutableMapOf() }[vName] = url
+                epsByNum.getOrPut(epNum) { mutableMapOf() }[vName] = bestUrl
             }
         }
         if (epsByNum.isEmpty()) return null
@@ -281,10 +287,13 @@ object SeriesPlaylistParser {
             for ((vName, eps) in voiceoverEps) {
                 for (ep in eps) {
                     val em = ep as? JsonObject ?: continue
-                    val url = em["file"]?.jsonPrimitive?.content ?: continue
+                    val rawFile = em["file"]?.jsonPrimitive?.content ?: continue
+                    val urls = DleResolutionUtils.findMediaUrlsInText(rawFile)
+                    val bestUrl = if (urls.size > 1) DleResolutionUtils.pickBestQuality(urls) ?: urls.first() else rawFile
+
                     val epTitle = em["title"]?.jsonPrimitive?.content ?: ""
                     val epNum = EP_TITLE_DIGITS.find(epTitle)?.groupValues?.get(1)?.toIntOrNull() ?: continue
-                    episodesByNum.getOrPut(epNum) { mutableMapOf() }[vName] = url
+                    episodesByNum.getOrPut(epNum) { mutableMapOf() }[vName] = bestUrl
                 }
             }
             val allEpisodes = episodesByNum.flatMap { (epNum, urls) ->

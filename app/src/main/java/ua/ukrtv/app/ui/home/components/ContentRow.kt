@@ -33,6 +33,10 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.draw.scale
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -189,15 +193,8 @@ private fun TvContentRow(
             DeviceClass.HIGH -> 1.25f
         }
     }
-    val rowT = remember { System.currentTimeMillis() }
-    if (ua.ukrtv.app.BuildConfig.DEBUG) {
-        LaunchedEffect(items) {
-            ua.ukrtv.app.util.AppLogger.d("ContentRow", "'$title' rendered ${items.size} items at ${System.currentTimeMillis() - rowT}ms")
-        }
-    }
-
     val lazyListState = rememberLazyListState()
-    val (rowFocus, firstItemFocus) = remember { FocusRequester.createRefs() }
+    val (rowFocus, firstItemFocus, trailingFocus) = remember { FocusRequester.createRefs() }
     val context = LocalContext.current
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
 
@@ -209,20 +206,11 @@ private fun TvContentRow(
     val enterTranslateYDp = if (animateEntrance && deviceClass == DeviceClass.HIGH) 12f else 0f
     val scope = rememberCoroutineScope()
 
-    // Re-focus row content when deviceClass changes to prevent focus escape to TopBar
-    val initialDeviceClass = remember { deviceClass }
-    LaunchedEffect(deviceClass) {
-        if (deviceClass != initialDeviceClass && items.isNotEmpty()) {
-            withFrameNanos { }
-            firstItemFocus.requestFocus()
-        }
-    }
-
     val rowHeight = remember(useWideCards, useLargeCards, cardScale) {
         val baseHeight = if (useWideCards) CardDefaults.wideHeight
         else if (useLargeCards) CardDefaults.posterHeight * 1.15f
         else CardDefaults.posterHeight
-        (baseHeight * cardScale) + 32.dp // Fixed height to prevent remeasure
+        (baseHeight * cardScale) + 32.dp
     }
 
     Column(modifier = Modifier.padding(bottom = 24.dp)) {
@@ -240,151 +228,160 @@ private fun TvContentRow(
                 }
             }
         ) {
-        LazyRow(
-            modifier = Modifier
-                .height(rowHeight)
-                .fillMaxWidth()
-                .focusRequester(rowFocus)
-                .onFocusChanged { state ->
-                    if (state.isFocused && items.isNotEmpty()) {
-                        scope.launch {
-                            withFrameNanos { }
-                            firstItemFocus.requestFocus()
+            LazyRow(
+                modifier = Modifier
+                    .height(rowHeight)
+                    .fillMaxWidth()
+                    .focusGroup()
+                    .focusRequester(rowFocus)
+                    .onFocusChanged { state ->
+                        if (state.isFocused) {
+                            scope.launch {
+                                withFrameNanos { }
+                                if (items.isNotEmpty()) firstItemFocus.requestFocus()
+                                else if (trailingContent != null) trailingFocus.requestFocus()
+                            }
                         }
-                    }
-                },
-            state = lazyListState,
-            flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState),
-            contentPadding = PaddingValues(horizontal = GridDefaults.horizontalPadding),
-            horizontalArrangement = Arrangement.spacedBy(GridDefaults.columnSpacing)
-        ) {
-            if (items.isEmpty() && isLoading) {
-                items(6, key = { "shimmer_$it" }) { shimmerIndex ->
-                    val shimmerWidth = (if (useWideCards) CardDefaults.wideWidth else CardDefaults.compactWidth) * cardScale
-                    val shimmerHeight = (if (useWideCards) CardDefaults.wideHeight else CardDefaults.compactHeight) * cardScale
-                    ShimmerBox(
-                        modifier = Modifier
-                            .width(shimmerWidth)
-                            .height(shimmerHeight),
-                        shape = Shapes.card
-                    )
-                }
-            }
-
-            itemsIndexed(
-                items = items,
-                key = { _, it -> "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" },
-                contentType = { _, _ -> if (useWideCards) "wide" else "movie" }
-            ) { index, item ->
-                val isFirst = index == 0
-                val isLast = index == items.lastIndex && trailingContent == null
-                val itemModifier = remember(isFirst) { if (isFirst) Modifier.focusRequester(firstItemFocus) else Modifier }
-
-                val keyBlockMod = remember(isFirst, isLast) {
-                    Modifier.onPreviewKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        when {
-                            isFirst && event.key == Key.DirectionLeft -> true
-                            isLast && event.key == Key.DirectionRight -> true
-                            else -> false
-                        }
+                    },
+                state = lazyListState,
+                flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState),
+                contentPadding = PaddingValues(horizontal = GridDefaults.horizontalPadding),
+                horizontalArrangement = Arrangement.spacedBy(GridDefaults.columnSpacing)
+            ) {
+                if (items.isEmpty() && isLoading) {
+                    items(6, key = { "shimmer_$it" }) { shimmerIndex ->
+                        val shimmerWidth = (if (useWideCards) CardDefaults.wideWidth else CardDefaults.compactWidth) * cardScale
+                        val shimmerHeight = (if (useWideCards) CardDefaults.wideHeight else CardDefaults.compactHeight) * cardScale
+                        ShimmerBox(
+                            modifier = Modifier
+                                .width(shimmerWidth)
+                                .height(shimmerHeight),
+                            shape = Shapes.card
+                        )
                     }
                 }
 
-                val lastSoundTime = remember { mutableLongStateOf(0L) }
-                val focusMod = remember(item, onItemFocused, audioManager, keyBlockMod, itemModifier) {
-                    itemModifier
-                        .focusProperties {
-                            // Prevent focus from escaping to the side (See All button) when scrolling down
-                            exit = { focusDirection ->
-                                if (focusDirection == androidx.compose.ui.focus.FocusDirection.Right && isLast) {
-                                    androidx.compose.ui.focus.FocusRequester.Cancel
-                                } else {
-                                    androidx.compose.ui.focus.FocusRequester.Default
+                itemsIndexed(
+                    items = items,
+                    key = { _, it -> "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" },
+                    contentType = { _, _ -> if (useWideCards) "wide" else "movie" }
+                ) { index, item ->
+                    val isFirst = index == 0
+                    val isLast = index == items.lastIndex && trailingContent == null
+                    val itemModifier = remember(isFirst) { if (isFirst) Modifier.focusRequester(firstItemFocus) else Modifier }
+
+                    val keyBlockMod = remember(isFirst, isLast) {
+                        Modifier.onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when {
+                                isFirst && event.key == Key.DirectionLeft -> true
+                                isLast && event.key == Key.DirectionRight -> true
+                                else -> false
+                            }
+                        }
+                    }
+
+                    val lastSoundTime = remember { mutableLongStateOf(0L) }
+                    val focusMod = remember(item, onItemFocused, audioManager, keyBlockMod, itemModifier) {
+                        itemModifier
+                            .focusProperties {
+                                exit = { focusDirection ->
+                                    if (focusDirection == androidx.compose.ui.focus.FocusDirection.Right) {
+                                        if (isLast) androidx.compose.ui.focus.FocusRequester.Cancel
+                                        else if (index == items.lastIndex && trailingContent != null) trailingFocus
+                                        else androidx.compose.ui.focus.FocusRequester.Default
+                                    } else {
+                                        androidx.compose.ui.focus.FocusRequester.Default
+                                    }
+                                }
+                            }
+                            .then(keyBlockMod)
+                            .onFocusChanged { state ->
+                            if (state.isFocused) {
+                                onItemFocused?.invoke(item)
+                                val now = System.currentTimeMillis()
+                                if (now - lastSoundTime.longValue > 150L) {
+                                    lastSoundTime.longValue = now
+                                    audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
                                 }
                             }
                         }
-                        .then(keyBlockMod)
-                        .onFocusChanged { state ->
-                        if (state.isFocused) {
-                            onItemFocused?.invoke(item)
-                            val now = System.currentTimeMillis()
-                            if (now - lastSoundTime.longValue > 150L) {
-                                lastSoundTime.longValue = now
-                                audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
+                    }
+
+                    val enterAlpha = if (enterAnimated) remember { Animatable(0f) } else null
+                    val enterScale = if (enterAnimated) remember { Animatable(enterStartScale) } else null
+                    val density = LocalDensity.current
+                    val translateYPx = remember(enterTranslateYDp) { with(density) { enterTranslateYDp.dp.toPx() } }
+                    val enterTranslateY = if (enterAnimated && translateYPx > 0f) remember { Animatable(translateYPx) } else null
+                    
+                    val animated = remember { mutableStateOf(!enterAnimated) }
+                    LaunchedEffect(animated.value) {
+                        if (!animated.value && enterAnimated) {
+                            delay(index * staggerMs.toLong())
+                            launch { enterScale?.animateTo(1f, tween(animDuration)) }
+                            if (translateYPx > 0f) {
+                                launch { enterTranslateY?.animateTo(0f, tween(animDuration)) }
                             }
+                            enterAlpha?.animateTo(1f, tween(animDuration))
+                            animated.value = true
+                        }
+                    }
+
+                    val entranceMod = focusMod
+                        .graphicsLayer(
+                            alpha = enterAlpha?.value ?: 1f,
+                            scaleX = enterScale?.value ?: 1f,
+                            scaleY = enterScale?.value ?: 1f,
+                            translationY = enterTranslateY?.value ?: 0f,
+                            compositingStrategy = CompositingStrategy.ModulateAlpha
+                        )
+
+                    val onClick = remember(item) { { onItemClick(item) } }
+                    val onDismiss = onItemDismiss?.let { remember(item) { { it(item) } } }
+                    val accentColor = remember(item.brandColor) {
+                        item.brandColor?.let { try { Color(android.graphics.Color.parseColor(it)) } catch(_: Exception) { null } }
+                            ?: PosterColorCache.getCached(item.poster)
+                            ?: brandColor
+                    }
+
+                    if (useWideCards) {
+                        ContinueWatchingCard(
+                            movie = item,
+                            brandColor = brandColor,
+                            accentColor = accentColor,
+                            onClick = onClick,
+                            onLongClick = onDismiss,
+                            onDismiss = onDismiss,
+                            modifier = entranceMod.animateItem()
+                        )
+                    } else {
+                        MovieCard(
+                            movie = item,
+                            brandColor = brandColor,
+                            accentColor = accentColor,
+                            width = (if (useLargeCards) CardDefaults.posterWidth * 1.15f else CardDefaults.posterWidth) * cardScale,
+                            height = (if (useLargeCards) CardDefaults.posterHeight * 1.15f else CardDefaults.posterHeight) * cardScale,
+                            onClick = onClick,
+                            onDismiss = onDismiss,
+                            modifier = entranceMod.animateItem()
+                        )
+                    }
+                }
+
+                if (trailingContent != null) {
+                    item(key = "__trailing", contentType = "trailing") {
+                        val trailingInteractionSource = remember { MutableInteractionSource() }
+                        Box(
+                            modifier = Modifier
+                                .focusRequester(trailingFocus)
+                                .focusable(interactionSource = trailingInteractionSource)
+                                .animateItem()
+                        ) {
+                            trailingContent()
                         }
                     }
                 }
-
-                val enterAlpha = if (enterAnimated) remember { Animatable(0f) } else null
-                val enterScale = if (enterAnimated) remember { Animatable(enterStartScale) } else null
-                val density = LocalDensity.current
-                val translateYPx = remember(enterTranslateYDp) { with(density) { enterTranslateYDp.dp.toPx() } }
-                val enterTranslateY = if (enterAnimated && translateYPx > 0f) remember { Animatable(translateYPx) } else null
-                
-                val animated = remember { mutableStateOf(!enterAnimated) }
-                LaunchedEffect(animated.value) {
-                    if (!animated.value && enterAnimated) {
-                        delay(index * staggerMs.toLong())
-                        launch { enterScale?.animateTo(1f, tween(animDuration)) }
-                        if (translateYPx > 0f) {
-                            launch { enterTranslateY?.animateTo(0f, tween(animDuration)) }
-                        }
-                        enterAlpha?.animateTo(1f, tween(animDuration))
-                        animated.value = true
-                    }
-                }
-
-                val entranceMod = focusMod
-                    .graphicsLayer(
-                        alpha = enterAlpha?.value ?: 1f,
-                        scaleX = enterScale?.value ?: 1f,
-                        scaleY = enterScale?.value ?: 1f,
-                        translationY = enterTranslateY?.value ?: 0f,
-                        compositingStrategy = CompositingStrategy.ModulateAlpha
-                    )
-
-                val onClick = remember(item) { { onItemClick(item) } }
-                val onDismiss = onItemDismiss?.let { remember(item) { { it(item) } } }
-                val accentColor = remember(item.brandColor) {
-                    item.brandColor?.let { try { Color(android.graphics.Color.parseColor(it)) } catch(_: Exception) { null } }
-                        ?: PosterColorCache.getCached(item.poster)
-                        ?: brandColor
-                }
-
-                if (useWideCards) {
-                    ContinueWatchingCard(
-                        movie = item,
-                        brandColor = brandColor,
-                        accentColor = accentColor,
-                        onClick = onClick,
-                        onLongClick = onDismiss,
-                        onDismiss = onDismiss,
-                        modifier = entranceMod.animateItem()
-                    )
-                } else {
-                    MovieCard(
-                        movie = item,
-                        brandColor = brandColor,
-                        accentColor = accentColor,
-                        width = (if (useLargeCards) CardDefaults.posterWidth * 1.15f else CardDefaults.posterWidth) * cardScale,
-                        height = (if (useLargeCards) CardDefaults.posterHeight * 1.15f else CardDefaults.posterHeight) * cardScale,
-                        onClick = onClick,
-                        onDismiss = onDismiss,
-                        modifier = entranceMod.animateItem()
-                    )
-                }
             }
-
-            if (trailingContent != null) {
-                item(key = "__trailing", contentType = "trailing") {
-                    Box(modifier = Modifier.focusProperties { canFocus = false }) {
-                        trailingContent()
-                    }
-                }
-            }
-        }
         }
     }
 }

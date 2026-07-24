@@ -16,6 +16,9 @@ interface WatchProgressDao {
     @Query("SELECT * FROM watch_progress WHERE id = :id")
     suspend fun getProgress(id: String): WatchProgressEntity?
 
+    @Query("SELECT * FROM watch_progress WHERE id IN (:ids)")
+    suspend fun getProgressForIds(ids: List<String>): List<WatchProgressEntity>
+
     @Query("SELECT * FROM watch_progress ORDER BY timestamp DESC")
     fun getAllProgress(): Flow<List<WatchProgressEntity>>
 

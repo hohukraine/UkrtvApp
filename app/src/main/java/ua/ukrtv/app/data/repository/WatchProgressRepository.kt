@@ -90,7 +90,6 @@ class WatchProgressRepository @Inject constructor(
         val entity = watchProgressDao.getProgress(id) ?: return null
         if (entity.streamUrl == null || entity.streamType == null) return null
         if (System.currentTimeMillis() - entity.timestamp > Constants.STREAM_DB_CACHE_TTL_MS) {
-            ua.ukrtv.app.util.AppLogger.d("WatchProgressRepo", "Stream cache expired for $id (age=${(System.currentTimeMillis() - entity.timestamp) / 1000}s)")
             return null
         }
         return StreamCache(
@@ -99,6 +98,22 @@ class WatchProgressRepository @Inject constructor(
             referer = entity.referer ?: "",
             fallbackUrls = entity.fallbackUrls?.split("|").orEmpty().filter { it.isNotEmpty() }
         )
+    }
+
+    suspend fun getStreamCacheForIds(ids: List<String>): Map<String, StreamCache> {
+        val entities = watchProgressDao.getProgressForIds(ids)
+        val now = System.currentTimeMillis()
+        return entities.filter {
+            it.streamUrl != null && it.streamType != null &&
+            (now - it.timestamp <= Constants.STREAM_DB_CACHE_TTL_MS)
+        }.associate { entity ->
+            entity.id to StreamCache(
+                streamUrl = entity.streamUrl!!,
+                streamType = entity.streamType!!,
+                referer = entity.referer ?: "",
+                fallbackUrls = entity.fallbackUrls?.split("|").orEmpty().filter { it.isNotEmpty() }
+            )
+        }
     }
 
     suspend fun getSeasonsJson(contentId: String, episodeId: String?): String? {

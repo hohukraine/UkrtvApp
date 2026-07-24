@@ -17,8 +17,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.util.UnstableApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import ua.ukrtv.app.util.AppLogger
 
@@ -37,6 +39,16 @@ fun ExternalPlayerScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     var playerLaunched by remember { mutableStateOf(viewModel.hasPendingExternalPlayerResult()) }
     var resultHandled by remember { mutableStateOf(false) }
+    var showCancelButton by remember { mutableStateOf(false) }
+
+    LaunchedEffect(playerLaunched) {
+        if (playerLaunched) {
+            delay(5000)
+            showCancelButton = true
+        }
+    }
+
+    val scope = rememberCoroutineScope()
 
     val externalPlayerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -44,15 +56,17 @@ fun ExternalPlayerScreen(
         resultHandled = true
         viewModel.releaseExternalPlayerLaunchLock()
         viewModel.releaseEngine()
-        val returnResult = viewModel.handleExternalPlayerResult(result.resultCode, result.data)
-        when (returnResult) {
-            is ExternalPlayerReturnResult.Advanced -> {
-                playerLaunched = false
-                resultHandled = false
-            }
-            else -> {
-                playerLaunched = false
-                onBack()
+        scope.launch {
+            val returnResult = viewModel.handleExternalPlayerResult(result.resultCode, result.data)
+            when (returnResult) {
+                is ExternalPlayerReturnResult.Advanced -> {
+                    playerLaunched = false
+                    resultHandled = false
+                }
+                else -> {
+                    playerLaunched = false
+                    onBack()
+                }
             }
         }
     }
@@ -114,6 +128,12 @@ fun ExternalPlayerScreen(
         (currentStatus is PlayerStatus.Ready && playerLaunched)
     )
 
+    androidx.activity.compose.BackHandler(enabled = isLoadingVisible) {
+        viewModel.releaseExternalPlayerLaunchLock()
+        viewModel.savedStateHandle[PlayerViewModel.KEY_PENDING_RESULT] = false
+        onBack()
+    }
+
     Box(
         modifier = Modifier.fillMaxSize().background(Color.Black),
         contentAlignment = Alignment.Center
@@ -134,12 +154,30 @@ fun ExternalPlayerScreen(
                 }
             }
             else -> {
-                EpisodeLoadingOverlay(
-                    poster = poster,
-                    season = state.currentSeason,
-                    episode = state.currentEpisode,
-                    visible = isLoadingVisible
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    EpisodeLoadingOverlay(
+                        poster = poster,
+                        season = state.currentSeason,
+                        episode = state.currentEpisode,
+                        visible = isLoadingVisible
+                    )
+                    
+                    if (isLoadingVisible && showCancelButton) {
+                        Spacer(Modifier.height(32.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    viewModel.releaseExternalPlayerLaunchLock()
+                                    viewModel.savedStateHandle[PlayerViewModel.KEY_PENDING_RESULT] = false
+                                    onBack()
+                                }
+                                .padding(horizontal = 24.dp, vertical = 12.dp)
+                        ) {
+                            Text("Скасувати очікування", color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+                }
             }
         }
     }

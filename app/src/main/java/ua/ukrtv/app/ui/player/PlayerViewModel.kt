@@ -43,6 +43,7 @@ import ua.ukrtv.app.domain.model.StreamType
 import android.content.Intent
 import javax.inject.Inject
 
+@androidx.media3.common.util.UnstableApi
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     @ApplicationContext val appContext: Context,
@@ -85,13 +86,9 @@ class PlayerViewModel @Inject constructor(
     private var crossProviderRetried = false
     private var availableStreams: MutableList<String> = mutableListOf()
     private var currentStreamIndex: Int = 0
-    private var seasons: List<Season> = run {
-        val json = savedStateHandle.get<String>(KEY_SEASONS)
-        if (json != null) deserializeSeasons(json) else emptyList()
-    }
+    private var seasons: List<Season> = emptyList()
         set(value) {
             field = value
-            savedStateHandle[KEY_SEASONS] = serializeSeasons(value)
         }
 
     private var loadJob: kotlinx.coroutines.Job? = null
@@ -110,12 +107,6 @@ class PlayerViewModel @Inject constructor(
             if (externalPlayerLaunchLocked) return false
             externalPlayerLaunchLocked = true
             return true
-        }
-    }
-
-    fun releaseExternalPlayerLaunchLock() {
-        synchronized(externalPlayerLaunchLock) {
-            externalPlayerLaunchLocked = false
         }
     }
 
@@ -193,6 +184,20 @@ class PlayerViewModel @Inject constructor(
         selectedCodecMime = null
         crossProviderRetried = false
 
+        if (seasons.isEmpty()) {
+            viewModelScope.launch(Dispatchers.IO) {
+                watchProgressRepository.getSeasonsJson(contentId, episodeId)?.let { json ->
+                    val restored = deserializeSeasons(json)
+                    if (restored.isNotEmpty()) {
+                        withContext(Dispatchers.Main) {
+                            seasons = restored
+                            updateNavigationState()
+                        }
+                    }
+                }
+            }
+        }
+
         savedStateHandle[KEY_CONTENT_ID] = contentId
         savedStateHandle[KEY_PAGE_URL] = pageUrl
         savedStateHandle[KEY_SEASON] = effectiveSeason
@@ -233,16 +238,7 @@ class PlayerViewModel @Inject constructor(
                     val pos = forceStartPosition
                         ?: withContext(Dispatchers.IO) { watchProgressRepository.getProgress(contentId, episodeId)?.positionMs }
                         ?: 0L
-                    if (this@PlayerViewModel.seasons.isEmpty()) {
-                        val dbSeasonsJson = withContext(Dispatchers.IO) { watchProgressRepository.getSeasonsJson(contentId, episodeId) }
-                        if (dbSeasonsJson != null) {
-                            val restored = deserializeSeasons(dbSeasonsJson)
-                            if (restored.isNotEmpty()) {
-                                this@PlayerViewModel.seasons = restored
-                                AppLogger.d("PickerVM", "Restored ${restored.size} seasons from DB")
-                            }
-                        }
-                    }
+                    
                     _state.update { it.copy(
                         status = PlayerStatus.Ready(cached.streamUrl, this@PlayerViewModel.title, subtitle, pos, cached.referer, ua.ukrtv.app.domain.model.StreamType.valueOf(cached.streamType), loadTrigger = System.currentTimeMillis()),
                         availableSeasons = this@PlayerViewModel.seasons
@@ -264,15 +260,6 @@ class PlayerViewModel @Inject constructor(
                     this@PlayerViewModel.referer = res.referer
                     if (res.seasons != null) {
                         this@PlayerViewModel.seasons = res.seasons
-                    } else if (this@PlayerViewModel.seasons.isEmpty()) {
-                        val dbSeasonsJson = withContext(Dispatchers.IO) { watchProgressRepository.getSeasonsJson(contentId, episodeId) }
-                        if (dbSeasonsJson != null) {
-                            val restored = deserializeSeasons(dbSeasonsJson)
-                            if (restored.isNotEmpty()) {
-                                this@PlayerViewModel.seasons = restored
-                                AppLogger.d("PickerVM", "Restored ${restored.size} seasons from DB (non-cache path)")
-                            }
-                        }
                     }
                     val pos = forceStartPosition ?: getSavedPosition()
 
@@ -1070,45 +1057,62 @@ class PlayerViewModel @Inject constructor(
         return mediaPrefetcher.getCachedDataSourceFactory(appContext, httpFactory)
     }
 
-    fun createExternalPlayerIntent(): Intent? {
+    fun releaseExternalPlayerLaunchLock() {
+        synchronized(externalPlayerLaunchLock) {
+            externalPlayerLaunchLocked = false
+        }
+    }
+
+    fun hasPendingExternalPlayerResult(): Boolean {
+        return savedStateHandle.get<Boolean>(KEY_PENDING_RESULT) ?: false
+    }
+
+    fun getCurrentExternalPlayerInfo(): ExternalPlayerInfo? {
+        val packageName = playerPreferences.externalPlayerPackage.value
+        return externalPlayerLauncher.getPlayerInfo(packageName)
+    }
+
+    suspend fun createExternalPlayerIntent(): Intent? {
         val status = _state.value.status as? PlayerStatus.Ready ?: return null
         val packageName = playerPreferences.externalPlayerPackage.value
         val playerInfo = externalPlayerLauncher.getPlayerInfo(packageName) ?: return null
 
-        val currentSeason = seasons.find { it.number == (season ?: 1) }
+        val currentSeasonNum = this.season ?: 1
+        val currentSeason = seasons.find { it.number == currentSeasonNum }
         val currentVoiceover = voiceover ?: currentSeason?.voiceoverOptions?.firstOrNull()
 
         val allEpisodes = currentSeason
             ?.let { season ->
                 season.voiceovers
-                    .let { voiceovers ->
-                        voiceovers.find { it.name == currentVoiceover }
-                            ?: voiceovers.find { currentVoiceover != null && it.name.equals(currentVoiceover, ignoreCase = true) }
-                            ?: voiceovers.find { currentVoiceover != null && it.name.contains(currentVoiceover, ignoreCase = true) }
-                            ?: voiceovers.firstOrNull()
-                    }?.episodes
+                    .find { it.name == currentVoiceover }
+                    ?.episodes
                     ?.filter { ua.ukrtv.app.data.streaming.isLikelyPlayableUrl(it.url) }
                     ?: season.episodes.filter { ua.ukrtv.app.data.streaming.isLikelyPlayableUrl(it.url) }
             }
             ?: emptyList()
 
-        val currentEpisode = episode
-        val currentSeasonNum = season
-        val effectiveEpisodes = if (allEpisodes.isEmpty() && currentEpisode != null) {
-            listOf(ua.ukrtv.app.domain.model.Episode(number = currentEpisode, title = "S${currentSeasonNum ?: 1}E$currentEpisode", url = status.url))
+        val currentEpisodeNum = this.episode ?: 1
+        val effectiveEpisodes = if (allEpisodes.isEmpty()) {
+            listOf(ua.ukrtv.app.domain.model.Episode(number = currentEpisodeNum, title = "S${currentSeasonNum}E$currentEpisodeNum", url = status.url))
         } else {
             allEpisodes
         }
 
-        // Reorder playlist so current episode is first, or keep full list but ensure it's limited
-        val currentEpisodeNum = this.episode ?: 1
-        val currentIdx = effectiveEpisodes.indexOfFirst { it.number == currentEpisodeNum }
-            .takeIf { it >= 0 } ?: 0
-        val playlist = effectiveEpisodes.map {
+        // Batch fetch stream cache for the entire season to avoid blocking the main thread in a loop
+        val epIds = effectiveEpisodes.map { "${contentId}_s${currentSeasonNum}e${it.number}" }
+        val caches = withContext(Dispatchers.IO) { watchProgressRepository.getStreamCacheForIds(epIds) }
+
+        val currentIdx = effectiveEpisodes.indexOfFirst { it.number == currentEpisodeNum }.coerceAtLeast(0)
+        
+        val playlist = effectiveEpisodes.map { ep ->
+            val epId = "${contentId}_s${currentSeasonNum}e${ep.number}"
+            // Ensure the current episode in the playlist matches the exact URL we are sending to the player
+            val streamUrl = if (ep.number == currentEpisodeNum) status.url else (caches[epId]?.streamUrl ?: ep.url)
+
             ExternalPlayerLauncher.PlaylistItem(
-                url = it.url,
-                title = "${status.title} - ${it.title}",
-                streamType = ua.ukrtv.app.data.streaming.getStreamType(it.url)
+                url = streamUrl,
+                title = "${status.title} - ${ep.title}",
+                streamType = ua.ukrtv.app.data.streaming.getStreamType(streamUrl)
             )
         }
 
@@ -1120,87 +1124,48 @@ class PlayerViewModel @Inject constructor(
             positionMs = status.positionMs,
             durationMs = savedStateHandle.get<Long>(KEY_EXTERNAL_DURATION) ?: 0L,
             playlist = playlist,
-            playlistCurrentIndex = if (currentIdx != -1) currentIdx else 0
+            playlistCurrentIndex = currentIdx
         )
         return externalPlayerLauncher.buildIntent(playerInfo, config)
     }
 
-    fun handleExternalPlayerResult(resultCode: Int, data: Intent?): ExternalPlayerReturnResult {
+    suspend fun handleExternalPlayerResult(resultCode: Int, data: Intent?): ExternalPlayerReturnResult {
         savedStateHandle[KEY_PENDING_RESULT] = false
         val result = externalPlayerLauncher.extractResult(resultCode, data) ?: return ExternalPlayerReturnResult.Error
         
-        AppLogger.d("PlayerVM", "External player result: code=$resultCode position=${result.positionMs} duration=${result.durationMs} finished=${result.isFinished} url=${result.url} seasonsSize=${seasons.size} season=$season episode=$episode")
+        AppLogger.d("PlayerVM", "External player result: code=$resultCode position=${result.positionMs} duration=${result.durationMs} finished=${result.isFinished} url=${result.url}")
 
         if (result.positionMs == 0L && result.durationMs == 0L && !result.isFinished) {
-            AppLogger.d("PlayerVM", "External player returned no data (0/0) and not finished, keeping pre-launch save")
             return ExternalPlayerReturnResult.NoData
         }
 
-        val durationMs = if (result.durationMs > 0) {
-            result.durationMs
-        } else {
-            savedStateHandle.get<Long>(KEY_EXTERNAL_DURATION) ?: 0L
-        }
+        val durationMs = if (result.durationMs > 0) result.durationMs 
+                         else savedStateHandle.get<Long>(KEY_EXTERNAL_DURATION) ?: 0L
 
         val isFinished = result.isFinished || (
             durationMs > 0 && result.positionMs > 0 &&
             result.positionMs.toFloat() / durationMs >= 0.90f
         )
 
-        val activeMs = if (externalPlayerLaunchTimeMs > 0L) {
-            System.currentTimeMillis() - externalPlayerLaunchTimeMs
-        } else {
-            Long.MAX_VALUE
-        }
-
-        val endBy = try { data?.extras?.getString("end_by") } catch (_: Exception) { null }
-
-        if (isFinished && result.positionMs == 0L && activeMs < MINIMUM_EXTERNAL_PLAYBACK_MS && endBy != "playback_completion") {
-            AppLogger.w("PlayerVM", "External player returned completion after ${activeMs}ms with pos=0 (end_by=$endBy) — treating as error (minimum=${MINIMUM_EXTERNAL_PLAYBACK_MS}ms)")
-            externalPlayerLaunchTimeMs = 0L
-            return ExternalPlayerReturnResult.Error
-        }
-
-        AppLogger.d("PlayerVM", "Re-evaluated isFinished=$isFinished (original=${result.isFinished} pos=${result.positionMs} dur=$durationMs activeMs=$activeMs)")
-
         // Identify which episode was playing based on the returned URL
-        val resultUrl = result.url
-        var targetSeason = this.season
-        var targetEpisode = this.episode
-
-        if (resultUrl != null) {
-            val matchedEpisode = seasons.flatMap { s -> s.episodes.map { s.number to it } }
-                .find { it.second.url == resultUrl }
-            
-            if (matchedEpisode != null) {
-                val oldS = targetSeason
-                val oldE = targetEpisode
-                targetSeason = matchedEpisode.first
-                targetEpisode = matchedEpisode.second.number
-                
-                if (targetSeason != oldS || targetEpisode != oldE) {
-                    AppLogger.d("PlayerVM", "External player advanced from S${oldS}E${oldE} to S${targetSeason}E${targetEpisode}")
-                    
-                    // Mark previous episodes as finished
-                    markIntermediateEpisodesAsFinished(oldS, oldE, targetSeason, targetEpisode)
-                    
-                    // Update current context to the new episode
-                    this.season = targetSeason
-                    this.episode = targetEpisode
-                    this.episodeId = "s${targetSeason}e${targetEpisode}"
-                    savedStateHandle[KEY_SEASON] = targetSeason
-                    savedStateHandle[KEY_EPISODE] = targetEpisode
+        result.url?.let { resUrl ->
+            seasons.forEach { s ->
+                s.episodes.find { it.url == resUrl }?.let { matchedEp ->
+                    if (this.season != s.number || this.episode != matchedEp.number) {
+                        AppLogger.d("PlayerVM", "Advanced to S${s.number}E${matchedEp.number}")
+                        markIntermediateEpisodesAsFinished(this.season, this.episode, s.number, matchedEp.number)
+                        this.season = s.number
+                        this.episode = matchedEp.number
+                        this.episodeId = "s${s.number}e${matchedEp.number}"
+                        savedStateHandle[KEY_SEASON] = s.number
+                        savedStateHandle[KEY_EPISODE] = matchedEp.number
+                    }
                 }
             }
         }
 
         if (durationMs > 0) {
-            val positionMs = if (isFinished && result.positionMs == 0L) {
-                durationMs
-            } else {
-                result.positionMs
-            }
-            saveProgress(positionMs, durationMs)
+            saveProgress(if (isFinished) durationMs else result.positionMs, durationMs)
         }
 
         if (isFinished && seasons.isNotEmpty()) {
@@ -1214,14 +1179,11 @@ class PlayerViewModel @Inject constructor(
                 AppLogger.d("PlayerVM", "Defaulted to S${this.season}E${this.episode}")
             }
             if (hasNextEpisode()) {
-                try {
-                    advanceToNextEpisodeFromExternalPlayer()
-                    return ExternalPlayerReturnResult.Advanced
-                } catch (e: Exception) {
-                    AppLogger.e("PlayerVM", "Failed to advance to next episode: ${e.message}", e)
-                }
+                advanceToNextEpisodeFromExternalPlayer()
+                return ExternalPlayerReturnResult.Advanced
             }
         }
+        
         return ExternalPlayerReturnResult.NotFinished(result.positionMs, durationMs)
     }
 
@@ -1237,9 +1199,7 @@ class PlayerViewModel @Inject constructor(
                 for (i in startIndex until endIndex) {
                     val ep = allEpisodes[i]
                     val epId = "s${ep.first}e${ep.second}"
-                    // Mock duration if unknown, 1h
                     val dur = 3600_000L
-                    AppLogger.d("PlayerVM", "Marking intermediate episode $epId as finished")
                     watchProgressRepository.saveProgress(
                         contentId, epId, dur, dur, title, poster, pageUrl,
                         ep.third.url, ua.ukrtv.app.data.streaming.getStreamType(ep.third.url).name, referer

@@ -99,9 +99,10 @@ class ExternalPlayerLauncher(private val context: Context) {
 
     private fun buildVlcIntent(config: PlayerLaunchConfig): Intent {
         val uri = Uri.parse(config.streamUrl)
+        val mime = getMimeType(config.streamType)
 
         return Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "video/*")
+            setDataAndType(uri, mime)
             setPackage("org.videolan.vlc")
             setComponent(ComponentName("org.videolan.vlc", "org.videolan.vlc.gui.video.VideoPlayerActivity"))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -213,6 +214,21 @@ class ExternalPlayerLauncher(private val context: Context) {
                 headers.addAll(listOf("Cookie", config.cookies))
             }
             putExtra("headers", headers.toTypedArray())
+
+            if (config.playlist.isNotEmpty()) {
+                val uris = config.playlist.map { Uri.parse(it.url) }.toTypedArray()
+                val titles = config.playlist.map { it.title }.toTypedArray()
+                
+                putExtra("video_list", uris)
+                putExtra("video_list.name", titles)
+                putExtra("video_list_cursor", config.playlistCurrentIndex)
+
+                val clipData = ClipData.newRawUri("Playlist", uris[0])
+                for (i in 1 until uris.size) {
+                    clipData.addItem(ClipData.Item(uris[i]))
+                }
+                setClipData(clipData)
+            }
         }
     }
 

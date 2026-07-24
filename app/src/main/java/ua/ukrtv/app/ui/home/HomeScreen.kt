@@ -401,7 +401,8 @@ private fun HomeScreenContent(
                             trailingContent = {
                                 TrendsTrailingButton(
                                     brandColor = providerColor,
-                                    onClick = onSeeAllTrendsClick
+                                    onClick = onSeeAllTrendsClick,
+                                    useLargeCards = true
                                 )
                             }
                         )
