@@ -114,7 +114,7 @@ private fun PhoneContentRow(
             horizontalArrangement = Arrangement.spacedBy(PhoneGridDefaults.columnSpacing)
         ) {
             if (isLoading && items.isEmpty()) {
-                items(5) {
+                items(5, key = { "phone_shimmer_$it" }) {
                     val width = if (useWideCards) PhoneCardDefaults.wideWidth else PhoneCardDefaults.posterWidth
                     val height = if (useWideCards) PhoneCardDefaults.wideHeight else PhoneCardDefaults.posterHeight
                     ShimmerBox(
@@ -146,7 +146,7 @@ private fun PhoneContentRow(
                         brandColor = brandColor,
                         accentColor = accentColor,
                         onClick = onClick,
-                        modifier = Modifier.graphicsLayer { alpha = enterAlpha.value }.animateItem()
+                        modifier = Modifier.graphicsLayer { alpha = enterAlpha.value }
                     )
                 } else {
                     MovieCard(
@@ -156,7 +156,7 @@ private fun PhoneContentRow(
                         width = PhoneCardDefaults.posterWidth,
                         height = PhoneCardDefaults.posterHeight,
                         onClick = onClick,
-                        modifier = Modifier.graphicsLayer { alpha = enterAlpha.value }.animateItem()
+                        modifier = Modifier.graphicsLayer { alpha = enterAlpha.value }
                     )
                 }
             }
@@ -352,7 +352,7 @@ private fun TvContentRow(
                             onClick = onClick,
                             onLongClick = onDismiss,
                             onDismiss = onDismiss,
-                            modifier = entranceMod.animateItem()
+                            modifier = entranceMod
                         )
                     } else {
                         MovieCard(
@@ -363,7 +363,7 @@ private fun TvContentRow(
                             height = (if (useLargeCards) CardDefaults.posterHeight * 1.15f else CardDefaults.posterHeight) * cardScale,
                             onClick = onClick,
                             onDismiss = onDismiss,
-                            modifier = entranceMod.animateItem()
+                            modifier = entranceMod
                         )
                     }
                 }
@@ -375,7 +375,6 @@ private fun TvContentRow(
                             modifier = Modifier
                                 .focusRequester(trailingFocus)
                                 .focusable(interactionSource = trailingInteractionSource)
-                                .animateItem()
                         ) {
                             trailingContent()
                         }

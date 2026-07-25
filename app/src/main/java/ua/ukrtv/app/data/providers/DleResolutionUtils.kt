@@ -4,8 +4,8 @@ import ua.ukrtv.app.util.AppLogger
 
 object DleResolutionUtils {
 
-    private val MEDIA_URL_REGEX = Regex("""https?://[^\s"'>]+(?:\.m3u8|\.mp4|\.webm)(?:\?[^\s"'>]*)?""", RegexOption.IGNORE_CASE)
-    private val MEDIA_PLAYLIST_REGEX = Regex("""https?://[^\s"'>]+/(?:master\.m3u8|index\.m3u8|playlist\.m3u8)""", RegexOption.IGNORE_CASE)
+    private val MEDIA_URL_REGEX = Regex("""(?:https?:)?//[^\s"'>]+(?:\.m3u8|\.mp4|\.webm)(?:\?[^\s"'>]*)?""", RegexOption.IGNORE_CASE)
+    private val MEDIA_PLAYLIST_REGEX = Regex("""(?:https?:)?//[^\s"'>]+/(?:master\.m3u8|index\.m3u8|playlist\.m3u8)""", RegexOption.IGNORE_CASE)
     private val DLEID_REGEX = Regex("""dleid://(\d+)""")
     private val DATA_FILE_REGEX = Regex("""data-file=["'](//[^"']+)["']""", RegexOption.IGNORE_CASE)
     private val YEAR_CLEANUP_REGEX = Regex("""\b(19|20)\d{2}\b""")

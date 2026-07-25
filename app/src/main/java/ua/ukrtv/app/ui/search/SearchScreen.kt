@@ -47,37 +47,23 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import ua.ukrtv.app.ui.home.components.HomeBackground
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import ua.ukrtv.app.domain.model.Movie
-import ua.ukrtv.app.data.repository.ContentRepository
-import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.ui.home.MovieCard
 import ua.ukrtv.app.ui.theme.PlaceholderDark
-import ua.ukrtv.app.ui.theme.LocalDeviceClass
-import ua.ukrtv.app.ui.theme.LocalIsMediatek
-import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.Error
 import ua.ukrtv.app.ui.theme.GridDefaults
 import ua.ukrtv.app.ui.theme.OnSurface
 import ua.ukrtv.app.ui.theme.OnSurfaceDim
-import ua.ukrtv.app.ui.theme.OnSurfaceVariant
 import ua.ukrtv.app.ui.theme.OverlayLight
 import ua.ukrtv.app.ui.theme.Surface
 import ua.ukrtv.app.ui.theme.SurfaceFocus
-import ua.ukrtv.app.ui.theme.SurfaceVariant
 import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.PhoneCardDefaults
@@ -88,10 +74,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import coil3.compose.AsyncImage
 import coil3.request.crossfade
 import coil3.request.ImageRequest
-import ua.ukrtv.app.ui.theme.Shapes
-
-import javax.inject.Inject
-
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 
@@ -111,131 +93,6 @@ sealed class SearchState {
 data class Suggestion(val text: String, val type: SuggestionType)
 
 enum class SuggestionType { HISTORY, TRENDING }
-
-@HiltViewModel
-class SearchViewModel @Inject constructor(
-    private val repository: ContentRepository,
-    private val historyDao: ua.ukrtv.app.data.local.dao.SearchHistoryDao,
-    private val providerManager: ProviderManager,
-    savedStateHandle: androidx.lifecycle.SavedStateHandle
-) : ViewModel() {
-    private val _state = MutableStateFlow<SearchState>(SearchState.Idle)
-    val state: StateFlow<SearchState> = _state
-
-    private val initialQ = try {
-        java.net.URLDecoder.decode(savedStateHandle.get<String>("q") ?: "", "UTF-8")
-    } catch (_: Exception) {
-        savedStateHandle.get<String>("q") ?: ""
-    }
-    private val _query = MutableStateFlow(initialQ)
-    val query: StateFlow<String> = _query
-
-    private val _history = MutableStateFlow<List<String>>(emptyList())
-    val history: StateFlow<List<String>> = _history
-
-    private val _suggestions = MutableStateFlow<List<Suggestion>>(emptyList())
-    val suggestions: StateFlow<List<Suggestion>> = _suggestions
-
-    val trendingMovies = flow {
-        emit(repository.getPopularByCategory(ua.ukrtv.app.data.providers.ContentCategory.MOVIES).firstOrNull() ?: emptyList())
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val brandColor: StateFlow<Long> = providerManager.activeProvider
-        .map { provider ->
-            val colorInt = try { android.graphics.Color.parseColor(provider.brandColor) } catch (_: Exception) { 0xFF6E85B7.toInt() }
-            (colorInt.toLong() and 0xFFFFFFFFL)
-        }
-        .distinctUntilChanged()
-        .onStart {
-            val p = providerManager.activeProvider.value
-            val colorInt = try { android.graphics.Color.parseColor(p.brandColor) } catch (_: Exception) { 0xFF6E85B7.toInt() }
-            emit((colorInt.toLong() and 0xFFFFFFFFL))
-        }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0xFF6E85B7)
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val currentProviderId: StateFlow<String> = providerManager.activeProvider
-        .map { it.name }
-        .distinctUntilChanged()
-        .onStart { emit(providerManager.activeProvider.value.name) }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
-
-    init {
-        loadHistory()
-        viewModelScope.launch {
-            _query
-                .debounce(300)
-                .distinctUntilChanged()
-                .collectLatest { query ->
-                    if (query.isBlank()) {
-                        _state.value = SearchState.Idle
-                        updateSuggestions("")
-                        return@collectLatest
-                    }
-
-                    _state.value = SearchState.Loading
-                    repository.search(query).collect { result ->
-                        result.onSuccess { movies ->
-                            _state.value = SearchState.Success(movies)
-                        }.onFailure { e ->
-                            _state.value = SearchState.Error(e.message ?: "Помилка пошуку")
-                        }
-                    }
-                }
-        }
-    }
-
-    private fun loadHistory() {
-        viewModelScope.launch(Dispatchers.IO) {
-            val recent = historyDao.getRecent().map { it.query }
-            _history.value = recent
-        }
-    }
-
-    fun saveToHistory(query: String) {
-        if (query.length < 3) return
-        viewModelScope.launch(Dispatchers.IO) {
-            historyDao.insert(ua.ukrtv.app.data.local.entity.SearchHistoryEntity(query.lowercase().trim()))
-            loadHistory()
-        }
-    }
-
-    fun retrySearch() {
-        val q = _query.value
-        if (q.isNotBlank()) {
-            _query.value = ""
-            _query.value = q
-        }
-    }
-
-    fun search(query: String) {
-        _query.value = query
-    }
-
-    fun updateQuery(q: String) {
-        _query.value = q
-        updateSuggestions(q)
-    }
-
-    private fun updateSuggestions(q: String) {
-        val hist = _history.value
-        if (q.isBlank()) {
-            _suggestions.value = hist.take(5).map { Suggestion(it, SuggestionType.HISTORY) }
-        } else {
-            val ql = q.lowercase()
-            val filtered = hist.filter { it.lowercase().contains(ql) }
-                .take(5)
-                .map { Suggestion(it, SuggestionType.HISTORY) }
-            _suggestions.value = filtered
-        }
-    }
-
-    fun clearQuery() {
-        _query.value = ""
-        _state.value = SearchState.Idle
-    }
-}
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable

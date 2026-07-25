@@ -27,6 +27,11 @@ class StreamResolver @Inject constructor(
         ttlMs = ua.ukrtv.app.Constants.STREAM_RESOLUTION_CACHE_TTL_MS
     )
 
+    private val failedResolutionCache = ua.ukrtv.app.data.TtlLruCache<String, Boolean>(
+        maxSize = 50,
+        ttlMs = 30_000L  // 30 секунд
+    )
+
     private val inflightMutexes = ConcurrentHashMap<String, Mutex>()
 
     private val resolutionChain = ResolutionChain(
@@ -57,6 +62,11 @@ class StreamResolver @Inject constructor(
                     streamResolutionCache.get(cacheKey)?.let { cached ->
                         AppLogger.d("StreamResolver", "Cache hit for $url")
                         return@withContext cached
+                    }
+
+                    if (failedResolutionCache.get(cacheKey) == true) {
+                        AppLogger.d("StreamResolver", "Failed cache hit for $url")
+                        return@withContext null
                     }
 
                     val mutex = inflightMutexes.computeIfAbsent(cacheKey) { Mutex() }
@@ -105,6 +115,8 @@ class StreamResolver @Inject constructor(
                             
                             if (currentResult != null) {
                                 streamResolutionCache.put(cacheKey, currentResult)
+                            } else {
+                                failedResolutionCache.put(cacheKey, true)
                             }
                             
                             return@withLock currentResult

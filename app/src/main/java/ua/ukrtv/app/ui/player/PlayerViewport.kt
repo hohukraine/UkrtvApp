@@ -184,6 +184,7 @@ fun PlayerReadyContent(
                 }
 
                 override fun onEndReached() {
+                    if (endedCountdown != null) return  // guard від затриманого STATE_ENDED
                     viewModel.saveProgress(currentPosition, duration)
                     if (viewModel.prepareNextEpisode()) {
                         endedCountdown = NEXT_EPISODE_COUNTDOWN_SEC

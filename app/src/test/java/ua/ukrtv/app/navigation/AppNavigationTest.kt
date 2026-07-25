@@ -22,81 +22,76 @@ class AppNavigationTest {
         unmockkStatic(Uri::class)
     }
 
+    // --- Type-safe route tests ---
+
     @Test
-    fun `searchRoute with empty query`() {
-        assertEquals("search?q=", AppNavigation.searchRoute())
+    fun `Search route with default query`() {
+        val route = Screen.Search()
+        assertEquals(Screen.Search(q = null), route)
     }
 
     @Test
-    fun `searchRoute with simple query`() {
-        assertEquals("search?q=avatar", AppNavigation.searchRoute("avatar"))
+    fun `Search route with query`() {
+        val route = Screen.Search(q = "avatar")
+        assertEquals("avatar", route.q)
     }
 
     @Test
-    fun `searchRoute with spaces`() {
-        assertEquals("search?q=the godfather", AppNavigation.searchRoute("the godfather"))
+    fun `Detail route encodes id and url`() {
+        val route = Screen.Detail(id = "123", url = "https://example.com/movie.html")
+        assertEquals("123", route.id)
+        assertEquals("https://example.com/movie.html", route.url)
+        assertNull(route.alternate)
     }
 
     @Test
-    fun `searchRoute with special characters`() {
-        val result = AppNavigation.searchRoute("movie (2024)")
-        assertTrue(result.startsWith("search?q="))
-        assertTrue(result.contains("2024"))
+    fun `Detail route with alternate url`() {
+        val route = Screen.Detail(id = "123", url = "https://example.com/movie.html", alternate = "https://alt.com/movie.html")
+        assertNotNull(route.alternate)
+        assertEquals("https://alt.com/movie.html", route.alternate)
     }
 
     @Test
-    fun `detailRoute encodes id and url`() {
-        val result = AppNavigation.detailRoute("123", "https://example.com/movie.html")
-        assertTrue(result.startsWith("detail/123?url="))
-        assertTrue(result.contains("https://example.com/movie.html"))
+    fun `Detail route without alternate url`() {
+        val route = Screen.Detail(id = "123", url = "https://example.com/movie.html")
+        assertNull(route.alternate)
     }
 
     @Test
-    fun `detailRoute with alternate url`() {
-        val result = AppNavigation.detailRoute("123", "https://example.com/movie.html", "https://alt.com/movie.html")
-        assertTrue(result.contains("alternate="))
-        assertTrue(result.contains("https://alt.com/movie.html"))
+    fun `Player route with basic params`() {
+        val route = Screen.Player(id = "123", title = "Movie Title", url = "https://example.com/stream.m3u8")
+        assertEquals("123", route.id)
+        assertEquals("Movie Title", route.title)
+        assertEquals("https://example.com/stream.m3u8", route.url)
+        assertNull(route.season)
+        assertNull(route.episode)
+        assertEquals("", route.poster)
     }
 
     @Test
-    fun `detailRoute without alternate url`() {
-        val result = AppNavigation.detailRoute("123", "https://example.com/movie.html")
-        assertFalse(result.contains("alternate"))
+    fun `Player route with season and episode`() {
+        val route = Screen.Player(id = "123", title = "Movie", url = "https://example.com", season = 2, episode = 3)
+        assertEquals(2, route.season)
+        assertEquals(3, route.episode)
     }
 
     @Test
-    fun `playerRoute with basic params`() {
-        val result = AppNavigation.playerRoute("123", "Movie Title", "https://example.com/stream.m3u8")
-        assertTrue(result.startsWith("player/123/"))
-        assertTrue(result.contains("Movie Title"))
-        assertTrue(result.contains("url="))
+    fun `Player route without season and episode`() {
+        val route = Screen.Player(id = "123", title = "Movie", url = "https://example.com")
+        assertNull(route.season)
+        assertNull(route.episode)
     }
 
     @Test
-    fun `playerRoute with season and episode`() {
-        val result = AppNavigation.playerRoute("123", "Movie", "https://example.com", season = 2, episode = 3)
-        assertTrue(result.contains("season=2"))
-        assertTrue(result.contains("episode=3"))
+    fun `Player route with poster`() {
+        val route = Screen.Player(id = "123", title = "Movie", url = "https://example.com", poster = "https://poster.jpg")
+        assertEquals("https://poster.jpg", route.poster)
     }
 
     @Test
-    fun `playerRoute without season and episode`() {
-        val result = AppNavigation.playerRoute("123", "Movie", "https://example.com")
-        assertFalse(result.contains("season="))
-        assertFalse(result.contains("episode="))
-    }
-
-    @Test
-    fun `playerRoute with poster`() {
-        val result = AppNavigation.playerRoute("123", "Movie", "https://example.com", poster = "https://poster.jpg")
-        assertTrue(result.contains("poster="))
-        assertTrue(result.contains("https://poster.jpg"))
-    }
-
-    @Test
-    fun `playerRoute empty poster defaults to empty`() {
-        val result = AppNavigation.playerRoute("123", "Movie", "https://example.com")
-        assertTrue(result.contains("poster="))
+    fun `Player route empty poster defaults to empty`() {
+        val route = Screen.Player(id = "123", title = "Movie", url = "https://example.com")
+        assertEquals("", route.poster)
     }
 
     // --- Route template constants ---

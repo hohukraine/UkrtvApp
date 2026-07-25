@@ -105,6 +105,30 @@ internal class DetailSource(
             if (e is CancellationException) throw e
             AppLogger.w("ContentRepository", "Failed to enrich seasons: ${e.message}")
         }
+
+        try {
+            val opposite = providerManager.getOppositeProvider(url)
+            if (opposite != null) {
+                AppLogger.d("ContentRepository", "Primary provider returned no seasons, trying opposite: ${opposite.name}")
+                val results = opposite.search(detail.title, limit = 5)
+                val match = results.firstOrNull()
+                if (match != null) {
+                    val oppResolution = withTimeout(Constants.STREAM_RESOLUTION_TIMEOUT_MS) {
+                        streamResolver.resolve(match.url, isDeep = true)
+                    }
+                    if (oppResolution?.seasons != null && oppResolution.seasons.isNotEmpty()) {
+                        val enriched = detail.copy(seasons = oppResolution.seasons)
+                        metadataCache.put(cacheKey, enriched)
+                        navigationCache.put(cacheKey, enriched)
+                        return enriched
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            AppLogger.w("ContentRepository", "Cross-provider season enrichment failed: ${e.message}")
+        }
+
         return detail
     }
 }

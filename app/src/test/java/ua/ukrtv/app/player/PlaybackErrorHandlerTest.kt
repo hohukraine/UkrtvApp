@@ -183,8 +183,8 @@ class PlaybackErrorHandlerTest {
     }
 
     @Test
-    fun `getErrorCategory returns BLOCKED for unknown code with 403 message`() {
-        val e = exception(Int.MAX_VALUE, "403 Forbidden")
+    fun `getErrorCategory returns BLOCKED for HTTP 403 status`() {
+        val e = exception(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS, "403 Forbidden")
         assertEquals(PlaybackErrorHandler.ErrorCategory.BLOCKED, PlaybackErrorHandler.getErrorCategory(e))
     }
 

@@ -8,13 +8,47 @@ import ua.ukrtv.app.data.local.entity.CatalogIndexEntity
 
 @Dao
 interface CatalogIndexDao {
-    @Query("SELECT * FROM catalog_index WHERE title LIKE '%' || :query || '%' OR titleEn LIKE '%' || :query || '%' LIMIT :limit")
+    @Query("""
+        SELECT * FROM catalog_index 
+        WHERE title LIKE '%' || :query || '%' OR titleEn LIKE '%' || :query || '%' 
+        ORDER BY 
+            CASE 
+                WHEN title = :query OR titleEn = :query THEN 0
+                WHEN title LIKE :query || '%' OR titleEn LIKE :query || '%' THEN 1
+                ELSE 2 
+            END,
+            CASE 
+                WHEN contentType IN ('series', 'cartoon') THEN 0
+                ELSE 1
+            END
+        LIMIT :limit
+    """)
     suspend fun search(query: String, limit: Int = 30): List<CatalogIndexEntity>
 
-    @Query("SELECT * FROM catalog_index WHERE provider = :provider AND (title LIKE '%' || :query || '%' OR titleEn LIKE '%' || :query || '%') LIMIT :limit")
+    @Query("""
+        SELECT * FROM catalog_index 
+        WHERE provider = :provider AND (title LIKE '%' || :query || '%' OR titleEn LIKE '%' || :query || '%') 
+        ORDER BY 
+            CASE 
+                WHEN title = :query OR titleEn = :query THEN 0
+                WHEN title LIKE :query || '%' OR titleEn LIKE :query || '%' THEN 1
+                ELSE 2 
+            END
+        LIMIT :limit
+    """)
     suspend fun searchByProvider(provider: String, query: String, limit: Int = 30): List<CatalogIndexEntity>
 
-    @Query("SELECT * FROM catalog_index WHERE title LIKE '%' || :w1 || '%' AND title LIKE '%' || :w2 || '%' LIMIT :limit")
+    @Query("""
+        SELECT * FROM catalog_index 
+        WHERE title LIKE '%' || :w1 || '%' AND title LIKE '%' || :w2 || '%' 
+        ORDER BY 
+            CASE 
+                WHEN (title LIKE :w1 || '%' OR titleEn LIKE :w1 || '%') AND 
+                     (title LIKE :w2 || '%' OR titleEn LIKE :w2 || '%') THEN 0
+                ELSE 1 
+            END
+        LIMIT :limit
+    """)
     suspend fun searchTwoWords(w1: String, w2: String, limit: Int = 30): List<CatalogIndexEntity>
 
     @Query("SELECT * FROM catalog_index WHERE title LIKE '%' || :w1 || '%' AND title LIKE '%' || :w2 || '%' AND title LIKE '%' || :w3 || '%' LIMIT :limit")

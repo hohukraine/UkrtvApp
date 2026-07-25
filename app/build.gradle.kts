@@ -13,7 +13,7 @@ android {
 
     defaultConfig {
         applicationId = "ua.ukrtv.app"
-        minSdk = 23
+        minSdk = 26
         targetSdk = 37
         versionCode = 6
         versionName = "1.2.2"

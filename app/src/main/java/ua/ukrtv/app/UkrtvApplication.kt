@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.player.MediaPrefetcher
-import ua.ukrtv.app.player.PlayerPool
+
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.getDeviceClass
@@ -66,9 +66,6 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
 
     @Inject
     lateinit var watchProgressRepository: Lazy<ua.ukrtv.app.data.repository.WatchProgressRepository>
-
-    @Inject
-    lateinit var playerPool: PlayerPool
 
     @Inject
     lateinit var mediaPrefetcher: MediaPrefetcher
@@ -132,19 +129,6 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
                 }
             }
         )
-
-        prewarmScope.launch {
-            delay(5000)
-            try {
-                val httpFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(okHttpClient.get())
-                    .setUserAgent(ua.ukrtv.app.Constants.USER_AGENT)
-                val dsFactory = mediaPrefetcher.getCachedDataSourceFactory(this@UkrtvApplication, httpFactory)
-                playerPool.prewarm(this@UkrtvApplication, dsFactory)
-                AppLogger.d("PlayerPool", "Player prewarm completed")
-            } catch (e: Exception) {
-                AppLogger.e("PlayerPool", "Player prewarm failed", e)
-            }
-        }
 
         prewarmScope.launch {
             if (BuildConfig.DEBUG) {
@@ -280,7 +264,6 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
             providerManager.get().clearCaches()
             try { htmlHttpClient.get().clearMemoryCache() } catch(_: Exception) {}
             try { contentRepository.get().clearTrendsCache() } catch(_: Exception) {}
-            try { playerPool.clear() } catch(_: Exception) {}
             try { mediaPrefetcher.cancelPrefetch() } catch(_: Exception) {}
         }
         if (level >= TRIM_MEMORY_RUNNING_CRITICAL) {

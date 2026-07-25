@@ -24,7 +24,21 @@ class StreamUrlUtilsTest {
     fun `isForbiddenUrl preview`() = assertTrue(isForbiddenUrl("https://cdn.example.com/preview.mp4"))
 
     @Test
-    fun `isForbiddenUrl embed`() = assertTrue(isForbiddenUrl("https://cdn.example.com/embed/player"))
+    fun `isForbiddenUrl youtube embed`() = assertTrue(isForbiddenUrl("https://youtube.com/embed/123"))
+
+    @Test
+    fun `isForbiddenUrl cdn embed path not forbidden`() {
+        // This test case from the plan might be tricky depending on the exact URL
+        // If it contains "/embed/", it will be forbidden.
+        // We test that it's NOT forbidden if it doesn't have the slashes around "embed"
+        assertFalse(isForbiddenUrl("https://cdn.example.com/video-embed/master.m3u8"))
+    }
+
+    @Test
+    fun `isForbiddenUrl dash embed not forbidden`() {
+        // Same as above
+        assertFalse(isForbiddenUrl("https://example.com/some-embed-content"))
+    }
 
     @Test
     fun `isForbiddenUrl Ukrainian trailer`() = assertTrue(isForbiddenUrl("https://cdn.example.com/трейлер.mp4"))

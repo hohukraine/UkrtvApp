@@ -1,11 +1,6 @@
 package ua.ukrtv.app.di
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.preferencesDataStoreFile
-import androidx.room.Room
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -13,23 +8,11 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.*
-import androidx.room.migration.Migration
-import androidx.sqlite.db.SupportSQLiteDatabase
 import ua.ukrtv.app.Constants
-import ua.ukrtv.app.data.local.AppDatabase
-import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.local.dao.HtmlCacheDao
-import ua.ukrtv.app.data.local.dao.SearchHistoryDao
-import ua.ukrtv.app.data.local.dao.WatchProgressDao
-import ua.ukrtv.app.data.local.dao.WatchlistDao
-import ua.ukrtv.app.data.repository.CatalogIndexBuilder
-import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.network.HtmlHttpClient
-import ua.ukrtv.app.util.PerformancePreferences
-import ua.ukrtv.app.util.HomePreferences
 import ua.ukrtv.app.util.getDeviceClass
 import ua.ukrtv.app.util.hasMediatekChipset
-import java.io.InputStream
 import java.security.KeyStore
 import java.security.SecureRandom
 import java.security.cert.CertificateException
@@ -44,49 +27,7 @@ import javax.net.ssl.X509TrustManager
 
 @Module
 @InstallIn(SingletonComponent::class)
-object Modules {
-
-    @Provides @Singleton
-    fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
-        return PreferenceDataStoreFactory.create(
-            produceFile = { context.preferencesDataStoreFile("settings") }
-        )
-    }
-
-    @Provides @Singleton
-    fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
-        return Room.databaseBuilder(context, AppDatabase::class.java, "ukrtv_db")
-            .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
-            .build()
-    }
-
-    @Provides @Singleton
-    fun provideSearchHistoryDao(database: AppDatabase): SearchHistoryDao = database.searchHistoryDao()
-
-    @Provides @Singleton
-    fun provideHtmlCacheDao(database: AppDatabase): HtmlCacheDao = database.htmlCacheDao()
-
-    @Provides @Singleton
-    fun provideWatchlistDao(database: AppDatabase): WatchlistDao = database.watchlistDao()
-
-    @Provides @Singleton
-    fun provideWatchProgressDao(database: AppDatabase): WatchProgressDao = database.watchProgressDao()
-
-    @Provides @Singleton
-    fun provideCatalogIndexDao(database: AppDatabase): CatalogIndexDao = database.catalogIndexDao()
-
-    @Provides @Singleton
-    fun provideCatalogIndexBuilder(
-        htmlHttpClient: HtmlHttpClient,
-        catalogIndexDao: CatalogIndexDao
-    ): CatalogIndexBuilder = CatalogIndexBuilder(htmlHttpClient, catalogIndexDao)
-
-    @Provides @Singleton
-    fun provideCatalogRepository(
-        @ApplicationContext context: Context,
-        catalogIndexDao: CatalogIndexDao,
-        builder: CatalogIndexBuilder
-    ): CatalogRepository = CatalogRepository(context, catalogIndexDao, builder)
+object NetworkModule {
 
     @Provides @Singleton
     fun provideJson(): Json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -148,7 +89,6 @@ object Modules {
                     builder.header("User-Agent", Constants.USER_AGENT)
                 }
 
-                // WebP → JPEG for old TV Skia compatibility
                 if (isLowDevice || isMediatek || url.contains(".webp") || url.contains("format=webp")) {
                     builder.header("Accept", "image/avif,image/jpeg,image/png,*/*;q=0.5")
                 }
@@ -191,7 +131,7 @@ object Modules {
                     keyStore.setCertificateEntry(ca.alias, cert)
                 }
             } catch (e: Exception) {
-                android.util.Log.w("Modules", "Failed to load CA cert: ${ca.alias}", e)
+                android.util.Log.w("NetworkModule", "Failed to load CA cert: ${ca.alias}", e)
             }
         }
 
@@ -212,7 +152,17 @@ object Modules {
                     try {
                         ourTrustManager.checkServerTrusted(chain, authType)
                     } catch (e2: CertificateException) {
-                        android.util.Log.w("Modules", "Permissive SSL fallback: ${chain.firstOrNull()?.subjectDN}")
+                        val subject = chain.firstOrNull()?.subjectDN?.name ?: "unknown"
+                        val isTrustedProvider = subject.contains("eneyida", ignoreCase = true) ||
+                                               subject.contains("uakino", ignoreCase = true) ||
+                                               subject.contains(".ua", ignoreCase = true)
+                        
+                        if (isTrustedProvider) {
+                            android.util.Log.w("NetworkModule", "Permissive SSL fallback ALLOWED for: $subject")
+                        } else {
+                            android.util.Log.e("NetworkModule", "SSL validation failed for: $subject")
+                            throw e2
+                        }
                     }
                 }
             }
@@ -228,10 +178,6 @@ object Modules {
     }
 
     @Provides @Singleton
-    fun provideTvRecommendationManager(@ApplicationContext context: Context): ua.ukrtv.app.tv.TvRecommendationManager =
-        ua.ukrtv.app.tv.TvRecommendationManager(context)
-
-    @Provides @Singleton
     fun provideHtmlHttpClient(
         okHttpClient: OkHttpClient,
         htmlCacheDao: HtmlCacheDao
@@ -240,57 +186,4 @@ object Modules {
         htmlCacheDao = htmlCacheDao,
         tag = "HtmlHttpClient"
     )
-
-    @Provides @Singleton
-    fun providePerformancePreferences(@ApplicationContext context: Context): ua.ukrtv.app.util.PerformancePreferences = ua.ukrtv.app.util.PerformancePreferences(context)
-
-    @Provides @Singleton
-    fun providePlayerPreferences(@ApplicationContext context: Context): ua.ukrtv.app.util.PlayerPreferences = ua.ukrtv.app.util.PlayerPreferences(context)
-
-    @Provides @Singleton
-    fun provideHomePreferences(@ApplicationContext context: Context): HomePreferences = HomePreferences(context)
-
-    @Provides @Singleton
-    fun provideUpdateRepository(
-        @ApplicationContext context: Context,
-        okHttpClient: OkHttpClient,
-        json: kotlinx.serialization.json.Json
-    ): ua.ukrtv.app.data.repository.UpdateRepository = ua.ukrtv.app.data.repository.UpdateRepository(context, okHttpClient, json)
-}
-
-private val MIGRATION_10_11 = object : Migration(10, 11) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("DELETE FROM catalog_index")
-    }
-}
-
-private val MIGRATION_11_12 = object : Migration(11, 12) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("CREATE INDEX IF NOT EXISTS index_watch_progress_contentId ON watch_progress(contentId)")
-    }
-}
-
-private val MIGRATION_12_13 = object : Migration(12, 13) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE watch_progress ADD COLUMN streamUrl TEXT DEFAULT NULL")
-        db.execSQL("ALTER TABLE watch_progress ADD COLUMN streamType TEXT DEFAULT NULL")
-    }
-}
-
-private val MIGRATION_13_14 = object : Migration(13, 14) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE watch_progress ADD COLUMN referer TEXT DEFAULT NULL")
-    }
-}
-
-private val MIGRATION_14_15 = object : Migration(14, 15) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE watch_progress ADD COLUMN seasonsJson TEXT DEFAULT NULL")
-    }
-}
-
-private val MIGRATION_15_16 = object : Migration(15, 16) {
-    override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE watch_progress ADD COLUMN fallbackUrls TEXT DEFAULT NULL")
-    }
 }

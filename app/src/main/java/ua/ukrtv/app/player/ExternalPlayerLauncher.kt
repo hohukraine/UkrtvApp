@@ -1,23 +1,15 @@
 package ua.ukrtv.app.player
 
 import android.app.Activity
-import android.content.ClipData
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.domain.model.StreamType
 import ua.ukrtv.app.util.AppLogger
 
 class ExternalPlayerLauncher(private val context: Context) {
-
-    data class PlaylistItem(
-        val url: String,
-        val title: String,
-        val streamType: StreamType = StreamType.MP4
-    )
 
     data class PlayerLaunchConfig(
         val streamUrl: String,
@@ -29,9 +21,7 @@ class ExternalPlayerLauncher(private val context: Context) {
         val positionMs: Long = 0L,
         val durationMs: Long = 0L,
         val subtitlesUrl: String? = null,
-        val subtitlesName: String? = null,
-        val playlist: List<PlaylistItem> = emptyList(),
-        val playlistCurrentIndex: Int = 0
+        val subtitlesName: String? = null
     )
 
     fun detectInstalledPlayers(): List<ExternalPlayerInfo> {
@@ -71,8 +61,6 @@ class ExternalPlayerLauncher(private val context: Context) {
 
         val intent = when (playerInfo.packageName) {
             "org.videolan.vlc" -> buildVlcIntent(config)
-            "com.mxtech.videoplayer.ad",
-            "com.mxtech.videoplayer.pro" -> buildMxPlayerIntent(playerInfo.packageName, config)
             "com.brouken.player" -> buildJustPlayerIntent(config)
             else -> buildGenericIntent(playerInfo.packageName, config)
         }
@@ -109,17 +97,9 @@ class ExternalPlayerLauncher(private val context: Context) {
             putExtra("title", config.title)
             putExtra("position", config.positionMs)
             putExtra("from_start", config.positionMs <= 0L)
+            putExtra("return_result", true)
             if (config.durationMs > 0L) {
                 putExtra("extra_duration", config.durationMs)
-            }
-
-            // Playlist support
-            if (config.playlist.isNotEmpty()) {
-                val uris = ArrayList(config.playlist.map { Uri.parse(it.url) })
-                val titles = ArrayList(config.playlist.map { it.title })
-                putParcelableArrayListExtra("media_list", uris)
-                putStringArrayListExtra("media_list_name", titles)
-                putExtra("opened_position", config.playlistCurrentIndex)
             }
 
             // Headers support
@@ -133,59 +113,6 @@ class ExternalPlayerLauncher(private val context: Context) {
             }
             if (options.isNotEmpty()) {
                 putExtra("options", options.toTypedArray())
-            }
-        }
-    }
-
-    private fun buildMxPlayerIntent(packageName: String, config: PlayerLaunchConfig): Intent {
-        val uri = Uri.parse(config.streamUrl)
-        val mime = getMimeType(config.streamType)
-
-        return Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, mime)
-            setPackage(packageName)
-            val activityClass = if (packageName.endsWith(".pro")) {
-                "com.mxtech.videoplayer.ActivityScreen"
-            } else {
-                "$packageName.ActivityScreen"
-            }
-            setClassName(packageName, activityClass)
-            putExtra("title", config.title)
-            putExtra("return_result", true)
-            if (config.positionMs > 0L) {
-                putExtra("position", config.positionMs.toInt())
-            }
-            val headers = mutableListOf<String>()
-            headers.addAll(listOf("User-Agent", config.userAgent))
-            if (config.referer.isNotBlank()) {
-                headers.addAll(listOf("Referer", config.referer))
-            }
-            if (config.cookies.isNotBlank()) {
-                headers.addAll(listOf("Cookie", config.cookies))
-            }
-            putExtra("headers", headers.toTypedArray())
-            if (!config.subtitlesUrl.isNullOrBlank()) {
-                putExtra("subs", arrayOf(Uri.parse(config.subtitlesUrl)))
-                putExtra("subs.enable", arrayOf(Uri.parse(config.subtitlesUrl)))
-                if (!config.subtitlesName.isNullOrBlank()) {
-                    putExtra("subs.name", arrayOf(config.subtitlesName))
-                }
-            }
-
-            if (config.playlist.isNotEmpty()) {
-                val uris = config.playlist.map { Uri.parse(it.url) }.toTypedArray()
-                val titles = config.playlist.map { it.title }.toTypedArray()
-                putExtra("video_list", uris)
-                putExtra("video_list.name", titles)
-                putExtra("video_list_cursor", config.playlistCurrentIndex)
-                putExtra("video_list_is_explicit", true)
-
-                val clipData = ClipData.newRawUri("Playlist", uris[0])
-                for (i in 1 until uris.size) {
-                    clipData.addItem(ClipData.Item(uris[i]))
-                }
-                setClipData(clipData)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
         }
     }
@@ -214,21 +141,6 @@ class ExternalPlayerLauncher(private val context: Context) {
                 headers.addAll(listOf("Cookie", config.cookies))
             }
             putExtra("headers", headers.toTypedArray())
-
-            if (config.playlist.isNotEmpty()) {
-                val uris = config.playlist.map { Uri.parse(it.url) }.toTypedArray()
-                val titles = config.playlist.map { it.title }.toTypedArray()
-                
-                putExtra("video_list", uris)
-                putExtra("video_list.name", titles)
-                putExtra("video_list_cursor", config.playlistCurrentIndex)
-
-                val clipData = ClipData.newRawUri("Playlist", uris[0])
-                for (i in 1 until uris.size) {
-                    clipData.addItem(ClipData.Item(uris[i]))
-                }
-                setClipData(clipData)
-            }
         }
     }
 
@@ -268,11 +180,13 @@ class ExternalPlayerLauncher(private val context: Context) {
             AppLogger.d("ExternalPlayer", "Result extras (${keys.size}): $summary")
         } ?: AppLogger.d("ExternalPlayer", "Result extras: null")
 
-        // VLC: extra_position / extra_duration (Long)
-        var positionMs = extras?.getLong("extra_position", 0L)?.takeIf { it > 0L } ?: 0L
-        var durationMs = extras?.getLong("extra_duration", 0L)?.takeIf { it > 0L } ?: 0L
+        // VLC: extra_position / extra_duration (Int or Long depending on VLC version)
+        @Suppress("DEPRECATION")
+        var positionMs = (extras?.get("extra_position") as? Number)?.toLong()?.takeIf { it > 0L } ?: 0L
+        @Suppress("DEPRECATION")
+        var durationMs = (extras?.get("extra_duration") as? Number)?.toLong()?.takeIf { it > 0L } ?: 0L
 
-        // MX Player / Just Player: position / duration (may be Int or Long depending on player)
+        // Just Player: position / duration (may be Int or Long)
         if (positionMs == 0L && durationMs == 0L) {
             @Suppress("DEPRECATION")
             positionMs = (extras?.get("position") as? Number)?.toLong()?.takeIf { it > 0L } ?: 0L
@@ -305,11 +219,3 @@ class ExternalPlayerLauncher(private val context: Context) {
         }
     }
 }
-
-data class ExternalPlayerResult(
-    val positionMs: Long,
-    val durationMs: Long,
-    val isFinished: Boolean = false,
-    val url: String? = null
-)
-

@@ -62,6 +62,14 @@ class ProviderManager @Inject constructor(
         return allProviders.find { it.supportsUrl(url) }
     }
 
+    fun getOppositeProvider(url: String): MediaProvider? {
+        return when {
+            url.contains("uakino") -> eneyidaProvider
+            url.contains("eneyida") -> uakinoProvider
+            else -> null
+        }
+    }
+
     fun setActiveProvider(providerId: String) {
         val provider = getById(providerId) ?: return
         if (_activeProvider.value.name == provider.name) return

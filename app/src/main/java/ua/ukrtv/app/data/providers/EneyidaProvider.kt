@@ -6,7 +6,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import ua.ukrtv.app.data.network.HtmlHttpClient
@@ -30,95 +29,11 @@ class EneyidaProvider(
 
     override fun supportsUrl(url: String) = url.contains("eneyida.tv")
 
-    override suspend fun search(query: String, limit: Int): List<SearchItem> = withContext(Dispatchers.IO) {
-        val q = query.trim().takeIf { it.isNotEmpty() } ?: return@withContext emptyList()
-
-        if (catalogRepository.isProviderReady(name)) {
-            val results = catalogRepository.searchByProvider(name, q, limit)
-            if (results.isNotEmpty()) {
-                return@withContext results.map { SearchItem(it.title, it.url, it.poster, name) }
-            }
-        }
-
-        val allResults = performDleSearch(q, limit)
-        allResults.map { SearchItem(it.title, it.pageUrl, it.poster, name) }
-    }
-
-    override suspend fun getMediaSource(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean, prefetchedHtml: String?): MediaSource? = withContext(Dispatchers.IO) {
-        if (sessionUserHash.isEmpty()) initializeSession()
-        val html = prefetchedHtml ?: pageHtmlCache.get(pageUrl).also { pageHtmlCache.invalidate(pageUrl) } ?: run {
-            htmlHttpClient.getHtml(pageUrl, baseUrl)
-                ?: throw java.io.IOException("Не вдалося завантажити сторінку: $pageUrl")
-        }
-
-        // 1. Try to resolve as a playlist (Series/Multivolume)
-        var source = resolveSeriesPage(html, pageUrl, season, episode, isDeep)
-        
-        // 2. If no playlist found, try direct media extraction (Movie)
-        if (source == null) {
-            source = resolveMoviePage(html, pageUrl)
-        }
-
-        return@withContext DleResolutionUtils.promoteToSeriesIfNeeded(source, pageUrl, name)
-    }
-
-    private suspend fun resolveMoviePage(html: String, pageUrl: String, doc: Document? = null): MediaSource? {
-        val directUrls = DleResolutionUtils.findMediaUrlsInText(html)
-        if (directUrls.isNotEmpty()) {
-            return MediaSource.Movie(directUrls.first(), directUrls.drop(1), pageUrl, name)
-        }
-
-        val parsedDoc = doc ?: Jsoup.parse(html, pageUrl)
-        val allIframes = parsedDoc.select("iframe").map { it.attr("abs:data-src").ifEmpty { it.attr("abs:src") } }
-        val iframes = allIframes.filter { src ->
-            src.isNotEmpty() && !src.contains("youtube") && !src.contains("facebook")
-        }
-
-        for (src in iframes) {
-            try {
-                var iframeResp = htmlHttpClient.getHtml(src, pageUrl)
-                if (iframeResp == null || iframeResp.isEmpty()) {
-                    iframeResp = htmlHttpClient.getHtml(src, pageUrl, isAjax = true)
-                }
-                if (iframeResp == null || iframeResp.isEmpty()) {
-                    continue
-                }
-
-                val media = DleResolutionUtils.findMediaUrlsInText(iframeResp)
-                if (media.isNotEmpty()) {
-                    if (media.size > 2) {
-                        val series = SeriesPlaylistParser.parseUrlBasedSeries(media, pageUrl, name)
-                        if (series != null) return series
-                    }
-
-                    val best = selectBestMediaUrl(media) ?: media.first()
-                    val fallbacks = media.filter { it != best }
-                    return MediaSource.Movie(best, fallbacks, pageUrl, name)
-                }
-            } catch (e: Exception) {
-                AppLogger.w(name, "resolveMoviePage: exception fetching $src: ${e.message}")
-            }
-        }
-
-        return null
-    }
-
-    private fun selectBestMediaUrl(media: List<String>): String? {
-        if (media.isEmpty()) return null
-        if (media.size > 1) return DleResolutionUtils.pickBestQuality(media) ?: media.first()
-        return media.first()
-    }
-
-    private suspend fun resolveSeriesPage(
-        html: String, pageUrl: String,
+    override suspend fun resolveSeriesContent(
+        html: String, pageUrl: String, doc: Document,
         season: Int?, episode: Int?, isDeep: Boolean
     ): MediaSource? {
-        val doc = Jsoup.parse(html, pageUrl)
-        val iframes = doc.select("iframe").mapNotNull { ifr ->
-            val src = ifr.attr("abs:data-src").ifEmpty { ifr.attr("abs:src") }
-            if (src.isEmpty() || src.contains("youtube") || src.contains("facebook")) null
-            else src
-        }
+        val iframes = extractIframes(doc)
 
         if (iframes.isEmpty()) return null
 
@@ -168,7 +83,7 @@ class EneyidaProvider(
         html: String, pageUrl: String
     ): MediaSource? {
         val allSeasons = mutableListOf<ProviderSeason>()
-        val semaphore = Semaphore(1)
+        val semaphore = Semaphore(3)
 
         val results: List<List<ProviderSeason>?> = coroutineScope {
             otherSeasons.take(12).map { (num, sUrl) ->
@@ -180,11 +95,7 @@ class EneyidaProvider(
                             val media = DleResolutionUtils.findMediaUrlsInText(sHtml)
                             if (media.isNotEmpty()) {
                                 val sDoc = Jsoup.parse(sHtml)
-                                val iframes = sDoc.select("iframe").mapNotNull { ifr ->
-                                    val src = ifr.attr("abs:data-src").ifEmpty { ifr.attr("abs:src") }
-            if (src.isEmpty() || src.contains("youtube") || src.contains("facebook")) null
-            else src
-                                }
+                                val iframes = extractIframes(sDoc)
                                 for (src in iframes) {
                                     try {
                                         val iframeResp = htmlHttpClient.getHtml(src, sUrl) ?: continue
@@ -222,13 +133,6 @@ class EneyidaProvider(
             }
         }
 
-        if (allSeasons.isEmpty()) return null
-        val merged = allSeasons.groupBy { it.number }
-            .map { (num, list) ->
-                val allEps = list.flatMap { it.episodes }.distinctBy { it.url }.sortedBy { it.number }
-                val allVos = list.flatMap { it.voiceoverOptions }.distinct().sorted()
-                ProviderSeason(num, allEps, voiceoverOptions = allVos)
-            }.sortedBy { it.number }
-        return MediaSource.Series(merged, pageUrl, name)
+        return mergeSeasons(allSeasons, pageUrl)
     }
 }

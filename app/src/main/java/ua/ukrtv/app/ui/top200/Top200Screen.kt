@@ -30,37 +30,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.*
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import ua.ukrtv.app.data.repository.Top200Repository
 import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.ui.components.RatingCircle
 import ua.ukrtv.app.ui.theme.*
 import ua.ukrtv.app.util.DeviceClass
-import javax.inject.Inject
-
-@HiltViewModel
-class Top200ViewModel @Inject constructor(
-    private val repository: Top200Repository
-) : ViewModel() {
-    private val _movies = MutableStateFlow<List<Top200Movie>>(emptyList())
-    val movies = _movies.asStateFlow()
-
-    init {
-        viewModelScope.launch {
-            _movies.value = repository.getTop200()
-        }
-    }
-}
 
 @Composable
 fun Top200Screen(

@@ -9,7 +9,7 @@ val YOUTUBE_DOMAINS = listOf(
 
 val FORBIDDEN_PATTERNS = listOf(
     "youtube.com", "youtu.be", "youtube-nocookie.com",
-    "trailer", "preview", "preview.", "embed",
+    "trailer", "preview", "preview.", "/embed/",
     "трейлер", "прев'ю", "превью",
     "watch?v=", "shorts/"
 )

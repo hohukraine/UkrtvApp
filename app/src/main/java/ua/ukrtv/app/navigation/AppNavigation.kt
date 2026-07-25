@@ -1,9 +1,34 @@
 package ua.ukrtv.app.navigation
 
-import android.net.Uri
-import ua.ukrtv.app.data.providers.ContentCategory
+import kotlinx.serialization.Serializable
+
+@Serializable
+sealed interface Screen {
+    @Serializable data object Home : Screen
+    @Serializable data class Search(val q: String? = null) : Screen
+    @Serializable data object Top200 : Screen
+    @Serializable data object TrendsGrid : Screen
+    @Serializable data object Watchlist : Screen
+    @Serializable data class Detail(
+        val id: String,
+        val url: String,
+        val alternate: String? = null
+    ) : Screen
+    @Serializable data class Player(
+        val id: String,
+        val title: String,
+        val url: String,
+        val season: Int? = null,
+        val episode: Int? = null,
+        val poster: String = "",
+        val brandColor: String? = null
+    ) : Screen
+    @Serializable data object Settings : Screen
+    @Serializable data class CategoryGrid(val category: String) : Screen
+}
 
 object AppNavigation {
+    // Legacy support for older callers if needed
     const val HOME = "home"
     const val SEARCH = "search?q={q}"
     const val TOP_200 = "top_200"
@@ -12,41 +37,4 @@ object AppNavigation {
     const val PLAYER = "player/{id}/{title}?url={url}&season={season}&episode={episode}&poster={poster}&brandColor={brandColor}"
     const val SETTINGS = "settings"
     const val CATEGORY_GRID = "category_grid?category={category}"
-
-    fun searchRoute(query: String = ""): String {
-        if (query.isEmpty()) return "search?q="
-        val encodedQuery = Uri.encode(query, null)
-        return "search?q=$encodedQuery"
-    }
-
-    fun detailRoute(id: String, url: String, alternateUrl: String? = null): String {
-        val encodedId = Uri.encode(id, null)
-        val encodedUrl = Uri.encode(url, null)
-        val base = "detail/$encodedId?url=$encodedUrl"
-        return if (alternateUrl != null) "$base&alternate=${Uri.encode(alternateUrl, null)}" else base
-    }
-
-    fun categoryGridRoute(categoryKey: String): String {
-        return "category_grid?category=$categoryKey"
-    }
-
-    fun playerRoute(
-        id: String, 
-        title: String, 
-        url: String, 
-        season: Int? = null, 
-        episode: Int? = null, 
-        poster: String = "",
-        brandColor: String? = null
-    ): String {
-        val encodedId = Uri.encode(id, null)
-        val encodedTitle = Uri.encode(title, null)
-        val encodedUrl = Uri.encode(url, null)
-        val encodedPoster = Uri.encode(poster, null)
-        val sb = StringBuilder("player/$encodedId/$encodedTitle?url=$encodedUrl&poster=$encodedPoster")
-        season?.let { sb.append("&season=$it") }
-        episode?.let { sb.append("&episode=$it") }
-        brandColor?.let { sb.append("&brandColor=${Uri.encode(it, null)}") }
-        return sb.toString()
-    }
 }

@@ -1,6 +1,5 @@
 package ua.ukrtv.app.player
 
-import android.os.Build
 import androidx.media3.common.Format
 import ua.ukrtv.app.util.AppLogger
 import javax.inject.Inject
@@ -12,11 +11,11 @@ class CodecHealthMonitor @Inject constructor() {
     data class DecoderStats(
         val name: String,
         val mimeType: String,
-        var renderedFrames: Long = 0,
         var droppedFrames: Long = 0,
-        var skippedFrames: Long = 0,
+        var droppedFramesSinceLastCheck: Long = 0,
         var errors: Int = 0,
         var lastErrorTimeMs: Long = 0,
+        var lastCheckTimeMs: Long = 0,
         var isHealthy: Boolean = true
     )
 
@@ -42,16 +41,17 @@ class CodecHealthMonitor @Inject constructor() {
     fun onDroppedFrames(count: Int, elapsedMs: Long) {
         val stats = currentDecoder ?: return
         stats.droppedFrames += count
+        stats.droppedFramesSinceLastCheck += count
 
-        if (elapsedMs - lastCheckTimeMs > checkIntervalMs) {
-            lastCheckTimeMs = elapsedMs
-            val dropRate = if (stats.renderedFrames > 0) {
-                stats.droppedFrames.toFloat() / stats.renderedFrames.toFloat()
-            } else 0f
+        if (elapsedMs - stats.lastCheckTimeMs > checkIntervalMs) {
+            val windowMs = (elapsedMs - stats.lastCheckTimeMs).coerceAtLeast(1)
+            val droppedPerSecond = stats.droppedFramesSinceLastCheck * 1000.0 / windowMs
+            stats.lastCheckTimeMs = elapsedMs
+            stats.droppedFramesSinceLastCheck = 0
 
-            if (dropRate > 0.05f && stats.renderedFrames > 100) {
+            if (droppedPerSecond > 30.0 && stats.droppedFrames > 100) {
                 stats.isHealthy = false
-                AppLogger.w("CodecHealth", "Decoder ${stats.name} unhealthy: dropRate=$dropRate")
+                AppLogger.w("CodecHealth", "Decoder ${stats.name} unhealthy: ${"%.1f".format(droppedPerSecond)} dropped/s (total=${stats.droppedFrames})")
             }
         }
     }
@@ -82,31 +82,7 @@ class CodecHealthMonitor @Inject constructor() {
         return false
     }
 
-    fun isMediatekDevice(): Boolean {
-        val board = Build.BOARD.lowercase()
-        val manufacturer = Build.MANUFACTURER.lowercase()
-        val model = Build.MODEL.lowercase()
-        val hardware = Build.HARDWARE.lowercase()
-        val brand = Build.BRAND.lowercase()
-        val fingerprint = Build.FINGERPRINT.lowercase()
-
-        val knownMediatekBoards = listOf(
-            "ikebukuro",        // MT5887/MT5889 (Changhong, etc.)
-            "mt5887", "mt5889", "mt5867", "mt5879",
-            "mt5890", "mt5891", "mt5893",
-            "mt5590", "mt5592", "mt5593",
-            "mt5658", "mt5660", "mt5661",
-            "mtk5887", "mtk5889", "mtk5867",
-        )
-
-        return board.contains("mt") || board.contains("mediatek") ||
-            board in knownMediatekBoards ||
-            hardware.contains("mt") || hardware.contains("mediatek") ||
-            brand.contains("mediatek") ||
-            manufacturer.contains("mediatek") ||
-            fingerprint.contains("mediatek") ||
-            model.contains("mt") && model.any { it.isDigit() }
-    }
+    fun isMediatekDevice(): Boolean = ua.ukrtv.app.util.hasMediatekChipset()
 
     fun isKnownProblematicDecoder(decoderName: String): Boolean {
         val name = decoderName.lowercase()
@@ -119,7 +95,7 @@ class CodecHealthMonitor @Inject constructor() {
     override fun toString(): String {
         val decoder = currentDecoder
         return if (decoder != null) {
-            "Codec: ${decoder.name} | rendered=${decoder.renderedFrames} dropped=${decoder.droppedFrames} errors=${decoder.errors} healthy=${decoder.isHealthy}"
+            "Codec: ${decoder.name} | dropped=${decoder.droppedFrames} errors=${decoder.errors} healthy=${decoder.isHealthy}"
         } else {
             "Codec: not initialized"
         }

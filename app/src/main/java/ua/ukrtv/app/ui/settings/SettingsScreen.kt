@@ -518,7 +518,7 @@ private fun TvSettingsScreen(
                         .padding(horizontal = 20.dp, vertical = 14.dp)
                 ) {
                     Text(
-                        text = "Не знайдено зовнішніх плеєрів. Встановіть VLC, MX Player, mpv або Just Player.",
+                        text = "Не знайдено зовнішніх плеєрів. Встановіть VLC або Just Player.",
                         fontSize = 14.sp,
                         color = Color(0xFFE1E1E1)
                     )
@@ -839,7 +839,7 @@ private fun PhoneSettingsScreen(
                             .padding(12.dp)
                     ) {
                         Text(
-                            text = "Не знайдено зовнішніх плеєрів. Встановіть VLC, MX Player, mpv або Just Player.",
+                            text = "Не знайдено зовнішніх плеєрів. Встановіть VLC або Just Player.",
                             fontSize = 13.sp,
                             color = Color.White.copy(alpha = 0.5f)
                         )

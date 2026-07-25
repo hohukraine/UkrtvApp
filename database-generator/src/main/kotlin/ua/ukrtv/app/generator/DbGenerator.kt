@@ -294,6 +294,10 @@ fun main(args: Array<String>) {
     println("Uakino: ${uakinoItems.size} items")
 
     val eneyidaItems = scrapeProvider("Eneyida", "https://eneyida.tv/", listOf(
+        "series/" to "series",
+        "cartoon/" to "cartoon",
+        "cartoon-series/" to "cartoon",
+        "anime/" to "series",
         "f/sort=new/order=desc" to "unknown"
     ))
     println("Eneyida: ${eneyidaItems.size} items")

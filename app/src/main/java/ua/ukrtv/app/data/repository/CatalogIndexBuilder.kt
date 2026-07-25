@@ -249,6 +249,10 @@ class CatalogIndexBuilder @Inject constructor(
         )
 
         val EneyidaSources = listOf(
+            CatalogSource("series/", "series"),
+            CatalogSource("cartoon/", "cartoon"),
+            CatalogSource("cartoon-series/", "cartoon"),
+            CatalogSource("anime/", "series"),
             CatalogSource("f/sort=new/order=desc", "unknown")
         )
     }

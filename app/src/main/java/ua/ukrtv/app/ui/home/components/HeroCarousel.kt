@@ -46,7 +46,7 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.request.allowHardware
-import coil3.ImageLoader
+import coil3.imageLoader
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -86,8 +86,8 @@ fun HeroCarousel(
     val ctx = LocalContext.current
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
+    val imageLoader = remember { ctx.imageLoader }
     LaunchedEffect(actualPage, items.size) {
-        val imageLoader = coil3.ImageLoader(ctx)
         val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 180 to 240; DeviceClass.MID -> 360 to 480; DeviceClass.HIGH -> 540 to 720 }
         for (offset in 1..3) {
             val nextIdx = (actualPage + offset) % items.size

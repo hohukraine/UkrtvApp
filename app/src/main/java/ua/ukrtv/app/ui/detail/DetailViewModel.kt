@@ -46,7 +46,8 @@ class DetailViewModel @Inject constructor(
     private val streamResolver: StreamResolver,
     private val okHttpClient: okhttp3.OkHttpClient,
     private val providerManager: ProviderManager,
-    private val performancePreferences: PerformancePreferences
+    private val performancePreferences: PerformancePreferences,
+    private val streamResolvingInteractor: ua.ukrtv.app.ui.player.StreamResolvingInteractor
 ) : ViewModel() {
 
     private val _state = MutableStateFlow<DetailState>(DetailState.Loading)
@@ -159,30 +160,14 @@ class DetailViewModel @Inject constructor(
         preWarmJob = viewModelScope.launch {
             try {
                 delay(500)
-                AppLogger.d("DetailVM", "Pre-warming S${targetSeason}E${targetEpisode} for ${detail.title}")
-                streamResolver.resolve(
+                streamResolvingInteractor.resolve(
                     url = detail.pageUrl,
+                    title = detail.title,
                     season = targetSeason,
                     episode = targetEpisode,
+                    voiceover = null,
                     isDeep = !isSeries
                 )
-                val otherProvider = when {
-                    detail.pageUrl.contains("uakino") -> providerManager.eneyidaProvider
-                    detail.pageUrl.contains("eneyida") -> providerManager.uakinoProvider
-                    else -> null
-                }
-                if (otherProvider != null) {
-                    val match = otherProvider.search(detail.title, limit = 5).firstOrNull()
-                    if (match != null) {
-                        streamResolver.resolve(
-                            url = match.url,
-                            season = targetSeason,
-                            episode = targetEpisode,
-                            isDeep = !isSeries
-                        )
-                    }
-                }
-                AppLogger.d("DetailVM", "Pre-warm complete for ${detail.title}")
             } catch (_: Exception) { }
         }
     }
@@ -193,15 +178,13 @@ class DetailViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val res = withContext(Dispatchers.IO) {
-                    streamResolver.resolve(
-                        url = detail.pageUrl,
-                        referer = "",
-                        season = season,
-                        episode = episode,
-                        voiceover = voiceover
-                    )
-                }
+                val res = streamResolvingInteractor.resolve(
+                    url = detail.pageUrl,
+                    title = detail.title,
+                    season = season,
+                    episode = episode,
+                    voiceover = voiceover
+                )
 
                 if (res != null) {
                     _launchState.value = MediaLaunchState.Ready(
@@ -217,60 +200,11 @@ class DetailViewModel @Inject constructor(
                         brandColor = detail.brandColor
                     )
                 } else {
-                    val otherProvider = when {
-                        detail.pageUrl.contains("uakino") -> providerManager.eneyidaProvider
-                        detail.pageUrl.contains("eneyida") -> providerManager.uakinoProvider
-                        else -> null
-                    }
-                    if (otherProvider != null) {
-                        AppLogger.d("DetailViewModel", "Primary failed, trying ${otherProvider.name} fallback for ${detail.title}")
-                        try {
-                            val results = otherProvider.search(detail.title, limit = 5)
-                            val match = results.firstOrNull()
-                            if (match != null) {
-                                val res2 = withContext(Dispatchers.IO) {
-                                    streamResolver.resolve(
-                                        url = match.url,
-                                        referer = "",
-                                        season = season,
-                                        episode = episode,
-                                        voiceover = voiceover
-                                    )
-                                }
-                                if (res2 != null) {
-                                    _launchState.value = MediaLaunchState.Ready(
-                                        contentId = detail.id,
-                                        title = detail.title,
-                                        subtitle = if (season != null && episode != null) "S$season E$episode" else "",
-                                        posterUrl = detail.poster,
-                                        streamResult = res2,
-                                        season = season,
-                                        episode = episode,
-                                        voiceover = voiceover,
-                                        seasons = res2.seasons ?: detail.seasons,
-                                        brandColor = detail.brandColor
-                                    )
-                                    return@launch
-                                }
-                            }
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            AppLogger.e("DetailViewModel", "${otherProvider.name} fallback error for ${detail.title}", e)
-                        }
-                    }
                     _launchState.value = MediaLaunchState.Error(AppError.StreamNotFoundError("Стрім не знайдено"))
-                    AppLogger.e("DetailViewModel", "All providers failed for ${detail.title}")
                 }
-            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                _launchState.value = MediaLaunchState.Error(AppError.NetworkError("Час очікування вичерпано"))
-                AppLogger.e("DetailViewModel", "Stream resolve timeout for ${detail.title}", e)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
-                    val appError = if (e is java.io.IOException) AppError.NetworkError(e.message ?: "Помилка мережі")
-                                   else AppError.UnknownError(e.message ?: "Помилка розв'язання стріму")
-                    _launchState.value = MediaLaunchState.Error(appError)
-                    AppLogger.e("DetailViewModel", "Stream resolve failed for ${detail.title}", e)
+                    _launchState.value = MediaLaunchState.Error(AppError.UnknownError("Помилка розв'язання стріму"))
                 }
             }
         }

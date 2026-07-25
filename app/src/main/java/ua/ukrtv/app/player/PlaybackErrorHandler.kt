@@ -51,15 +51,10 @@ object PlaybackErrorHandler {
 
     fun isBlockedStream(error: PlaybackException): Boolean {
         val code = error.errorCode
-        val httpStatusHint = error.message ?: ""
+        val msg = (error.message ?: "").lowercase()
         return code == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS &&
-            (httpStatusHint.contains("403", ignoreCase = true) ||
-                httpStatusHint.contains("429", ignoreCase = true) ||
-                httpStatusHint.contains("forbidden", ignoreCase = true) ||
-                httpStatusHint.contains("too many requests", ignoreCase = true)) ||
-            httpStatusHint.contains("403", ignoreCase = true) ||
-            httpStatusHint.contains("429", ignoreCase = true) ||
-            httpStatusHint.contains("Forbidden", ignoreCase = true)
+            (msg.contains("403") || msg.contains("429") ||
+                msg.contains("forbidden") || msg.contains("too many requests"))
     }
 
     fun shouldFallbackStream(error: PlaybackException): Boolean {

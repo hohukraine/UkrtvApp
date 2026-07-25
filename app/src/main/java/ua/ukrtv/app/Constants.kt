@@ -10,7 +10,7 @@ object Constants {
     const val STREAM_RESOLUTION_TIMEOUT_MS = 25000L
 
     const val HTML_CACHE_TTL_MS = 7 * 60 * 1000L
-    const val HTML_CACHE_STALE_TTL_MS = 24 * 60 * 60 * 1000L // 24h stale-while-revalidate
+    const val HTML_CACHE_STALE_TTL_MS = 30 * 60 * 1000L  // 30 хвилин (stale-while-revalidate)
     const val SEARCH_CACHE_TTL_MS = 7 * 60 * 1000L
     const val METADATA_CACHE_TTL_MS = 45 * 60 * 1000L
     const val STREAM_RESOLUTION_CACHE_TTL_MS = 5 * 60 * 1000L

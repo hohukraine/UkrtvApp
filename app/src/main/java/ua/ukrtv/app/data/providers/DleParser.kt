@@ -204,39 +204,7 @@ class DleParser(private val profile: DleProviderProfile) {
     }
 
     fun parseListFastJsoup(html: String, baseUrl: String): List<Movie> = PerformanceMonitor.traceResult("DleParser.parseListFastJsoup") {
-        val results = mutableListOf<Movie>()
-        if (html.isEmpty()) return@traceResult results
-        try {
-            val doc = org.jsoup.Jsoup.parse(html, baseUrl)
-            val host = baseUrl.substringAfter("://").substringBefore("/")
-            val cards = doc.select(profile.selectors.cardItem)
-            if (cards.isEmpty()) return@traceResult results
-
-            for (el in cards) {
-                val linkEl = el.selectFirst(profile.selectors.cardLink) ?: continue
-                val url = linkEl.attr("abs:href")
-                if (url.isBlank() || !url.contains(host, ignoreCase = true)) continue
-
-                val titleEl = el.selectFirst(profile.selectors.cardTitle)
-                var title = titleEl?.text()?.trim() ?: linkEl.attr("title").ifEmpty { linkEl.text().trim() }
-                if (title.isBlank()) continue
-                title = ContentUtils.cleanTitle(title)
-
-                val posterEl = el.selectFirst(profile.selectors.cardPoster)
-                val poster = posterEl?.let { p ->
-                    val src = p.attr("abs:data-src").ifEmpty { p.attr("abs:src") }
-                    if (src.isNotBlank()) src else ""
-                } ?: ""
-
-                val imdbText = el.select(".r_imdb span, .rating-imdb, .imdb-mark").firstOrNull()?.text()
-                val rating = imdbText?.let { RATING_CLEAN_REGEX.find(it)?.value }
-                    ?: el.select(".rating-num, .rating_imdb").firstOrNull()?.text()
-                    ?: IMDB_FULL_REGEX.find(el.text())?.groupValues?.get(1)
-
-                results.add(Movie(id = url, title = title, poster = poster, pageUrl = url, rating = rating))
-            }
-        } catch (_: Exception) { }
-        results.distinctBy { it.pageUrl }
+        parseListFastJsoupStatic(html, baseUrl, profile.selectors)
     }
 
     companion object {

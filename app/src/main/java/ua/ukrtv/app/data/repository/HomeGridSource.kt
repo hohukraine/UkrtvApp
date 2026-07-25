@@ -2,7 +2,6 @@ package ua.ukrtv.app.data.repository
 
 import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import ua.ukrtv.app.data.providers.MediaProvider
 import ua.ukrtv.app.domain.model.HomeSection
@@ -25,12 +24,8 @@ internal class HomeGridSource(
                     .distinctBy { it.pageUrl }
                     .take(50)
                 if (freshItems.isNotEmpty()) {
-                    val firstBatch = freshItems.take(15).map { it.withCachedColor() }
-                    emit(firstBatch)
-                    if (freshItems.size > 15) {
-                        delay(300)
-                        emit(freshItems.map { it.withCachedColor() })
-                    }
+                    val mappedItems = freshItems.map { it.withCachedColor() }
+                    emit(mappedItems)
                     homeCacheRepository.saveHomeCache(
                         provider.name,
                         listOf(HomeSection("Main", freshItems))

@@ -18,24 +18,6 @@ data class ExternalPlayerInfo(
             supportsResult = true
         )
 
-        val MX_PLAYER_FREE = ExternalPlayerInfo(
-            packageName = "com.mxtech.videoplayer.ad",
-            label = "MX Player",
-            supportsHeaders = true,
-            supportsSubtitles = true,
-            supportsResume = true,
-            supportsResult = true
-        )
-
-        val MX_PLAYER_PRO = ExternalPlayerInfo(
-            packageName = "com.mxtech.videoplayer.pro",
-            label = "MX Player Pro",
-            supportsHeaders = true,
-            supportsSubtitles = true,
-            supportsResume = true,
-            supportsResult = true
-        )
-
         val JUST_PLAYER = ExternalPlayerInfo(
             packageName = "com.brouken.player",
             label = "Just Player",
@@ -45,6 +27,6 @@ data class ExternalPlayerInfo(
             supportsResult = true
         )
 
-        val KNOWN_PLAYERS = listOf(VLC, MX_PLAYER_FREE, MX_PLAYER_PRO, JUST_PLAYER)
+        val KNOWN_PLAYERS = listOf(VLC, JUST_PLAYER)
     }
 }

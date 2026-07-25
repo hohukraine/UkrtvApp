@@ -198,21 +198,35 @@ fun DetailContent(
 
     val scrollState = rememberLazyListState()
     val disableMotion = deviceClass == DeviceClass.LOW || isMediatek
-    val lifecycleOwner = LocalLifecycleOwner.current
 
-    var driftX by remember { mutableFloatStateOf(0f) }
-    var driftY by remember { mutableFloatStateOf(0f) }
-    LaunchedEffect(deviceClass, disableMotion) {
-        if (disableMotion) return@LaunchedEffect
-        val periodX = if (deviceClass == DeviceClass.HIGH) 4000 else 6000
-        val periodY = if (deviceClass == DeviceClass.HIGH) 5000 else 8000
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) {
-                val t = withFrameMillis { it }
-                driftX = sin(t * Math.PI * 2.0 / periodX).toFloat()
-                driftY = sin(t * Math.PI * 2.0 / periodY).toFloat()
-            }
-        }
+    val infiniteTransition = rememberInfiniteTransition(label = "detailMotion")
+    val periodX = if (deviceClass == DeviceClass.HIGH) 4000 else 6000
+    val periodY = if (deviceClass == DeviceClass.HIGH) 5000 else 8000
+
+    val driftXState = if (disableMotion) {
+        remember { mutableStateOf(0f) }
+    } else {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = (Math.PI * 2).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(periodX, easing = LinearEasing)
+            ),
+            label = "driftX"
+        )
+    }
+
+    val driftYState = if (disableMotion) {
+        remember { mutableStateOf(0f) }
+    } else {
+        infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = (Math.PI * 2).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(periodY, easing = LinearEasing)
+            ),
+            label = "driftY"
+        )
     }
 
     // Premium color-only backdrop: radial glow + vertical gradient, no stretched images
@@ -222,6 +236,8 @@ fun DetailContent(
             .drawBehind {
                 val w = size.width
                 val h = size.height
+                val driftX = if (disableMotion) 0f else sin(driftXState.value.toDouble()).toFloat()
+                val driftY = if (disableMotion) 0f else sin(driftYState.value.toDouble()).toFloat()
 
                 val driftAmount = if (disableMotion) 0f else when (deviceClass) {
                     DeviceClass.LOW -> 0f

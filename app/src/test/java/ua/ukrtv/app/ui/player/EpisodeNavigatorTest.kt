@@ -131,6 +131,14 @@ class EpisodeNavigatorTest {
         assertNull(EpisodeNavigator.nextEpisode(seasons, 2, 1))
     }
 
+    @Test
+    fun `nextEpisode single episode per season across 3 seasons`() {
+        val seasons = listOf(season(1, ep(1)), season(2, ep(1)), season(3, ep(1)))
+        assertEquals(EpisodeNavigator.NavigationResult(2, 1), EpisodeNavigator.nextEpisode(seasons, 1, 1))
+        assertEquals(EpisodeNavigator.NavigationResult(3, 1), EpisodeNavigator.nextEpisode(seasons, 2, 1))
+        assertNull(EpisodeNavigator.nextEpisode(seasons, 3, 1))
+    }
+
     // --- previousEpisode ---
 
     @Test
@@ -207,6 +215,14 @@ class EpisodeNavigatorTest {
         assertNotNull(result)
         assertEquals(1, result!!.season)
         assertEquals(1, result.episode)
+    }
+
+    @Test
+    fun `previousEpisode single episode per season across 3 seasons`() {
+        val seasons = listOf(season(1, ep(1)), season(2, ep(1)), season(3, ep(1)))
+        assertEquals(EpisodeNavigator.NavigationResult(1, 1), EpisodeNavigator.previousEpisode(seasons, 2, 1))
+        assertEquals(EpisodeNavigator.NavigationResult(2, 1), EpisodeNavigator.previousEpisode(seasons, 3, 1))
+        assertNull(EpisodeNavigator.previousEpisode(seasons, 1, 1))
     }
 
     // --- hasNextEpisode ---

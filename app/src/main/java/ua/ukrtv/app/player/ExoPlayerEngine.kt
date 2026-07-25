@@ -43,10 +43,10 @@ class ExoPlayerEngine(
             ) {
                 listeners.forEach { it.onRebuffer() }
             }
-            previousPlaybackState = playbackState
-            if (playbackState == Player.STATE_ENDED) {
+            if (playbackState == Player.STATE_ENDED && previousPlaybackState != Player.STATE_ENDED) {
                 listeners.forEach { it.onEndReached() }
             }
+            previousPlaybackState = playbackState
         }
 
         override fun onVideoSizeChanged(newVideoSize: VideoSize) {

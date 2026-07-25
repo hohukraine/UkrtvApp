@@ -16,6 +16,21 @@ class DleResolutionUtilsTest {
     }
 
     @Test
+    fun `findMediaUrlsInText extracts protocol-relative m3u8`() {
+        val html = """file: "//cdn.example.com/stream.m3u8" """
+        val urls = DleResolutionUtils.findMediaUrlsInText(html)
+        assertEquals(1, urls.size)
+        assertTrue(urls[0].contains("stream.m3u8"))
+    }
+
+    @Test
+    fun `findMediaUrlsInText extracts protocol-relative mp4`() {
+        val html = """src="//cdn.example.com/video.mp4" """
+        val urls = DleResolutionUtils.findMediaUrlsInText(html)
+        assertEquals(1, urls.size)
+    }
+
+    @Test
     fun `findMediaUrlsInText extracts mp4 URLs`() {
         val html = """<source src="https://cdn.example.com/movie.mp4" type="video/mp4">"""
         val urls = DleResolutionUtils.findMediaUrlsInText(html)

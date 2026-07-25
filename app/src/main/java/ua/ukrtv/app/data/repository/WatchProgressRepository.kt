@@ -37,6 +37,29 @@ class WatchProgressRepository @Inject constructor(
         referer = referer
     )
 
+    suspend fun saveProgress(data: ua.ukrtv.app.domain.model.ProgressData) {
+        val id = if (data.episodeId != null) "${data.contentId}_${data.episodeId}" else data.contentId
+        val existing = watchProgressDao.getProgress(id)
+
+        val updated = WatchProgressEntity(
+            id = id,
+            contentId = data.contentId,
+            episodeId = data.episodeId,
+            positionMs = data.positionMs,
+            durationMs = data.durationMs,
+            title = data.title.ifEmpty { existing?.title ?: "" },
+            poster = data.poster.ifEmpty { existing?.poster ?: "" },
+            pageUrl = data.pageUrl.ifEmpty { existing?.pageUrl ?: "" },
+            timestamp = System.currentTimeMillis(),
+            streamUrl = data.streamUrl ?: existing?.streamUrl,
+            streamType = data.streamType ?: existing?.streamType,
+            referer = data.referer ?: existing?.referer,
+            fallbackUrls = data.fallbackUrls ?: existing?.fallbackUrls,
+            seasonsJson = data.seasonsJson ?: existing?.seasonsJson
+        )
+        watchProgressDao.insert(updated)
+    }
+
     suspend fun saveProgress(
         contentId: String,
         episodeId: String?,
@@ -51,26 +74,10 @@ class WatchProgressRepository @Inject constructor(
         fallbackUrls: String? = null,
         seasonsJson: String? = null
     ) {
-        val id = if (episodeId != null) "${contentId}_$episodeId" else contentId
-        val existing = watchProgressDao.getProgress(id)
-
-        val updated = WatchProgressEntity(
-            id = id,
-            contentId = contentId,
-            episodeId = episodeId,
-            positionMs = positionMs,
-            durationMs = durationMs,
-            title = title.ifEmpty { existing?.title ?: "" },
-            poster = poster.ifEmpty { existing?.poster ?: "" },
-            pageUrl = pageUrl.ifEmpty { existing?.pageUrl ?: "" },
-            timestamp = System.currentTimeMillis(),
-            streamUrl = streamUrl ?: existing?.streamUrl,
-            streamType = streamType ?: existing?.streamType,
-            referer = referer ?: existing?.referer,
-            fallbackUrls = fallbackUrls ?: existing?.fallbackUrls,
-            seasonsJson = seasonsJson ?: existing?.seasonsJson
-        )
-        watchProgressDao.insert(updated)
+        saveProgress(ua.ukrtv.app.domain.model.ProgressData(
+            contentId, episodeId, positionMs, durationMs, title, poster, pageUrl,
+            streamUrl, streamType, referer, fallbackUrls, seasonsJson
+        ))
     }
 
     suspend fun getProgress(contentId: String, episodeId: String? = null): WatchProgress? {

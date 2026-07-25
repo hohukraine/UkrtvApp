@@ -40,24 +40,33 @@ class HomeViewModel @Inject constructor(
     private val homePreferences: HomePreferences
 ) : ViewModel() {
 
-    data class HomeUiState(
+    data class HomeMainState(
         val isLoading: Boolean = true,
         val gridError: String? = null,
-        val isOnline: Boolean = true,
         val homeTrending: List<Movie> = emptyList(),
         val continueWatching: List<Movie> = emptyList(),
         val watchlist: List<Movie> = emptyList(),
-        val bannerMovies: List<Movie> = emptyList(),
-        val top200Banners: List<Top200Movie> = emptyList(),
-        val brandColor: Long = 0xFF6E85B7,
-        val currentProviderId: String = "",
-        val trendingLabel: String = "Тренди",
-        val homeLayout: HomeLayout = HomeLayout(),
+    )
+
+    data class HomeCategoriesState(
         val categoryMovies: List<Movie> = emptyList(),
         val categorySeries: List<Movie> = emptyList(),
         val categoryAnime: List<Movie> = emptyList(),
         val categoryCartoons: List<Movie> = emptyList(),
         val categoryCartoonSeries: List<Movie> = emptyList(),
+    )
+
+    data class HomeHeroState(
+        val bannerMovies: List<Movie> = emptyList(),
+        val top200Banners: List<Top200Movie> = emptyList(),
+    )
+
+    data class HomeConfigState(
+        val isOnline: Boolean = true,
+        val brandColor: Long = 0xFF6E85B7,
+        val currentProviderId: String = "",
+        val trendingLabel: String = "Тренди",
+        val homeLayout: HomeLayout = HomeLayout(),
     )
 
     private val isOnline: Flow<Boolean> = callbackFlow {
@@ -93,6 +102,13 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             providerManager.activeProvider.drop(1).collect {
                 _bannerTop200.value = top200Repository.getRandom5()
+            }
+        }
+        viewModelScope.launch {
+            providerManager.activeProvider.collect { provider ->
+                if (mediaRepository.isHomeCacheStale(provider.name, staleHoursThreshold = 1)) {
+                    retryGrid()
+                }
             }
         }
     }
@@ -188,7 +204,6 @@ class HomeViewModel @Inject constructor(
     private val categories: Flow<Map<ContentCategory, List<Movie>>> = providerManager.activeProvider
         .flatMapLatest { provider ->
             flow {
-                kotlinx.coroutines.delay(3000)
                 val cats = listOf(
                     ContentCategory.MOVIES, ContentCategory.SERIES, ContentCategory.ANIME,
                     ContentCategory.CARTOONS, ContentCategory.CARTOON_SERIES
@@ -211,33 +226,48 @@ class HomeViewModel @Inject constructor(
             }
         }
 
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val uiState: StateFlow<HomeUiState> = combine(
-        _isLoading, _gridError, isOnline, homeTrending, continueWatching, watchlist,
-        bannerMovies, _bannerTop200, providerConfig, trendingLabel,
-        homePreferences.layout, categories
-    ) { args ->
-        val cats = args[11] as Map<ContentCategory, List<Movie>>
-        HomeUiState(
-            isLoading = args[0] as Boolean,
-            gridError = args[1] as? String,
-            isOnline = args[2] as Boolean,
-            homeTrending = args[3] as List<Movie>,
-            continueWatching = args[4] as List<Movie>,
-            watchlist = args[5] as List<Movie>,
-            bannerMovies = args[6] as List<Movie>,
-            top200Banners = args[7] as List<Top200Movie>,
-            brandColor = (args[8] as Pair<Long, String>).first,
-            currentProviderId = (args[8] as Pair<Long, String>).second,
-            trendingLabel = args[9] as String,
-            homeLayout = args[10] as HomeLayout,
+    val mainContentState: StateFlow<HomeMainState> = combine(
+        _isLoading, _gridError, homeTrending, continueWatching, watchlist
+    ) { isLoading, gridError, trending, cw, wl ->
+        HomeMainState(
+            isLoading = isLoading,
+            gridError = gridError,
+            homeTrending = trending,
+            continueWatching = cw,
+            watchlist = wl
+        )
+    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeMainState())
+
+    val categoriesState: StateFlow<HomeCategoriesState> = categories.map { cats ->
+        HomeCategoriesState(
             categoryMovies = cats[ContentCategory.MOVIES] ?: emptyList(),
             categorySeries = cats[ContentCategory.SERIES] ?: emptyList(),
             categoryAnime = cats[ContentCategory.ANIME] ?: emptyList(),
             categoryCartoons = cats[ContentCategory.CARTOONS] ?: emptyList(),
             categoryCartoonSeries = cats[ContentCategory.CARTOON_SERIES] ?: emptyList()
         )
-    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
+    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeCategoriesState())
+
+    val heroState: StateFlow<HomeHeroState> = combine(
+        bannerMovies, _bannerTop200
+    ) { banner, top200 ->
+        HomeHeroState(
+            bannerMovies = banner,
+            top200Banners = top200
+        )
+    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeHeroState())
+
+    val configState: StateFlow<HomeConfigState> = combine(
+        isOnline, providerConfig, trendingLabel, homePreferences.layout
+    ) { isOnline, providerCfg, trendingLabel, homeLayout ->
+        HomeConfigState(
+            isOnline = isOnline,
+            brandColor = providerCfg.first,
+            currentProviderId = providerCfg.second,
+            trendingLabel = trendingLabel,
+            homeLayout = homeLayout
+        )
+    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeConfigState())
 
     val focusColor: StateFlow<Color> = _focusColor.asStateFlow()
     val focusedMovie: StateFlow<Movie?> = _focusedMovie.asStateFlow()

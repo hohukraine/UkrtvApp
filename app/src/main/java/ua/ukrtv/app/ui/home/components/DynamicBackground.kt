@@ -12,14 +12,10 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
 import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
 import ua.ukrtv.app.util.DeviceClass
-import kotlin.math.sin
 
 @Composable
 fun HomeBackground(
@@ -51,29 +47,42 @@ fun HomeBackground(
     }
 
     // Feature 6: Ambient Gradient Motion — subtle oscillation of glow centers
+    // Uses InfiniteTransition instead of frame-by-frame floatState writes to avoid
+    // recomposing the parent Box on every frame (~60fps).
     val motionRange = when (deviceClass) {
         DeviceClass.MID -> 0.015f
         DeviceClass.HIGH -> 0.03f
         else -> 0f
     }
-    var motionX by remember { mutableFloatStateOf(0f) }
-    var motionY by remember { mutableFloatStateOf(0f) }
-    var motionPhase2X by remember { mutableFloatStateOf(0f) }
-    
-    val lifecycleOwner = LocalLifecycleOwner.current
-    
-    // Phase 9: Only run animation if enabled
-    LaunchedEffect(deviceClass, animateGlow) {
-        if (!animateGlow) return@LaunchedEffect
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) {
-                val t = withFrameMillis { it }
-                motionX = sin(t * Math.PI * 2.0 / 6000).toFloat() * motionRange
-                motionY = sin(t * Math.PI * 2.0 / 8000).toFloat() * motionRange * 0.6f
-                motionPhase2X = sin(t * Math.PI * 2.0 / 5000).toFloat() * motionRange * 0.5f
-            }
-        }
-    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "bgMotion")
+    val motionXState = infiniteTransition.animateFloat(
+        initialValue = -motionRange,
+        targetValue = motionRange,
+        animationSpec = infiniteRepeatable(
+            animation = tween(6000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "motionX"
+    )
+    val motionYState = infiniteTransition.animateFloat(
+        initialValue = -motionRange * 0.6f,
+        targetValue = motionRange * 0.6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "motionY"
+    )
+    val motionPhase2XState = infiniteTransition.animateFloat(
+        initialValue = -motionRange * 0.5f,
+        targetValue = motionRange * 0.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(5000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "motionPhase2X"
+    )
 
     val animatedFocusColor by animateColorAsState(
         targetValue = focusedColor,
@@ -96,7 +105,7 @@ fun HomeBackground(
     // We keep this in composition as it affects whether the layer exists
     val washTargetAlpha = if (backdropColor == Color.Unspecified) 0f else 1f
     
-    val animatedWashAlpha by animateFloatAsState(
+    val animatedWashAlphaState = animateFloatAsState(
         targetValue = washTargetAlpha,
         animationSpec = tween(washDuration),
         label = "backdropWashAlpha"
@@ -119,6 +128,10 @@ fun HomeBackground(
                 .fillMaxSize()
                 .drawBehind {
                     val scroll = scrollFraction().coerceIn(0f, 1f)
+                    val motionX = motionXState.value
+                    val motionY = motionYState.value
+                    val motionPhase2X = motionPhase2XState.value
+                    val animatedWashAlpha = animatedWashAlphaState.value
                     
                     // Layer 0: Backdrop color wash
                     val currentWashAlpha = animatedWashAlpha * (1f - scroll * 1.1f).coerceIn(0f, 1f)

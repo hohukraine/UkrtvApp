@@ -1,6 +1,7 @@
 package ua.ukrtv.app.ui.player
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -40,11 +41,25 @@ fun ExternalPlayerScreen(
     var playerLaunched by remember { mutableStateOf(viewModel.hasPendingExternalPlayerResult()) }
     var resultHandled by remember { mutableStateOf(false) }
     var showCancelButton by remember { mutableStateOf(false) }
+    var showAdvanceCountdown by remember { mutableStateOf(false) }
+    var advanceCountdown by remember { mutableIntStateOf(5) }
 
     LaunchedEffect(playerLaunched) {
         if (playerLaunched) {
             delay(5000)
             showCancelButton = true
+        }
+    }
+
+    LaunchedEffect(showAdvanceCountdown) {
+        if (showAdvanceCountdown) {
+            while (advanceCountdown > 0) {
+                delay(1000)
+                advanceCountdown--
+            }
+            showAdvanceCountdown = false
+            playerLaunched = false
+            resultHandled = false
         }
     }
 
@@ -55,13 +70,13 @@ fun ExternalPlayerScreen(
     ) { result ->
         resultHandled = true
         viewModel.releaseExternalPlayerLaunchLock()
-        viewModel.releaseEngine()
         scope.launch {
             val returnResult = viewModel.handleExternalPlayerResult(result.resultCode, result.data)
+            viewModel.releaseEngine()
             when (returnResult) {
                 is ExternalPlayerReturnResult.Advanced -> {
-                    playerLaunched = false
-                    resultHandled = false
+                    showAdvanceCountdown = true
+                    advanceCountdown = 5
                 }
                 else -> {
                     playerLaunched = false
@@ -75,7 +90,7 @@ fun ExternalPlayerScreen(
         viewModel.initialize(contentId, title, url, season, episode, poster)
     }
 
-    LaunchedEffect(state.status) {
+    LaunchedEffect(state.status, playerLaunched) {
         val status = state.status
         if (status is PlayerStatus.Ready && !playerLaunched && viewModel.tryAcquireExternalPlayerLaunchLock()) {
             try {
@@ -128,10 +143,16 @@ fun ExternalPlayerScreen(
         (currentStatus is PlayerStatus.Ready && playerLaunched)
     )
 
-    androidx.activity.compose.BackHandler(enabled = isLoadingVisible) {
-        viewModel.releaseExternalPlayerLaunchLock()
-        viewModel.savedStateHandle[PlayerViewModel.KEY_PENDING_RESULT] = false
-        onBack()
+    BackHandler(enabled = isLoadingVisible || showAdvanceCountdown) {
+        if (showAdvanceCountdown) {
+            showAdvanceCountdown = false
+            playerLaunched = false
+            onBack()
+        } else {
+            viewModel.releaseExternalPlayerLaunchLock()
+            viewModel.savedStateHandle[PlayerViewModel.KEY_PENDING_RESULT] = false
+            onBack()
+        }
     }
 
     Box(
@@ -150,6 +171,39 @@ fun ExternalPlayerScreen(
                             .padding(horizontal = 24.dp, vertical = 12.dp)
                     ) {
                         Text("Назад", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            showAdvanceCountdown -> {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    EpisodeLoadingOverlay(
+                        poster = poster,
+                        season = state.currentSeason,
+                        episode = state.currentEpisode,
+                        visible = true
+                    )
+                    Spacer(Modifier.height(20.dp))
+                    Text(
+                        "Наступна серія через $advanceCountdown",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+                            .clickable {
+                                showAdvanceCountdown = false
+                                playerLaunched = false
+                                onBack()
+                            }
+                            .padding(horizontal = 24.dp, vertical = 12.dp)
+                    ) {
+                        Text("Скасувати", color = Color.White, fontSize = 14.sp)
                     }
                 }
             }

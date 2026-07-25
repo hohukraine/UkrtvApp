@@ -35,24 +35,7 @@ class UakinoProvider(
 
     override fun supportsUrl(url: String) = url.contains("uakino.best")
 
-    override suspend fun search(query: String, limit: Int): List<SearchItem> = withContext(Dispatchers.IO) {
-        val q = query.trim().takeIf { it.isNotEmpty() } ?: return@withContext emptyList()
-
-        if (catalogRepository.isProviderReady(name)) {
-            val results = catalogRepository.searchByProvider(name, q, limit)
-            if (results.isNotEmpty()) {
-                return@withContext results.map { SearchItem(it.title, it.url, it.poster, name) }
-            }
-        }
-
-        val allResults = performDleSearch(q, limit)
-        val filtered = allResults.map { SearchItem(it.title, it.pageUrl, it.poster, name) }
-
-        if (filtered.isNotEmpty()) return@withContext filtered
-        return@withContext searchCatalogFallback(q, limit)
-    }
-
-    private suspend fun searchCatalogFallback(query: String, limit: Int): List<SearchItem> = withContext(Dispatchers.IO) {
+    override suspend fun searchFallback(query: String, limit: Int): List<SearchItem> = withContext(Dispatchers.IO) {
         val results = mutableListOf<Movie>()
         val q = SearchScorer.transliterate(SearchScorer.normalizeTitle(query))
 
@@ -81,66 +64,10 @@ class UakinoProvider(
         matched.map { SearchItem(it.title, it.pageUrl, it.poster, name) }
     }
 
-    override suspend fun getMediaSource(pageUrl: String, season: Int?, episode: Int?, isDeep: Boolean, prefetchedHtml: String?): MediaSource? = withContext(Dispatchers.IO) {
-        if (sessionUserHash.isEmpty()) initializeSession()
-        val html = prefetchedHtml ?: pageHtmlCache.get(pageUrl).also { pageHtmlCache.invalidate(pageUrl) } ?: run {
-            htmlHttpClient.getHtml(pageUrl, baseUrl)
-                ?: throw java.io.IOException("Не вдалося завантажити сторінку: $pageUrl")
-        }
-
-        val doc = Jsoup.parse(html, pageUrl)
-        
-        // Try AJAX first (it works for both movies and series on Uakino now)
-        var source = resolveSeriesAjax(doc, pageUrl)
-        
-        // Fallback to iframe/direct extraction, reuse existing doc
-        if (source == null) {
-            source = resolveMovieFromPage(html, pageUrl, doc)
-        }
-
-        return@withContext DleResolutionUtils.promoteToSeriesIfNeeded(source, pageUrl, name)
-    }
-
-    private suspend fun resolveMovieFromPage(html: String, pageUrl: String, doc: Document? = null): MediaSource? {
-        val directUrls = DleResolutionUtils.findMediaUrlsInText(html)
-        if (directUrls.isNotEmpty()) {
-            val best = selectBestMediaUrl(directUrls) ?: directUrls.first()
-            return MediaSource.Movie(best, directUrls.filter { it != best }, pageUrl, name)
-        }
-
-        val parsedDoc = doc ?: Jsoup.parse(html, pageUrl)
-        val iframes = parsedDoc.select("iframe").mapNotNull { ifr ->
-            val src = ifr.attr("abs:data-src").ifEmpty { ifr.attr("abs:src") }
-            if (src.isEmpty() || src.contains("youtube") || src.contains("facebook")) null else src
-        }
-
-        for (src in iframes.take(2)) {
-            try {
-                val iframeResp = htmlHttpClient.getHtml(src, pageUrl) ?: continue
-                val media = DleResolutionUtils.findMediaUrlsInText(iframeResp)
-                if (media.isNotEmpty()) {
-                    val best = selectBestMediaUrl(media) ?: media.first()
-                    val fallbacks = media.filter { it != best }
-                    return MediaSource.Movie(best, fallbacks, pageUrl, name)
-                }
-            } catch (e: Exception) {
-                AppLogger.w("$name:MovieIframe", "Iframe failed: ${e.message}")
-            }
-
-            if (src.contains("ashdi") || src.contains("vidmoly") || src.contains("mcloud")) {
-                return MediaSource.Movie(src, emptyList(), pageUrl, name)
-            }
-        }
-        return null
-    }
-
-    private fun selectBestMediaUrl(media: List<String>): String? {
-        if (media.isEmpty()) return null
-        if (media.size > 1) return DleResolutionUtils.pickBestQuality(media) ?: media.first()
-        return media.first()
-    }
-
-    private suspend fun resolveSeriesAjax(doc: org.jsoup.nodes.Document, pageUrl: String): MediaSource? {
+    override suspend fun resolveSeriesContent(
+        html: String, pageUrl: String, doc: org.jsoup.nodes.Document,
+        season: Int?, episode: Int?, isDeep: Boolean
+    ): MediaSource? {
         val playlistDiv = doc.selectFirst(".playlists-ajax, [data-news_id]") ?: return null
         val newsId = playlistDiv.attr("data-news_id")
         if (newsId.isBlank()) return null
@@ -187,12 +114,7 @@ class UakinoProvider(
         }
 
         if (allSeasons.isEmpty()) return null
-        val merged = allSeasons.groupBy { it.number }.map { (num, list) ->
-            val allEps = list.flatMap { it.episodes }.distinctBy { it.url }.sortedBy { it.number }
-            val allVos = list.flatMap { it.voiceoverOptions }.distinct().sorted()
-            ProviderSeason(num, allEps, voiceoverOptions = allVos)
-        }.sortedBy { it.number }
-        return MediaSource.Series(merged, pageUrl, name)
+        return mergeSeasons(allSeasons, pageUrl)
     }
 
     private suspend fun fetchAjaxPlaylist(newsId: String, referer: String): Pair<List<ProviderEpisode>, List<String>>? {

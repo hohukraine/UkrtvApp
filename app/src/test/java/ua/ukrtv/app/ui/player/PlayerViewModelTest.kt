@@ -11,6 +11,8 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.cancel
+import androidx.lifecycle.viewModelScope
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -28,10 +30,7 @@ import ua.ukrtv.app.player.AudioEngine
 import ua.ukrtv.app.player.ExternalPlayerLauncher
 import ua.ukrtv.app.player.MediaPrefetcher
 import ua.ukrtv.app.player.PlayerFactory
-import ua.ukrtv.app.player.PlayerPool
-import ua.ukrtv.app.player.ProviderScoreCache
-import ua.ukrtv.app.player.ProviderSpeedTester
-import ua.ukrtv.app.player.StreamHealthMonitor
+import ua.ukrtv.app.player.ProviderQualityManager
 import ua.ukrtv.app.player.ThermalMonitor
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.PlayerPreferences
@@ -48,11 +47,8 @@ class PlayerViewModelTest {
     private lateinit var thermalMonitor: ThermalMonitor
     private lateinit var providerManager: ProviderManager
     private lateinit var playerFactory: PlayerFactory
-    private lateinit var playerPool: PlayerPool
     private lateinit var mediaPrefetcher: MediaPrefetcher
-    private lateinit var providerSpeedTester: ProviderSpeedTester
-    private lateinit var providerScoreCache: ProviderScoreCache
-    private lateinit var streamHealthMonitor: StreamHealthMonitor
+    private lateinit var providerQualityManager: ProviderQualityManager
 
     @Before
     fun setup() {
@@ -86,11 +82,8 @@ class PlayerViewModelTest {
         every { thermalMonitor.thermalStatus } returns emptyFlow()
         providerManager = mockk(relaxed = true)
         playerFactory = mockk(relaxed = true)
-        playerPool = mockk(relaxed = true)
         mediaPrefetcher = mockk(relaxed = true)
-        providerSpeedTester = mockk(relaxed = true)
-        providerScoreCache = mockk(relaxed = true)
-        streamHealthMonitor = mockk(relaxed = true)
+        providerQualityManager = mockk(relaxed = true)
     }
 
     @After
@@ -107,15 +100,14 @@ class PlayerViewModelTest {
             okHttpClient = mockk(relaxed = true),
             streamResolver = streamResolver,
             playerFactory = playerFactory,
-            playerPool = playerPool,
             audioEngine = audioEngine,
             providerManager = providerManager,
             playerPreferences = playerPreferences,
             mediaPrefetcher = mediaPrefetcher,
-            providerSpeedTester = providerSpeedTester,
-            providerScoreCache = providerScoreCache,
-            streamHealthMonitor = streamHealthMonitor,
-            thermalMonitor = thermalMonitor
+            providerQualityManager = providerQualityManager,
+            thermalMonitor = thermalMonitor,
+            streamResolvingInteractor = mockk(relaxed = true),
+            externalPlayerInteractor = mockk(relaxed = true)
         )
     }
 
@@ -148,24 +140,80 @@ class PlayerViewModelTest {
     }
 
     @Test
-    fun `handleExternalPlayerResult full episode with seasons returns Advanced`() = runTest {
+    fun `handleExternalPlayerResult finished last episode returns NotFinished`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "seasons", listOf(season(1, ep(1), ep(2))))
+        setField(vm, "season", 1)
+        setField(vm, "episode", 2)
+        setField(vm, "contentId", "movie123")
+        setField(vm, "episodeId", "s1e2")
+
+        val intent = mockk<Intent>()
+        val interactor = getField(vm, "externalPlayerInteractor") as ExternalPlayerInteractor
+        every { interactor.extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(60000L, 60000L, true)
+
+        val result = vm.handleExternalPlayerResult(-1, intent)
+        assertEquals(ExternalPlayerReturnResult.NotFinished(60000L, 60000L), result)
+        assertEquals(1, getField(vm, "season"))
+        assertEquals(2, getField(vm, "episode"))
+        vm.viewModelScope.cancel()
+    }
+
+    @Test
+    fun `handleExternalPlayerResult finished non-last episode returns Advanced`() = runTest {
         val vm = createViewModel()
         setField(vm, "seasons", listOf(season(1, ep(1), ep(2))))
         setField(vm, "season", 1)
         setField(vm, "episode", 1)
+        setField(vm, "contentId", "movie123")
+        setField(vm, "episodeId", "s1e1")
 
         val intent = mockk<Intent>()
-        mockkConstructor(ExternalPlayerLauncher::class)
-        every { anyConstructed<ExternalPlayerLauncher>().extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(60000L, 60000L, true)
+        val interactor = getField(vm, "externalPlayerInteractor") as ExternalPlayerInteractor
+        every { interactor.extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(60000L, 60000L, true)
 
         val result = vm.handleExternalPlayerResult(-1, intent)
         assertEquals(ExternalPlayerReturnResult.Advanced, result)
         assertEquals(1, getField(vm, "season"))
         assertEquals(2, getField(vm, "episode"))
+        vm.viewModelScope.cancel()
     }
 
     @Test
-    fun `createExternalPlayerIntent builds playlist with cached URLs`() = runTest {
+    fun `handleExternalPlayerResult null result returns NoData without saved duration`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "contentId", "movie123")
+        setField(vm, "episodeId", "s1e1")
+        setField(vm, "lastSavedPosition", 0L)
+        
+        val intent = mockk<Intent>()
+        val interactor = getField(vm, "externalPlayerInteractor") as ExternalPlayerInteractor
+        every { interactor.extractResult(any(), any()) } returns null
+
+        val result = vm.handleExternalPlayerResult(-1, intent)
+        
+        assertEquals(ExternalPlayerReturnResult.NoData, result)
+        vm.viewModelScope.cancel()
+    }
+
+    @Test
+    fun `handleExternalPlayerResult zero position and duration without saved duration returns NoData`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "contentId", "movie123")
+        setField(vm, "episodeId", "s1e1")
+        
+        val intent = mockk<Intent>()
+        val interactor = getField(vm, "externalPlayerInteractor") as ExternalPlayerInteractor
+        every { interactor.extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(0L, 0L, false)
+
+        val result = vm.handleExternalPlayerResult(-1, intent)
+        
+        assertEquals(ExternalPlayerReturnResult.NoData, result)
+        vm.viewModelScope.cancel()
+    }
+
+    @Test
+    fun `createExternalPlayerIntent returns non-null when status is Ready`() = runTest {
         val vm = createViewModel()
         val season1 = season(1, ep(1), ep(2))
         setField(vm, "seasons", listOf(season1))
@@ -189,18 +237,31 @@ class PlayerViewModelTest {
             "movie123_s1e2" to WatchProgressRepository.StreamCache(cachedUrl, "MP4", "", emptyList())
         )
         
-        every { playerPreferences.externalPlayerPackage.value } returns "com.mxtech.videoplayer.ad"
-        mockkConstructor(ExternalPlayerLauncher::class)
-        val configSlot = slot<ExternalPlayerLauncher.PlayerLaunchConfig>()
-        every { anyConstructed<ExternalPlayerLauncher>().buildIntent(any(), capture(configSlot)) } returns mockk()
+        every { playerPreferences.externalPlayerPackage.value } returns "org.videolan.vlc"
+        val mockIntent = mockk<Intent>()
+        val interactor = getField(vm, "externalPlayerInteractor") as ExternalPlayerInteractor
+        coEvery { interactor.buildIntent(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()) } returns mockIntent
 
-        vm.createExternalPlayerIntent()
+        val result = vm.createExternalPlayerIntent()
+        assertNotNull(result)
+        assertEquals(mockIntent, result)
 
-        assertTrue(configSlot.isCaptured)
-        val playlist = configSlot.captured.playlist
-        assertEquals(2, playlist.size)
-        assertEquals("https://test/1/stream", playlist[0].url) 
-        assertEquals(cachedUrl, playlist[1].url) 
+        coVerify {
+            interactor.buildIntent(
+                contentId = "movie123",
+                title = "Movie",
+                url = "https://test/1/stream",
+                streamType = StreamType.MP4,
+                referer = any(),
+                positionMs = 0L,
+                durationMs = 0L,
+                season = 1,
+                episode = 1,
+                voiceover = any(),
+                seasons = listOf(season1)
+            )
+        }
+        vm.viewModelScope.cancel()
     }
 
     @Test
@@ -227,5 +288,6 @@ class PlayerViewModelTest {
         vm.saveProgress(6000L, 60000L)
 
         assertEquals(6000L, getField(vm, "lastSavedPosition"))
+        vm.viewModelScope.cancel()
     }
 }
