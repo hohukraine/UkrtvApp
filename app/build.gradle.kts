@@ -15,8 +15,8 @@ android {
         applicationId = "ua.ukrtv.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
-        versionName = "1.2.2"
+        versionCode = 7
+        versionName = "1.3.0"
         buildConfigField("String", "UPDATE_URL", "\"https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/update.json\"")
     }
 
@@ -57,7 +57,6 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
-
 }
 
 composeCompiler {
@@ -151,6 +150,7 @@ dependencies {
     // UI & Utils
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
+    implementation(libs.coil.svg)
     implementation(libs.palette.ktx)
     implementation(libs.tvprovider)
     implementation(libs.core.ktx)
