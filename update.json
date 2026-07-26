@@ -1,6 +1,6 @@
 {
-  "versionCode": 7,
-  "versionName": "1.3.0",
+  "versionCode": 6,
+  "versionName": "1.2.2",
   "changelog": "Виправлення встановлення оновлень: додано дозвіл REQUEST_INSTALL_PACKAGES. Якщо дозвіл відсутній, додаток відкриє налаштування 'Невідомі джерела'.",
-  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.3.0.apk"
+  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.2.2.apk"
 }
