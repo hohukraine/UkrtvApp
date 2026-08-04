@@ -90,11 +90,13 @@ fun ContentRow(
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedContentScope: AnimatedContentScope? = null,
     providerHint: String? = null,
-    restoreMovie: Movie? = null
+    restoreMovie: Movie? = null,
+    restoreWindowOpen: () -> Boolean = { false },
+    onRestoreHandled: () -> Unit = {}
 ) {
     val formFactor = LocalFormFactor.current
     when (formFactor) {
-        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useLargeCards, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint, restoreMovie)
+        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useLargeCards, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint, restoreMovie, restoreWindowOpen, onRestoreHandled)
         FormFactor.PHONE, FormFactor.TABLET -> PhoneContentRow(title, items, brandColor, onItemClick, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint)
     }
 }
@@ -211,7 +213,9 @@ private fun TvContentRow(
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedContentScope: AnimatedContentScope? = null,
     providerHint: String? = null,
-    restoreMovie: Movie? = null
+    restoreMovie: Movie? = null,
+    restoreWindowOpen: () -> Boolean = { false },
+    onRestoreHandled: () -> Unit = {}
 ) {
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
@@ -227,17 +231,18 @@ private fun TvContentRow(
     val context = LocalContext.current
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
 
-    val restoreKey = restoreMovie?.let { "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" }
-    val targetIndex = if (restoreKey != null) items.indexOfFirst { "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" == restoreKey } else -1
+    fun keyOf(movie: Movie) = "${movie.pageUrl}_${movie.season ?: ""}_${movie.episode ?: ""}"
+
+    val restoreKey = restoreMovie?.let { keyOf(it) }
     val targetFocus = remember { FocusRequester() }
-    var didRestore by remember { mutableStateOf(false) }
-    LaunchedEffect(items, restoreMovie) {
-        if (didRestore || targetIndex < 0) return@LaunchedEffect
-        lazyListState.animateScrollToItem(targetIndex)
+    LaunchedEffect(items) {
+        if (restoreKey == null || !restoreWindowOpen()) return@LaunchedEffect
+        val targetIndex = items.indexOfFirst { keyOf(it) == restoreKey }
+        if (targetIndex < 0) return@LaunchedEffect
+        onRestoreHandled()
+        lazyListState.scrollToItem(targetIndex)
         withFrameNanos { }
-        if (runCatching { targetFocus.requestFocus() }.getOrDefault(false)) {
-            didRestore = true
-        }
+        runCatching { targetFocus.requestFocus() }
     }
 
     val animateEntrance = deviceClass == DeviceClass.HIGH && !isMediatek
@@ -333,10 +338,9 @@ private fun TvContentRow(
                     }
 
                     val lastSoundTime = remember { mutableLongStateOf(0L) }
-                    val isRestoreTarget = restoreKey != null && "${item.pageUrl}_${item.season ?: ""}_${item.episode ?: ""}" == restoreKey
-                    val restoreMod = if (isRestoreTarget) Modifier.focusRequester(targetFocus) else Modifier
-                    val focusMod = remember(item, onItemFocused, audioManager, keyBlockMod, itemModifier, restoreMod) {
-                        itemModifier
+                    val isRestoreTarget = restoreKey != null && keyOf(item) == restoreKey
+                    val focusMod = remember(item, onItemFocused, audioManager, keyBlockMod, itemModifier, isRestoreTarget) {
+                        var mod: Modifier = itemModifier
                             .focusProperties {
                                 exit = { focusDirection ->
                                     if (focusDirection == androidx.compose.ui.focus.FocusDirection.Right) {
@@ -349,8 +353,8 @@ private fun TvContentRow(
                                 }
                             }
                             .then(keyBlockMod)
-                            .then(restoreMod)
-                            .onFocusChanged { state ->
+                        if (isRestoreTarget) mod = mod.then(Modifier.focusRequester(targetFocus))
+                        mod.onFocusChanged { state ->
                             if (state.isFocused) {
                                 onItemFocused?.invoke(item)
                                 val now = System.currentTimeMillis()

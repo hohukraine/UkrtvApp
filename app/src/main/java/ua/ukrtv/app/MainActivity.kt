@@ -38,6 +38,10 @@ import ua.ukrtv.app.ui.theme.BrandBlue
 import ua.ukrtv.app.navigation.Screen
 import ua.ukrtv.app.ui.splash.SplashScreen
 import androidx.navigation.toRoute
+import kotlinx.coroutines.delay
+
+private const val MIN_SPLASH_MS = 1200L
+private const val MAX_SPLASH_MS = 8000L
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -68,13 +72,34 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             UkrtvTheme(performancePreferences = performancePreferences, formFactor = formFactor) {
-                var showIntro by remember { mutableStateOf(true) }
+                var showApp by remember { mutableStateOf(false) }
+                var showSplash by remember { mutableStateOf(true) }
+                var minDelayPassed by remember { mutableStateOf(false) }
+                var homeReady by remember { mutableStateOf(false) }
+                var forceDismiss by remember { mutableStateOf(false) }
+
+                LaunchedEffect(Unit) {
+                    withFrameNanos { }
+                    showApp = true
+                }
+                LaunchedEffect(Unit) {
+                    delay(MIN_SPLASH_MS)
+                    minDelayPassed = true
+                }
+                LaunchedEffect(Unit) {
+                    delay(MAX_SPLASH_MS)
+                    forceDismiss = true
+                }
+
                 Box(modifier = Modifier.fillMaxSize()) {
-                    UkrtvTVApp(formFactor)
-                    if (showIntro) {
+                    if (showApp) {
+                        UkrtvTVApp(formFactor, onHomeContentReady = { homeReady = true })
+                    }
+                    if (showSplash) {
                         SplashScreen(
                             providerColor = providerColor,
-                            onSplashFinished = { showIntro = false }
+                            dismiss = (minDelayPassed && homeReady) || forceDismiss,
+                            onFinished = { showSplash = false }
                         )
                     }
                 }
@@ -95,7 +120,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
-fun UkrtvTVApp(formFactor: FormFactor) {
+fun UkrtvTVApp(formFactor: FormFactor, onHomeContentReady: () -> Unit = {}) {
     val navController = rememberNavController()
 
     val deviceClass = LocalDeviceClass.current
@@ -165,7 +190,8 @@ fun UkrtvTVApp(formFactor: FormFactor) {
                         },
                         onSeeAllTrendsClick = { navController.navigate(Screen.TrendsGrid) { launchSingleTop = true } },
                         onSeeAllCategoryClick = { categoryKey -> navController.navigate(Screen.CategoryGrid(categoryKey)) { launchSingleTop = true } },
-                        onSettingsClick = { navController.navigate(Screen.Settings) { launchSingleTop = true } }
+                        onSettingsClick = { navController.navigate(Screen.Settings) { launchSingleTop = true } },
+                        onHomeContentReady = onHomeContentReady
                     )
                 }
                 composable<Screen.Top200> {

@@ -40,6 +40,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.Provider
@@ -68,6 +69,7 @@ import ua.ukrtv.app.ui.theme.PosterStyle
 import ua.ukrtv.app.ui.theme.ProviderSizes
 import ua.ukrtv.app.ui.home.components.TrendsTrailingButton
 import ua.ukrtv.app.util.HomeLayout
+private const val FOCUS_RESTORE_WINDOW_MS = 1500L
 
 @Stable
 private data class HomeScreenState(
@@ -125,13 +127,14 @@ fun HomeScreen(
     onTop200ItemClick: (Top200Movie) -> Unit,
     onSeeAllTrendsClick: () -> Unit,
     onSeeAllCategoryClick: (String) -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onHomeContentReady: () -> Unit = {}
 ) {
     val formFactor = LocalFormFactor.current
     if (formFactor == FormFactor.PHONE) {
-        PhoneHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onSettingsClick, onSeeAllTrendsClick, onSeeAllCategoryClick)
+        PhoneHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onSettingsClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onHomeContentReady)
     } else {
-        TvHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onTop200ItemClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onSettingsClick)
+        TvHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onTop200ItemClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onSettingsClick, onHomeContentReady)
     }
 }
 
@@ -149,7 +152,8 @@ private fun TvHomeScreen(
     onTop200ItemClick: (Top200Movie) -> Unit,
     onSeeAllTrendsClick: () -> Unit,
     onSeeAllCategoryClick: (String) -> Unit,
-    onSettingsClick: () -> Unit
+    onSettingsClick: () -> Unit,
+    onHomeContentReady: () -> Unit = {}
 ) {
     val mainState by viewModel.mainContentState.collectAsStateWithLifecycle()
     val categoriesState by viewModel.categoriesState.collectAsStateWithLifecycle()
@@ -157,6 +161,15 @@ private fun TvHomeScreen(
     val configState by viewModel.configState.collectAsStateWithLifecycle()
     val focusColor by viewModel.focusColor.collectAsStateWithLifecycle()
     val focusedMovie by viewModel.focusedMovie.collectAsStateWithLifecycle()
+
+    var readyNotified by remember { mutableStateOf(false) }
+    val mainReady = !mainState.isLoading || mainState.gridError != null
+    LaunchedEffect(mainReady, categoriesState.isLoading) {
+        if (mainReady && !categoriesState.isLoading && !readyNotified) {
+            readyNotified = true
+            onHomeContentReady()
+        }
+    }
     
     val providerColor = remember(configState.brandColor) { Color(configState.brandColor) }
     val bannerFocusRequester = remember { FocusRequester() }
@@ -249,6 +262,13 @@ private fun HomeScreenContent(
     val (isLoading, isCategoriesLoading, gridError, isOnline, top200Banners, bannerMovies, continueWatching, watchlist, homeTrending, trendingLabel, homeLayout, categoryMovies, categorySeries, categoryAnime, categoryCartoons, categoryCartoonSeries, activeBannerMovie, providerColor, focusColor, bannerFocusRequester, providers, currentProviderId) = state
     val (onRetryGrid, onSearchClick, onMovieClick, onContinueWatchingClick, onTop200ItemClick, onTop200Click, onMovieFocused, onActiveColorChange, onDismissItem, onActiveMovieChange, onSeeAllTrendsClick, onSeeAllCategoryClick, onProviderClick, onSettingsClick) = actions
 
+    val restoreTarget = remember { restoreMovie }
+    var restoreWindowOpen by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        delay(FOCUS_RESTORE_WINDOW_MS)
+        restoreWindowOpen = false
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         state = scrollState,
@@ -305,13 +325,13 @@ private fun HomeScreenContent(
 
         if (homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || isLoading)) {
             item(key = "continue_watching", contentType = "content_row") {
-                ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, isLoading = isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = currentProviderId, restoreMovie = restoreMovie)
+                ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, isLoading = isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = currentProviderId, restoreMovie = restoreTarget, restoreWindowOpen = { restoreWindowOpen }, onRestoreHandled = { restoreWindowOpen = false })
             }
         }
 
         if (homeLayout.showWatchlist && (watchlist.isNotEmpty() || isLoading)) {
             item(key = "watchlist", contentType = "content_row") {
-                ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused, isLoading = isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = currentProviderId, restoreMovie = restoreMovie)
+                ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused, isLoading = isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = currentProviderId, restoreMovie = restoreTarget, restoreWindowOpen = { restoreWindowOpen }, onRestoreHandled = { restoreWindowOpen = false })
             }
         }
 
@@ -329,7 +349,9 @@ private fun HomeScreenContent(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     providerHint = currentProviderId,
-                    restoreMovie = restoreMovie,
+                    restoreMovie = restoreTarget,
+                    restoreWindowOpen = { restoreWindowOpen },
+                    onRestoreHandled = { restoreWindowOpen = false },
                     trailingContent = {
                         val provider = homeTrending.firstOrNull()?.provider ?: currentProviderId
                         TrendsTrailingButton(
@@ -356,7 +378,9 @@ private fun HomeScreenContent(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     providerHint = currentProviderId,
-                    restoreMovie = restoreMovie,
+                    restoreMovie = restoreTarget,
+                    restoreWindowOpen = { restoreWindowOpen },
+                    onRestoreHandled = { restoreWindowOpen = false },
                     trailingContent = {
                         val provider = categoryMovies.firstOrNull()?.provider ?: currentProviderId
                         TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("movies") }, provider = provider)
@@ -378,7 +402,9 @@ private fun HomeScreenContent(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     providerHint = currentProviderId,
-                    restoreMovie = restoreMovie,
+                    restoreMovie = restoreTarget,
+                    restoreWindowOpen = { restoreWindowOpen },
+                    onRestoreHandled = { restoreWindowOpen = false },
                     trailingContent = {
                         val provider = categorySeries.firstOrNull()?.provider ?: currentProviderId
                         TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("series") }, provider = provider)
@@ -400,7 +426,9 @@ private fun HomeScreenContent(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     providerHint = currentProviderId,
-                    restoreMovie = restoreMovie,
+                    restoreMovie = restoreTarget,
+                    restoreWindowOpen = { restoreWindowOpen },
+                    onRestoreHandled = { restoreWindowOpen = false },
                     trailingContent = {
                         val provider = categoryAnime.firstOrNull()?.provider ?: currentProviderId
                         TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("anime") }, provider = provider)
@@ -422,7 +450,9 @@ private fun HomeScreenContent(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     providerHint = currentProviderId,
-                    restoreMovie = restoreMovie,
+                    restoreMovie = restoreTarget,
+                    restoreWindowOpen = { restoreWindowOpen },
+                    onRestoreHandled = { restoreWindowOpen = false },
                     trailingContent = {
                         val provider = categoryCartoons.firstOrNull()?.provider ?: currentProviderId
                         TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoons") }, provider = provider)
@@ -444,7 +474,9 @@ private fun HomeScreenContent(
                     sharedTransitionScope = sharedTransitionScope,
                     animatedContentScope = animatedContentScope,
                     providerHint = currentProviderId,
-                    restoreMovie = restoreMovie,
+                    restoreMovie = restoreTarget,
+                    restoreWindowOpen = { restoreWindowOpen },
+                    onRestoreHandled = { restoreWindowOpen = false },
                     trailingContent = {
                         val provider = categoryCartoonSeries.firstOrNull()?.provider ?: currentProviderId
                         TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoon_series") }, provider = provider)
@@ -505,6 +537,7 @@ private fun PhoneHomeScreen(
     onSettingsClick: () -> Unit = {},
     onSeeAllTrendsClick: () -> Unit = {},
     onSeeAllCategoryClick: (String) -> Unit = {},
+    onHomeContentReady: () -> Unit = {}
 ) {
     val gridState = rememberLazyListState()
     val density = LocalDensity.current
@@ -512,6 +545,15 @@ private fun PhoneHomeScreen(
     val categoriesState by viewModel.categoriesState.collectAsStateWithLifecycle()
     val heroState by viewModel.heroState.collectAsStateWithLifecycle()
     val configState by viewModel.configState.collectAsStateWithLifecycle()
+
+    var readyNotified by remember { mutableStateOf(false) }
+    val mainReady = !mainState.isLoading || mainState.gridError != null
+    LaunchedEffect(mainReady, categoriesState.isLoading) {
+        if (mainReady && !categoriesState.isLoading && !readyNotified) {
+            readyNotified = true
+            onHomeContentReady()
+        }
+    }
 
     val providerColor = remember(configState.brandColor) { Color(configState.brandColor) }
     val providers = remember { viewModel.providers }
