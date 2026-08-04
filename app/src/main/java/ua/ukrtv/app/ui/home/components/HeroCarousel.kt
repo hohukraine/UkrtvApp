@@ -2,8 +2,7 @@ package ua.ukrtv.app.ui.home.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -88,7 +87,7 @@ fun HeroCarousel(
     val isMediatek = LocalIsMediatek.current
     val imageLoader = remember { ctx.imageLoader }
     LaunchedEffect(actualPage, items.size) {
-        val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 180 to 240; DeviceClass.MID -> 360 to 480; DeviceClass.HIGH -> 540 to 720 }
+        val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 320 to 180; DeviceClass.MID -> 640 to 360; DeviceClass.HIGH -> 960 to 540 }
         for (offset in 1..3) {
             val nextIdx = (actualPage + offset) % items.size
             val nextPoster = items[nextIdx].poster
@@ -166,18 +165,20 @@ fun HeroCarousel(
             val movie = items[page % items.size]
             val focusRequester = remember { FocusRequester() }
 
-            LaunchedEffect(pendingFocusPage) {
-                if (pendingFocusPage == page) {
-                    withFrameNanos { }
-                    focusRequester.requestFocus()
-                    pendingFocusPage = -1
-                }
-            }
-
             val clickHandler = remember(movie) { { onWatchClick(movie) } }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .graphicsLayer {
+                        val pOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                        val absOffset = kotlin.math.abs(pOffset)
+                        val scale = 1f - (absOffset * 0.05f).coerceIn(0f, 0.1f)
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = 1f - (absOffset * 0.4f).coerceIn(0f, 1f)
+                        rotationY = pOffset * -10f
+                        cameraDistance = 12f * density
+                    }
                     .focusRequester(focusRequester)
                     .clickable(onClick = clickHandler)
                     .onFocusChanged {
@@ -216,7 +217,8 @@ fun HeroCarousel(
                     item = movie,
                     accentColor = currentAccentColor,
                     deviceClass = deviceClass,
-                    isFocused = focusedPage == page
+                    isFocused = focusedPage == page,
+                    pageOffsetProvider = { (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction }
                 )
             }
         }
@@ -238,11 +240,24 @@ private fun HeroItemContent(
     item: Movie,
     accentColor: Color,
     deviceClass: DeviceClass,
-    isFocused: Boolean = false
+    isFocused: Boolean = false,
+    pageOffsetProvider: () -> Float = { 0f }
 ) {
     val ctx = LocalContext.current
     val isMediatek = LocalIsMediatek.current
-    val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 180 to 240; DeviceClass.MID -> 360 to 480; DeviceClass.HIGH -> 540 to 720 }
+
+    val kenBurnsTransition = rememberInfiniteTransition(label = "kenBurns")
+    val kenBurnsScale by kenBurnsTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.08f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(8000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "kenBurnsScale"
+    )
+
+    val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 320 to 180; DeviceClass.MID -> 640 to 360; DeviceClass.HIGH -> 960 to 540 }
     val posterRequest = remember(item.poster, deviceClass) {
         ImageRequest.Builder(ctx)
             .data(item.poster)
@@ -324,8 +339,11 @@ private fun HeroItemContent(
         ) {
             Box(
                 modifier = Modifier
-                    .width(160.dp)
                     .fillMaxHeight()
+                    .aspectRatio(16f / 9f)
+                    .graphicsLayer {
+                        translationX = pageOffsetProvider() * -50f
+                    }
                     .clip(RoundedCornerShape(8.dp))
                     .background(Color(0xFF141414))
             ) {
@@ -333,7 +351,10 @@ private fun HeroItemContent(
                     model = posterRequest,
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().graphicsLayer {
+                        scaleX = kenBurnsScale
+                        scaleY = kenBurnsScale
+                    },
                     placeholder = PlaceholderDark,
                     error = PlaceholderDark
                 )
@@ -342,7 +363,11 @@ private fun HeroItemContent(
             Spacer(modifier = Modifier.width(32.dp))
 
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier
+                    .weight(1f)
+                    .graphicsLayer {
+                        translationX = pageOffsetProvider() * 40f
+                    }
             ) {
                 Text(
                     text = item.title.uppercase(),

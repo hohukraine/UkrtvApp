@@ -19,6 +19,6 @@ data class Top200Movie(
     val accentColor: String = "#08121c",
     val onAccentColor: String = "#ffffff", // Колір тексту (білий або чорний для контрасту)
     val uakinoUrl: String = "",
-    val eneyidaUrl: String = "",
+    val uaflixUrl: String = "",
     val searchQueries: List<String> = emptyList()
 )

@@ -109,18 +109,6 @@ dependencies {
     implementation(libs.compose.material.icons.extended)
     
     implementation(libs.tv.material)
-    
-    // Media3
-    implementation(libs.media3.exoplayer)
-    implementation(libs.media3.hls)
-    implementation(libs.media3.dash)
-    implementation(libs.media3.datasource)
-    implementation(libs.media3.database)
-    implementation(libs.media3.okhttp)
-    implementation(libs.media3.ui)
-    
-    // FFmpeg extension (software decoder fallback)
-    implementation(libs.nextlib.media3ext)
 
     // Hilt
     implementation(libs.hilt.android)

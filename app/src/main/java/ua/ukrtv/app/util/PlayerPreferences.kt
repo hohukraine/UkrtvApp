@@ -9,7 +9,6 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 enum class PlayerType(val label: String) {
-    BUILTIN("Вбудований"),
     EXTERNAL_PLAYER("Зовнішній плеєр")
 }
 
@@ -26,23 +25,12 @@ class PlayerPreferences @Inject constructor(
     val externalPlayerPackage: StateFlow<String> = _externalPlayerPackage.asStateFlow()
 
     private fun readPlayerType(): PlayerType {
-        val name = prefs.getString(KEY_PLAYER_TYPE, PlayerType.BUILTIN.name)
-            ?: PlayerType.BUILTIN.name
-        return try {
-            PlayerType.valueOf(name)
-        } catch (_: IllegalArgumentException) {
-            PlayerType.BUILTIN
-        }
+        return PlayerType.EXTERNAL_PLAYER
     }
 
     private fun readExternalPlayerPackage(): String {
         return prefs.getString(KEY_EXTERNAL_PLAYER_PACKAGE, "org.videolan.vlc")
             ?: "org.videolan.vlc"
-    }
-
-    fun setPlayerType(type: PlayerType) {
-        prefs.edit().putString(KEY_PLAYER_TYPE, type.name).apply()
-        _playerType.value = type
     }
 
     fun setExternalPlayerPackage(packageName: String) {

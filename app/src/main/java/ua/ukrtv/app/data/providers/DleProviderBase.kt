@@ -59,7 +59,7 @@ abstract class DleProviderBase(
     override suspend fun getHomeSections(page: Int): List<HomeSection> = withContext(Dispatchers.IO) {
         try {
             val html = htmlHttpClient.getHtml(absoluteUrl(if (page > 1) "page/$page/" else "")) ?: return@withContext emptyList()
-            val movies = parser.parseList(html).distinctBy { it.pageUrl }.take(30)
+            val movies = parser.parseList(html).map { it.copy(provider = name) }.distinctBy { it.pageUrl }.take(30)
             if (movies.isNotEmpty()) listOf(HomeSection("Новинки", movies)) else emptyList()
         } catch (e: Exception) {
             AppLogger.w("$name:HomeSections", "Failed: ${e.message}")
@@ -72,10 +72,10 @@ abstract class DleProviderBase(
         val fullUrl = absoluteUrl(if (page > 1) "${path}page/$page/" else path)
         try {
             htmlHttpClient.getHtml(fullUrl)?.let { html ->
-                val parsed = parser.parseList(html)
+                val parsed = parser.parseList(html).map { it.copy(provider = name) }
                 if (parsed.isEmpty() && category == ContentCategory.TRENDS && page == 1) {
                     htmlHttpClient.getHtml(baseUrl)?.let { mainHtml ->
-                        parser.parseList(mainHtml)
+                        parser.parseList(mainHtml).map { it.copy(provider = name) }
                     } ?: emptyList()
                 } else {
                     parsed
@@ -100,7 +100,7 @@ abstract class DleProviderBase(
 
         try {
             htmlHttpClient.postHtml(absoluteUrl("index.php?do=search"), body, baseUrl)?.let {
-                allResults.addAll(parser.parseSearch(it))
+                allResults.addAll(parser.parseSearch(it).map { it.copy(provider = name) })
             }
         } catch (e: Exception) {
             AppLogger.w("$name:Search", "POST search failed: ${e.message}")
@@ -112,7 +112,7 @@ abstract class DleProviderBase(
                 .build()
             try {
                 htmlHttpClient.postHtml(absoluteUrl("engine/ajax/search.php"), ajaxBody, isAjax = true)?.let {
-                    allResults.addAll(parser.parseSearch(it))
+                    allResults.addAll(parser.parseSearch(it).map { it.copy(provider = name) })
                 }
             } catch (e: Exception) {
                 AppLogger.w("$name:Search", "AJAX search failed: ${e.message}")

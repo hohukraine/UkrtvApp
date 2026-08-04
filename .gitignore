@@ -41,3 +41,7 @@ benchmark_output.txt
 *.final
 # Database generator build
 database-generator/build/
+database-generator/app/
+
+# Macrobenchmark build output
+macrobenchmark/build/

@@ -109,7 +109,8 @@ private fun fetchPage(url: String): String? {
 
 private fun buildPageUrl(baseUrl: String, path: String, page: Int): String {
     val cleanBase = baseUrl.trimEnd('/')
-    return "$cleanBase/$path/page/$page/"
+    val cleanPath = path.trim('/')
+    return "$cleanBase/$cleanPath/page/$page/"
 }
 
 private fun parseUakinoItem(el: Element, baseUrl: String, contentType: String): CatalogItem? {
@@ -139,39 +140,32 @@ private fun parseUakinoItem(el: Element, baseUrl: String, contentType: String): 
     } catch (_: Exception) { return null }
 }
 
-private var debugPage = false
-
-private fun parseEneyidaItem(el: Element, baseUrl: String, contentType: String): CatalogItem? {
+private fun parseUaflixItem(el: Element, baseUrl: String, contentType: String): CatalogItem? {
     try {
-        val linkEl = el.selectFirst("a.short_title")
-        if (linkEl == null) {
-            if (debugPage) System.err.println("  PARSE FAIL: no a.short_title in article, class=${el.className()}")
-            return null
-        }
+        val linkEl = el.selectFirst("a.vi-img") ?: return null
         val url = linkEl.attr("abs:href")
-        if (url.isBlank() || !url.contains("eneyida")) {
-            if (debugPage) System.err.println("  PARSE FAIL: url=$url, contains eneyida=${url.contains("eneyida")}")
-            return null
-        }
+        if (url.isBlank() || !url.contains("uafix.net")) return null
 
-        val title = cleanTitle(linkEl.text().trim())
+        var title = linkEl.attr("title")
+        if (title.isBlank()) {
+            title = el.selectFirst("img")?.attr("alt") ?: ""
+        }
         if (title.isBlank()) return null
+
+        title = title.removePrefix("Смотреть ").removePrefix("Дивитися ").removeSuffix(" онлайн").trim()
+        title = cleanTitle(title)
 
         val posterEl = el.selectFirst("img[data-src], img[src]")
         val poster = posterEl?.attr("abs:data-src")?.ifEmpty { posterEl.attr("abs:src") } ?: ""
 
-        val subtitle = el.selectFirst(".short_subtitle")?.text()?.trim() ?: ""
-        val yearMatch = YEAR_PATTERN.find(subtitle)
-        val year = yearMatch?.value ?: ""
-        val titleEn = subtitle.replaceFirst(YEAR_PATTERN, "").trim('/').trim()
-
-        val rating = el.selectFirst(".ratingplus")?.text() ?: ""
-        val quality = el.selectFirst(".label_quel-hd")?.text() ?: ""
+        val age = el.selectFirst(".age")?.text() ?: ""
+        // Year and rating are not on the card, but we can try to extract from title if needed
+        // but for now let's keep them empty or find another way
 
         return CatalogItem(
-            url = url, title = title, titleEn = titleEn, poster = poster,
-            provider = "Eneyida", year = year, rating = rating,
-            quality = quality, contentType = contentType
+            url = url, title = title, titleEn = "", poster = poster,
+            provider = "UAFLIX", year = "", rating = age,
+            quality = "", contentType = contentType
         )
     } catch (_: Exception) { return null }
 }
@@ -185,16 +179,20 @@ private fun scrapeProvider(
     val results = mutableListOf<CatalogItem>()
     val parser: (Element, String, String) -> CatalogItem? = when (name) {
         "Uakino" -> ::parseUakinoItem
-        "Eneyida" -> ::parseEneyidaItem
+        "UAFLIX" -> ::parseUaflixItem
         else -> throw IllegalArgumentException("Unknown provider: $name")
     }
     val cardSelector = when (name) {
         "Uakino" -> ".movie-item, .short-item, .shortstory"
-        "Eneyida" -> "article.short"
+        "UAFLIX" -> ".video-item"
         else -> "article"
     }
 
     for ((path, contentType) in sources) {
+        if (results.isNotEmpty()) {
+            System.err.println("[$name] Waiting 5s before next category...")
+            Thread.sleep(5000)
+        }
         var page = 1
         var hasMore = true
 
@@ -206,8 +204,6 @@ private fun scrapeProvider(
             val doc = Jsoup.parse(html, baseUrl)
             val items = doc.select(cardSelector)
 
-            debugPage = false
-
             if (items.isEmpty()) {
                 System.err.println("[$name] Page $page: 0 items matched selector (stopping)")
                 break
@@ -217,17 +213,11 @@ private fun scrapeProvider(
             for (el in items) {
                 val item = parser(el, baseUrl, contentType)
                 if (item == null) {
-                    if (debugPage) {
-                        val linkEl = el.selectFirst("a.short_title")
-                        System.err.println("  PARSE NULL: class=${el.className()}, linkEl=${linkEl?.text()}, href=${linkEl?.attr("abs:href")}")
-                    }
                     continue
                 }
                 if (allItems.add(item.url)) {
                     results.add(item)
                     pageCount++
-                } else if (debugPage) {
-                    System.err.println("  DUP: ${item.url}")
                 }
             }
 
@@ -293,16 +283,16 @@ fun main(args: Array<String>) {
     ))
     println("Uakino: ${uakinoItems.size} items")
 
-    val eneyidaItems = scrapeProvider("Eneyida", "https://eneyida.tv/", listOf(
-        "series/" to "series",
-        "cartoon/" to "cartoon",
-        "cartoon-series/" to "cartoon",
+    val uaflixItems = scrapeProvider("UAFLIX", "https://uafix.net/", listOf(
+        "film/" to "movie",
+        "serials/" to "series",
+        "cartoons/" to "cartoon",
         "anime/" to "series",
-        "f/sort=new/order=desc" to "unknown"
+        "dorama/" to "series"
     ))
-    println("Eneyida: ${eneyidaItems.size} items")
+    println("UAFLIX: ${uaflixItems.size} items")
 
-    val allItems = uakinoItems + eneyidaItems
+    val allItems = uakinoItems + uaflixItems
     println("Total: ${allItems.size} items")
 
     val json = itemsToJson(allItems)

@@ -4,8 +4,6 @@ import androidx.compose.runtime.Stable
 import ua.ukrtv.app.domain.model.AppError
 import ua.ukrtv.app.domain.model.Season
 import ua.ukrtv.app.domain.model.StreamType
-import ua.ukrtv.app.player.AudioMode
-
 data class CodecInfo(val mimeType: String, val displayName: String)
 
 enum class ScaleMode(val label: String) {
@@ -33,7 +31,6 @@ data class PlayerState(
     val currentSeason: Int? = null,
     val currentEpisode: Int? = null,
     val currentVoiceover: String? = null,
-    val audioMode: AudioMode = AudioMode.NORMAL,
     val pickerColumns: List<PickerColumn> = emptyList(),
     val pickerFocusedIndex: Int = 0,
     val currentCodecDisplay: String = "",
@@ -56,6 +53,7 @@ sealed class PlayerStatus {
         val title: String,
         val subtitle: String,
         val positionMs: Long,
+        val durationMs: Long,
         val referer: String,
         val streamType: StreamType,
         val loadTrigger: Long = System.currentTimeMillis()

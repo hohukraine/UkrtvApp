@@ -8,7 +8,6 @@ import org.junit.Test
 import ua.ukrtv.app.data.providers.ContentCategory
 import ua.ukrtv.app.data.providers.DleParser
 import ua.ukrtv.app.data.providers.DleProviderProfile
-import ua.ukrtv.app.data.providers.EneyidaProfile
 import ua.ukrtv.app.data.providers.UakinoProfile
 import ua.ukrtv.app.data.repository.Top200Repository
 import ua.ukrtv.app.domain.model.Movie
@@ -66,10 +65,6 @@ class Top200AuditTest {
         var uakinoTimeMs: Long = 0,
         var uakinoMatchTitle: String = "",
         var uakinoConfidence: Float = 0f,
-        var eneyidaFound: Boolean = false,
-        var eneyidaTimeMs: Long = 0,
-        var eneyidaMatchTitle: String = "",
-        var eneyidaConfidence: Float = 0f,
     )
 
     @Test
@@ -83,16 +78,11 @@ class Top200AuditTest {
         println("Initializing sessions...")
         val uakinoHtml = getHtml(UakinoProfile.baseUrl)
         val uakinoHash = if (uakinoHtml != null) extractSessionHash(uakinoHtml) else ""
-        val eneyidaHtml = getHtml(EneyidaProfile.baseUrl)
-        val eneyidaHash = if (eneyidaHtml != null) extractSessionHash(eneyidaHtml) else ""
         println("Uakino hash: ${uakinoHash.take(8)}...")
-        println("Eneyida hash: ${eneyidaHash.take(8)}...")
         println()
 
         var totalTimeUakino = 0L
-        var totalTimeEneyida = 0L
         var foundUakino = 0
-        var foundEneyida = 0
 
         for ((index, movie) in top200.withIndex()) {
             print("[${index + 1}/200] rank=${movie.rank} \"${movie.title}\" (${movie.year})... ")
@@ -130,28 +120,11 @@ class Top200AuditTest {
                 totalTimeUakino += elapsed
             }
 
-            // Search Eneyida
-            if (eneyidaHash.isNotEmpty()) {
-                val t0 = System.currentTimeMillis()
-                val eneyidaResult = searchProvider(queries, EneyidaProfile, eneyidaHash, scoringQueries, expectedYear)
-                val elapsed = System.currentTimeMillis() - t0
-                result.eneyidaTimeMs = elapsed
-                if (eneyidaResult != null) {
-                    result.eneyidaFound = true
-                    result.eneyidaMatchTitle = eneyidaResult.title
-                    result.eneyidaConfidence = eneyidaResult.confidence
-                    foundEneyida++
-                }
-                totalTimeEneyida += elapsed
-            }
-
             results.add(result)
 
             val status = buildString {
                 append(if (result.uakinoFound) "U✓" else "U✗")
-                append("(${result.uakinoTimeMs}ms) ")
-                append(if (result.eneyidaFound) "E✓" else "E✗")
-                append("(${result.eneyidaTimeMs}ms)")
+                append("(${result.uakinoTimeMs}ms)")
             }
             println(status)
         }
@@ -161,25 +134,14 @@ class Top200AuditTest {
         println("SUMMARY")
         println("${"=".repeat(60)}")
         println("Uakino:  $foundUakino/${top200.size} found  (${String.format("%.1f", 100.0 * foundUakino / top200.size)}%)  avg ${totalTimeUakino / top200.size}ms")
-        println("Eneyida: $foundEneyida/${top200.size} found  (${String.format("%.1f", 100.0 * foundEneyida / top200.size)}%)  avg ${totalTimeEneyida / top200.size}ms")
 
-        // Not found on EITHER provider
-        val notFoundAnywhere = results.filter { !it.uakinoFound && !it.eneyidaFound }
-        if (notFoundAnywhere.isNotEmpty()) {
-            println("\n⚠️ NOT FOUND ON EITHER PROVIDER (${notFoundAnywhere.size}):")
-            notFoundAnywhere.forEach {
+        // Not found
+        val notFound = results.filter { !it.uakinoFound }
+        if (notFound.isNotEmpty()) {
+            println("\nNOT FOUND (${notFound.size}):")
+            notFound.forEach {
                 println("  #${it.rank} \"${it.title}\" (${it.year}) [${it.originalTitle}]")
             }
-        }
-
-        // Found only on one provider
-        val onlyUakino = results.filter { it.uakinoFound && !it.eneyidaFound }
-        val onlyEneyida = results.filter { !it.uakinoFound && it.eneyidaFound }
-        if (onlyUakino.isNotEmpty()) {
-            println("\nUakino-only (${onlyUakino.size}): ${onlyUakino.joinToString { "#${it.rank}" }}")
-        }
-        if (onlyEneyida.isNotEmpty()) {
-            println("\nEneyida-only (${onlyEneyida.size}): ${onlyEneyida.joinToString { "#${it.rank}" }}")
         }
 
         // Top 10 slowest
@@ -187,13 +149,8 @@ class Top200AuditTest {
         results.sortedByDescending { it.uakinoTimeMs }.take(10).forEach {
             println("  #${it.rank} \"${it.title}\" — ${it.uakinoTimeMs}ms")
         }
-        println("\nTop 10 slowest Eneyida:")
-        results.sortedByDescending { it.eneyidaTimeMs }.take(10).forEach {
-            println("  #${it.rank} \"${it.title}\" — ${it.eneyidaTimeMs}ms")
-        }
 
         assertTrue("Uakino found < 50%", foundUakino >= top200.size / 2)
-        assertTrue("Eneyida found < 50%", foundEneyida >= top200.size / 2)
     }
 
     data class SearchMatch(

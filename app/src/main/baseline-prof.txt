@@ -149,20 +149,6 @@ Landroidx/tv/material3/Carousel
 Landroidx/compose/material3/Text
 Landroidx/compose/material3/TextStyle
 
-# ── Media3 / ExoPlayer ──
-Landroidx/media3/exoplayer/ExoPlayer
-Landroidx/media3/exoplayer/ExoPlayer$Builder
-Landroidx/media3/exoplayer/hls/HlsMediaSource
-Landroidx/media3/exoplayer/source/DefaultMediaSourceFactory
-Landroidx/media3/exoplayer/trackselection/DefaultTrackSelector
-Landroidx/media3/exoplayer/upgrade/DefaultLoadControl
-Landroidx/media3/common/Format
-Landroidx/media3/common/Player
-Landroidx/media3/ui/PlayerView
-Landroidx/media3/datasource/DefaultHttpDataSource
-Landroidx/media3/datasource/okhttp/OkHttpDataSource
-Landroidx/media3/exoplayer/analytics/AnalyticsCollector
-
 # ── OkHttp + Networking ──
 Lokhttp3/OkHttpClient
 Lokhttp3/OkHttpClient$Builder
@@ -232,6 +218,17 @@ Lkotlinx/coroutines/flow/MutableStateFlow
 Lkotlinx/coroutines/flow/collectLatest
 Lkotlinx/coroutines/launch
 Lkotlinx/coroutines/withContext
+
+# ── Okio (Buffered IO) ──
+Lokio/Buffer
+Lokio/BufferedSource
+Lokio/BufferedSink
+Lokio/RealBufferedSource
+Lokio/RealBufferedSink
+Lokio/ByteString
+Lokio/Okio
+Lokio/Segment
+Lokio/SegmentPool
 
 # ── Gson / Serialization ──
 Lcom/google/gson/Gson

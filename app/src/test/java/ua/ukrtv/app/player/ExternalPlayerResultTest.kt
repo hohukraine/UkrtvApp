@@ -109,7 +109,7 @@ class ExternalPlayerResultTest {
     }
 
     @Test
-    fun `negative position treated as zero`() {
+    fun `negative position preserved as-is in parseResult`() {
         val result = ExternalPlayerLauncher.parseResult(-1000L, 1200000L, null)
         assertFalse(result.isFinished)
         assertEquals(-1000L, result.positionMs)

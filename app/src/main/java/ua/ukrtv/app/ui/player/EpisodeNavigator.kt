@@ -15,10 +15,16 @@ object EpisodeNavigator {
         if (seasonIdx == -1) return null
 
         val season = allSeasons[seasonIdx]
-        val epIdx = season.episodes.indexOfFirst { it.number == cEpisode }
+        val episodes = season.episodes
+        val epIdx = episodes.indexOfFirst { it.number == cEpisode }
 
-        if (epIdx >= 0 && epIdx < season.episodes.size - 1) {
-            return NavigationResult(cSeason, season.episodes[epIdx + 1].number)
+        // Skip past the current episode, including any duplicate entries that share its
+        // number (malformed providers can emit the same episode link multiple times).
+        if (epIdx >= 0) {
+            val nextEp = episodes.asSequence().drop(epIdx + 1).firstOrNull { it.number != cEpisode }
+            if (nextEp != null) {
+                return NavigationResult(cSeason, nextEp.number)
+            }
         }
 
         if (seasonIdx < allSeasons.size - 1) {
@@ -40,10 +46,16 @@ object EpisodeNavigator {
         if (seasonIdx == -1) return null
 
         val season = allSeasons[seasonIdx]
-        val epIdx = season.episodes.indexOfFirst { it.number == cEpisode }
+        val episodes = season.episodes
+        val epIdx = episodes.indexOfLast { it.number == cEpisode }
 
-        if (epIdx > 0) {
-            return NavigationResult(cSeason, season.episodes[epIdx - 1].number)
+        // Skip back past the current episode, including any duplicate entries that share
+        // its number.
+        if (epIdx >= 0) {
+            val prevEp = episodes.asSequence().take(epIdx).lastOrNull { it.number != cEpisode }
+            if (prevEp != null) {
+                return NavigationResult(cSeason, prevEp.number)
+            }
         }
 
         if (seasonIdx > 0) {

@@ -70,7 +70,7 @@ class HomePreferences @Inject constructor(
     }
 
     private fun readDefaultProvider(): String {
-        return prefs.getString(KEY_DEFAULT_PROVIDER, "Eneyida") ?: "Eneyida"
+        return prefs.getString(KEY_DEFAULT_PROVIDER, "UAFLIX") ?: "UAFLIX"
     }
 
     companion object {

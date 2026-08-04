@@ -1,6 +1,6 @@
 package ua.ukrtv.app.ui.components
 
-import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -30,19 +30,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 private val shimmerColors = listOf(
-    Color(0xFF2A2A2A),
+    Color(0xFF1A1A1A),
     Color(0xFF3A3A3A),
-    Color(0xFF2A2A2A)
+    Color(0xFF1A1A1A)
 )
 
 @Composable
 fun Modifier.shimmer(): Modifier {
     val transition = rememberInfiniteTransition(label = "shimmer")
     val translateAnim by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1000f,
+        initialValue = -200f,
+        targetValue = 600f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
+            animation = tween(durationMillis = 1200, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "shimmer_translate"
@@ -50,8 +50,8 @@ fun Modifier.shimmer(): Modifier {
     return this.drawWithCache {
         val brush = Brush.linearGradient(
             colors = shimmerColors,
-            start = Offset(translateAnim - 200f, 0f),
-            end = Offset(translateAnim, 0f)
+            start = Offset(translateAnim, 0f),
+            end = Offset(translateAnim + 300f, size.height)
         )
         onDrawBehind {
             drawRect(brush)

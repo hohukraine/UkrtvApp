@@ -41,18 +41,16 @@ object RepositoryModule {
     @Provides @Singleton
     fun provideStreamResolvingInteractor(
         streamResolver: ua.ukrtv.app.data.streaming.StreamResolver,
-        providerManager: ua.ukrtv.app.data.providers.ProviderManager,
-        providerQualityManager: ua.ukrtv.app.player.ProviderQualityManager
+        providerManager: ua.ukrtv.app.data.providers.ProviderManager
     ): ua.ukrtv.app.ui.player.StreamResolvingInteractor = ua.ukrtv.app.ui.player.StreamResolvingInteractor(
-        streamResolver, providerManager, providerQualityManager
+        streamResolver, providerManager
     )
 
     @Provides @Singleton
     fun provideExternalPlayerInteractor(
         @ApplicationContext context: Context,
-        playerPreferences: ua.ukrtv.app.util.PlayerPreferences,
-        watchProgressRepository: ua.ukrtv.app.data.repository.WatchProgressRepository
+        playerPreferences: ua.ukrtv.app.util.PlayerPreferences
     ): ua.ukrtv.app.ui.player.ExternalPlayerInteractor = ua.ukrtv.app.ui.player.ExternalPlayerInteractor(
-        context, playerPreferences, watchProgressRepository
+        context, playerPreferences
     )
 }

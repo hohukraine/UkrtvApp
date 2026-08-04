@@ -8,7 +8,6 @@ import org.junit.Test
 import ua.ukrtv.app.data.providers.ContentCategory
 import ua.ukrtv.app.data.providers.DleParser
 import ua.ukrtv.app.data.providers.DleProviderProfile
-import ua.ukrtv.app.data.providers.EneyidaProfile
 import ua.ukrtv.app.data.providers.UakinoProfile
 import java.util.concurrent.TimeUnit
 
@@ -119,9 +118,4 @@ class SearchIntegrationTest {
     @Test
     fun testUakinoSearchSeries() = testProviderSearch(UakinoProfile, ContentCategory.SERIES)
 
-    @Test
-    fun testEneyidaSearchMovies() = testProviderSearch(EneyidaProfile, ContentCategory.MOVIES)
-
-    @Test
-    fun testEneyidaSearchSeries() = testProviderSearch(EneyidaProfile, ContentCategory.SERIES)
 }

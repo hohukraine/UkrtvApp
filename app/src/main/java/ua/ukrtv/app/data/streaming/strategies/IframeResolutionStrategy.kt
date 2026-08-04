@@ -14,7 +14,7 @@ class IframeResolutionStrategy @Inject constructor(
 
     override suspend fun canHandle(url: String, context: ResolutionContext): Boolean {
         return url.contains("ashdi") || url.contains("hdvb") || url.contains("vidmoly") || url.contains("mcloud") ||
-                (!url.contains("uakino") && !url.contains("eneyida") && !isDirectStreamUrl(url))
+                (!url.contains("uakino") && !url.contains("uaflix") && !url.contains("uafix") && !isDirectStreamUrl(url))
     }
 
     override suspend fun resolve(url: String, context: ResolutionContext): StreamResolutionResult? {

@@ -85,35 +85,36 @@ val UakinoProfile = DleProviderProfile(
     nonGenreLabels = setOf("серіал", "мультфільм", "аніме", "мультсеріал", "аніме-серіал")
 )
 
-val EneyidaProfile = DleProviderProfile(
-    name = "Eneyida",
-    baseUrl = "https://eneyida.tv/",
-    brandColor = "#31C469",
+val UaflixProfile = DleProviderProfile(
+    name = "UAFLIX",
+    baseUrl = "https://uafix.net/",
+    brandColor = "#FF6600",
     selectors = DleProviderProfile.Selectors(
-        item = "article.short",
-        title = "a.short_title",
-        poster = "a.short_img img",
-        detailPoster = ".full_content-poster img",
-        detailContainer = ".full_content, #content",
-        ratingFallback = ".r_imdb span",
-        seriesUrlPatterns = listOf("-sezon", "series/", "serialy/", "anime/", "filmi-seriali/", "anime-ukr/")
+        item = ".video-item",
+        title = "a.vi-img",
+        poster = "img.lazy",
+        cardTitle = ".vi-title",
+        cardPoster = "img[src]",
+        detailContainer = "article.full",
+        ratingFallback = ".rat-imdb",
+        seriesUrlPatterns = listOf("/serials/", "/anime/", "/dorama/", "/cartoons/", "season-", "-episode-")
     ),
     categoryPaths = mapOf(
-        ContentCategory.TRENDS to "f/sort=rating/order=desc/",
-        ContentCategory.MOVIES to "",
-        ContentCategory.SERIES to "series/",
+        ContentCategory.TRENDS to "",
+        ContentCategory.MOVIES to "film/",
+        ContentCategory.SERIES to "serials/",
         ContentCategory.ANIME to "anime/",
-        ContentCategory.CARTOONS to "cartoon/",
-        ContentCategory.CARTOON_SERIES to "cartoon-series/"
+        ContentCategory.CARTOONS to "cartoons/",
+        ContentCategory.CARTOON_SERIES to "cartoons/"
     ),
     metadataRules = mapOf(
-        "genres" to listOf(ExtractionRule("li", listOf("Жанр"))),
-        "country" to listOf(ExtractionRule("li", listOf("Країна"))),
-        "actors" to listOf(ExtractionRule("li", listOf("Актори", "В ролях"))),
-        "director" to listOf(ExtractionRule("li", listOf("Режисер"))),
-        "duration" to listOf(ExtractionRule("li", listOf("Тривалість"))),
-        "rating" to listOf(ExtractionRule(".r_imdb span", priority = 10)),
-        "seasonCount" to listOf(ExtractionRule("li:contains(сезон)"))
+        "genres" to listOf(ExtractionRule("span[itemprop='genre']")),
+        "country" to listOf(ExtractionRule("span.country")),
+        "actors" to listOf(ExtractionRule("span[itemprop='actor']")),
+        "director" to listOf(ExtractionRule("span[itemprop='director']")),
+        "duration" to listOf(ExtractionRule("li.vis", regex = Regex("""/\s*(\d+\s*хв)"""))),
+        "rating" to listOf(ExtractionRule(".rat-imdb", priority = 10)),
+        "seasonCount" to listOf(ExtractionRule(".sect-link:contains(Сезон)"))
     ),
     nonGenreLabels = setOf("серіал", "мультфільм", "аніме", "мультсеріал", "аніме-серіал")
 )

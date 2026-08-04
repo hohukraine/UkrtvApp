@@ -63,8 +63,8 @@ class IframeResolutionStrategyTest {
     }
 
     @Test
-    fun `canHandle eneyida URL returns false`() = runTest {
-        assertFalse(strategy.canHandle("https://eneyida.tv/movie.html", ResolutionContext()))
+    fun `canHandle generic non-direct URL returns true`() = runTest {
+        assertTrue(strategy.canHandle("https://some-random-site.com/movie.html", ResolutionContext()))
     }
 
     @Test

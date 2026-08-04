@@ -18,6 +18,16 @@ object DleResolutionUtils {
         Regex("""/(\d+)[\s\-_]*сезон""", RegexOption.IGNORE_CASE)
     )
 
+    // Episode markers. Deliberately avoids matching a bare "e" followed by digits, otherwise
+    // content IDs like "34310-ferma-klarksona-5-sezon.html" get misread as episode numbers.
+    private val EPISODE_REGEXES = listOf(
+        Regex("""\bep(?:isode)?[\s._-]*([0-9]{1,3})""", RegexOption.IGNORE_CASE),
+        Regex("""\bs[0-9]{1,2}e([0-9]{1,3})\b""", RegexOption.IGNORE_CASE),
+        Regex("""(?:season|sezon)-[0-9]{1,2}-episode-([0-9]{1,3})""", RegexOption.IGNORE_CASE),
+        Regex("""(?:seriya|seria|серия|серія|эпизод|епізод)[\s._-]*([0-9]{1,3})""", RegexOption.IGNORE_CASE),
+        Regex("""([0-9]{1,3})[\s._-]*(?:seriya|seria|серия|серія|эпизод|епізод)""", RegexOption.IGNORE_CASE)
+    )
+
     fun findMediaUrlsInText(text: String): List<String> {
         if (text.isEmpty()) return emptyList()
         val cleanText = if (text.contains("\\/")) text.replace("\\/", "/") else text
@@ -40,6 +50,11 @@ object DleResolutionUtils {
     fun extractSeasonNum(text: String): Int? {
         val clean = text.lowercase().replace(YEAR_CLEANUP_REGEX, "")
         return SEASON_REGEXES.firstNotNullOfOrNull { it.find(clean)?.groupValues?.get(1)?.toIntOrNull() }
+    }
+
+    fun extractEpisodeNum(text: String): Int? {
+        if (text.isEmpty()) return null
+        return EPISODE_REGEXES.firstNotNullOfOrNull { it.find(text)?.groupValues?.get(1)?.toIntOrNull() }
     }
 
     fun ensureAbsoluteUrl(url: String, baseUrl: String): String {

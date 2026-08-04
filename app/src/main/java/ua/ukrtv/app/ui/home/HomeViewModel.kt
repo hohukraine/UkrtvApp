@@ -25,6 +25,7 @@ import ua.ukrtv.app.data.repository.Top200Repository
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.Provider
 import ua.ukrtv.app.domain.model.Top200Movie
+import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.HomePreferences
 import ua.ukrtv.app.util.HomeLayout
 import ua.ukrtv.app.util.PosterColorCache
@@ -49,6 +50,7 @@ class HomeViewModel @Inject constructor(
     )
 
     data class HomeCategoriesState(
+        val isLoading: Boolean = true,
         val categoryMovies: List<Movie> = emptyList(),
         val categorySeries: List<Movie> = emptyList(),
         val categoryAnime: List<Movie> = emptyList(),
@@ -87,7 +89,7 @@ class HomeViewModel @Inject constructor(
         val request = NetworkRequest.Builder().build()
         cm.registerNetworkCallback(request, callback)
         awaitClose { cm.unregisterNetworkCallback(callback) }
-    }
+    }.distinctUntilChanged()
 
     private val _dismissedIds = MutableStateFlow<Set<String>>(emptySet())
     private val _focusedMovie = MutableStateFlow<Movie?>(null)
@@ -95,6 +97,7 @@ class HomeViewModel @Inject constructor(
     private val _gridError = MutableStateFlow<String?>(null)
     private val _retryTrigger = MutableStateFlow(0L)
     private val _isLoading = MutableStateFlow(true)
+    private val _isCategoriesLoading = MutableStateFlow(true)
     private val _bannerTop200 = MutableStateFlow<List<Top200Movie>>(emptyList())
 
     init {
@@ -102,13 +105,6 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             providerManager.activeProvider.drop(1).collect {
                 _bannerTop200.value = top200Repository.getRandom5()
-            }
-        }
-        viewModelScope.launch {
-            providerManager.activeProvider.collect { provider ->
-                if (mediaRepository.isHomeCacheStale(provider.name, staleHoursThreshold = 1)) {
-                    retryGrid()
-                }
             }
         }
     }
@@ -131,11 +127,10 @@ class HomeViewModel @Inject constructor(
     private val grid: Flow<List<Movie>> = combine(
         providerManager.activeProvider,
         _retryTrigger
-    ) { provider, _ -> provider }
-        .flatMapLatest { provider ->
+    ) { provider, trigger -> provider to trigger }
+        .flatMapLatest { (provider, trigger) ->
             _gridError.value = null
-            mediaRepository.getHomeGrid(provider)
-                .onStart { emit(emptyList()) }
+            mediaRepository.getHomeGrid(provider, forceRefresh = trigger > 0)
                 .catch { e ->
                     _gridError.value = e.message ?: "Помилка завантаження"
                     emit(emptyList())
@@ -158,24 +153,12 @@ class HomeViewModel @Inject constructor(
     private val homeTrending: Flow<List<Movie>> = grid
         .map { list -> stabilizeTrending(list) }
         .distinctUntilChanged()
-        .onEach { list ->
-            viewModelScope.launch {
-                list.take(8).forEach { PosterColorCache.getColor(context, it.poster) }
-            }
-        }
 
     private val continueWatching: Flow<List<Movie>> = mediaRepository.getContinueWatching()
         .combine(_dismissedIds) { list, dismissed ->
             list.filter { it.id !in dismissed }
         }
         .map { it.take(20) }
-        .onEach { list ->
-            viewModelScope.launch {
-                list.forEach { movie ->
-                    PosterColorCache.getColor(context, movie.poster)
-                }
-            }
-        }
 
     private val watchlist: Flow<List<Movie>> = watchlistRepository.getAllWatchlistAsMovies()
         .onStart { emit(emptyList()) }
@@ -192,38 +175,56 @@ class HomeViewModel @Inject constructor(
     private val trendingLabel: Flow<String> = providerConfig
         .map { (_, providerName) ->
             val period = when (providerName) {
-                "Eneyida" -> "за весь час"
+                "UAFLIX" -> "за весь час"
                 "Uakino" -> "2026"
                 else -> ""
             }
             if (period.isNotEmpty()) "Тренди · $providerName · $period" else "Тренди"
         }
 
-    // 3.2 Combined categories request — parallel fetching
+    // 3.2 Combined categories request — parallel fetching with cache (Stale-while-revalidate)
     @OptIn(ExperimentalCoroutinesApi::class)
     private val categories: Flow<Map<ContentCategory, List<Movie>>> = providerManager.activeProvider
         .flatMapLatest { provider ->
             flow {
+                val cached = mediaRepository.getCategoryCache(provider.name)
+                if (!cached.isNullOrEmpty()) {
+                    val mapped = cached.mapNotNull { (key, movies) ->
+                        try { ContentCategory.valueOf(key) to movies } catch (_: Exception) { null }
+                    }.toMap()
+                    if (mapped.isNotEmpty()) emit(mapped)
+                }
+
+                if (!mediaRepository.isCategoryCacheStale(provider.name)) return@flow
+
                 val cats = listOf(
                     ContentCategory.MOVIES, ContentCategory.SERIES, ContentCategory.ANIME,
                     ContentCategory.CARTOONS, ContentCategory.CARTOON_SERIES
                 )
-                val results = kotlinx.coroutines.coroutineScope {
-                    cats.map { cat ->
-                        async {
-                            cat to try { provider.getMoviesByCategory(cat, 1) } catch (_: Exception) { emptyList() }
-                        }
-                    }.awaitAll().toMap()
+                try {
+                    val results = kotlinx.coroutines.coroutineScope {
+                        cats.map { cat ->
+                            async {
+                                cat to try { provider.getMoviesByCategory(cat, 1).map { it.copy(provider = it.provider ?: provider.name) } } catch (_: Exception) { emptyList() }
+                            }
+                        }.awaitAll().toMap()
+                    }
+                    if (results.values.any { it.isNotEmpty() }) {
+                        emit(results)
+                        _isCategoriesLoading.value = false
+                        mediaRepository.saveCategoryCache(provider.name, results.mapKeys { it.key.name })
+                    }
+                } catch (e: Exception) {
+                    _isCategoriesLoading.value = false
+                    AppLogger.e("HomeVM", "Category refresh failed: ${e.message}")
                 }
-                emit(results)
             }
         }
-        .onEach { map ->
-            viewModelScope.launch {
-                map.values.flatten().take(30).forEach { movie ->
-                    PosterColorCache.getColor(context, movie.poster)
-                }
-            }
+        .onStart { 
+            // If we have cache, we might not want to show global categories shimmer
+            val cached = mediaRepository.getCategoryCache(providerManager.activeProvider.value.name)
+            if (cached.isNullOrEmpty()) _isCategoriesLoading.value = true
+            else _isCategoriesLoading.value = false
         }
 
     val mainContentState: StateFlow<HomeMainState> = combine(
@@ -236,17 +237,20 @@ class HomeViewModel @Inject constructor(
             continueWatching = cw,
             watchlist = wl
         )
-    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeMainState())
+    }.distinctUntilChanged().conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeMainState())
 
-    val categoriesState: StateFlow<HomeCategoriesState> = categories.map { cats ->
+    val categoriesState: StateFlow<HomeCategoriesState> = combine(
+        categories, _isCategoriesLoading
+    ) { cats, isLoading ->
         HomeCategoriesState(
+            isLoading = isLoading,
             categoryMovies = cats[ContentCategory.MOVIES] ?: emptyList(),
             categorySeries = cats[ContentCategory.SERIES] ?: emptyList(),
             categoryAnime = cats[ContentCategory.ANIME] ?: emptyList(),
             categoryCartoons = cats[ContentCategory.CARTOONS] ?: emptyList(),
             categoryCartoonSeries = cats[ContentCategory.CARTOON_SERIES] ?: emptyList()
         )
-    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeCategoriesState())
+    }.distinctUntilChanged().conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeCategoriesState())
 
     val heroState: StateFlow<HomeHeroState> = combine(
         bannerMovies, _bannerTop200
@@ -255,7 +259,7 @@ class HomeViewModel @Inject constructor(
             bannerMovies = banner,
             top200Banners = top200
         )
-    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeHeroState())
+    }.distinctUntilChanged().conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeHeroState())
 
     val configState: StateFlow<HomeConfigState> = combine(
         isOnline, providerConfig, trendingLabel, homePreferences.layout
@@ -267,7 +271,7 @@ class HomeViewModel @Inject constructor(
             trendingLabel = trendingLabel,
             homeLayout = homeLayout
         )
-    }.conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeConfigState())
+    }.distinctUntilChanged().conflate().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeConfigState())
 
     val focusColor: StateFlow<Color> = _focusColor.asStateFlow()
     val focusedMovie: StateFlow<Movie?> = _focusedMovie.asStateFlow()

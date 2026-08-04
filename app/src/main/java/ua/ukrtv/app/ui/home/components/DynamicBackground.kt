@@ -4,7 +4,9 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -12,6 +14,12 @@ import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
@@ -22,188 +30,109 @@ fun HomeBackground(
     focusedColor: Color,
     brandColor: Color,
     backdropColor: Color = Color.Unspecified,
+    backdropUrl: String? = null,
     scrollFraction: () -> Float = { 0f },
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val context = LocalContext.current
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
     val animateGlow = deviceClass != DeviceClass.LOW && !isMediatek
 
-    val providerAlpha = when {
-        deviceClass == DeviceClass.LOW -> 0.04f
-        deviceClass == DeviceClass.MID -> 0.08f
-        else -> 0.12f
-    }
-    val focusAlpha = when (deviceClass) {
-        DeviceClass.LOW -> 0.08f
-        DeviceClass.MID -> 0.14f
-        DeviceClass.HIGH -> 0.22f
-    }
-    val animDuration = when {
-        !animateGlow -> 0
-        deviceClass == DeviceClass.MID -> 800
-        else -> 1200
+    // TMDB uses a specific primary color for the movie
+    val primaryColor = remember(backdropColor) {
+        if (backdropColor != Color.Unspecified) backdropColor else Color(0xFF032541)
     }
 
-    // Feature 6: Ambient Gradient Motion — subtle oscillation of glow centers
-    // Uses InfiniteTransition instead of frame-by-frame floatState writes to avoid
-    // recomposing the parent Box on every frame (~60fps).
-    val motionRange = when (deviceClass) {
-        DeviceClass.MID -> 0.015f
-        DeviceClass.HIGH -> 0.03f
-        else -> 0f
-    }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "bgMotion")
-    val motionXState = infiniteTransition.animateFloat(
-        initialValue = -motionRange,
-        targetValue = motionRange,
-        animationSpec = infiniteRepeatable(
-            animation = tween(6000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "motionX"
-    )
-    val motionYState = infiniteTransition.animateFloat(
-        initialValue = -motionRange * 0.6f,
-        targetValue = motionRange * 0.6f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(8000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "motionY"
-    )
-    val motionPhase2XState = infiniteTransition.animateFloat(
-        initialValue = -motionRange * 0.5f,
-        targetValue = motionRange * 0.5f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(5000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "motionPhase2X"
+    val animatedPrimaryColor by animateColorAsState(
+        targetValue = primaryColor,
+        animationSpec = tween(1000),
+        label = "bgPrimaryColor"
     )
 
     val animatedFocusColor by animateColorAsState(
         targetValue = focusedColor,
-        animationSpec = tween(animDuration),
+        animationSpec = tween(800),
         label = "bgFocusAccent"
     )
-    val animatedBrandColor by animateColorAsState(
-        targetValue = brandColor,
-        animationSpec = tween(animDuration),
-        label = "bgBrandAccent"
-    )
-
-    // Feature 2: Backdrop wash — vertical gradient from banner accent
-    val washDuration = when (deviceClass) {
-        DeviceClass.LOW -> 0
-        DeviceClass.MID -> 400
-        DeviceClass.HIGH -> 600
-    }
-    
-    // We keep this in composition as it affects whether the layer exists
-    val washTargetAlpha = if (backdropColor == Color.Unspecified) 0f else 1f
-    
-    val animatedWashAlphaState = animateFloatAsState(
-        targetValue = washTargetAlpha,
-        animationSpec = tween(washDuration),
-        label = "backdropWashAlpha"
-    )
-    val washLayerAlpha = when (deviceClass) {
-        DeviceClass.LOW -> 0.12f
-        DeviceClass.MID -> 0.20f
-        DeviceClass.HIGH -> 0.28f
-    }
-    val washHeightFraction = when (deviceClass) {
-        DeviceClass.LOW -> 0.35f
-        DeviceClass.MID -> 0.45f
-        DeviceClass.HIGH -> 0.55f
-    }
 
     Box(modifier = modifier.fillMaxSize().background(Background)) {
-        if (animateGlow) {
-            // 2.2 Deferred reads using drawBehind
-            Box(modifier = Modifier
+        // LAYER 1: Backdrop Image (Full screen)
+        if (!backdropUrl.isNullOrEmpty() && deviceClass != DeviceClass.LOW) {
+            AsyncImage(
+                model = ImageRequest.Builder(context)
+                    .data(backdropUrl)
+                    .crossfade(1000)
+                    .build(),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.9f)
+                    .graphicsLayer {
+                        val scroll = scrollFraction()
+                        // Cinematic visibility: High but tinted by the overlay
+                        alpha = (1f - scroll * 0.8f).coerceIn(0.2f, 1f)
+                    }
+            )
+        }
+
+        // LAYER 2: TMDB/Netflix Signature Overlay
+        Box(
+            modifier = Modifier
                 .fillMaxSize()
                 .drawBehind {
-                    val scroll = scrollFraction().coerceIn(0f, 1f)
-                    val motionX = motionXState.value
-                    val motionY = motionYState.value
-                    val motionPhase2X = motionPhase2XState.value
-                    val animatedWashAlpha = animatedWashAlphaState.value
+                    val scroll = scrollFraction()
+                    val s = size
+                    val color = animatedPrimaryColor
                     
-                    // Layer 0: Backdrop color wash
-                    val currentWashAlpha = animatedWashAlpha * (1f - scroll * 1.1f).coerceIn(0f, 1f)
-                    if (currentWashAlpha > 0.001f && backdropColor != Color.Unspecified) {
-                        drawRect(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    backdropColor.copy(alpha = washLayerAlpha * currentWashAlpha),
-                                    backdropColor.copy(alpha = washLayerAlpha * 0.3f * currentWashAlpha),
-                                    Color.Transparent
-                                ),
-                                startY = 0f,
-                                endY = size.height * washHeightFraction
-                            )
-                        )
-                    }
-
-                    // Feature 3: Provider boost
-                    val providerBoost = 1f + 0.5f * scroll
-                    val effectiveProviderAlpha = providerAlpha * providerBoost
-
-                    // Layer 1: Provider ambient glow
+                    // 2.1 THE TMDB "WASH" - A heavy gradient of the primary color over the image
+                    // This creates the exact TMDB look where the image is tinted by the movie color.
                     drawRect(
-                        brush = Brush.radialGradient(
+                        brush = Brush.horizontalGradient(
                             colors = listOf(
-                                animatedBrandColor.copy(alpha = effectiveProviderAlpha),
-                                animatedBrandColor.copy(alpha = effectiveProviderAlpha * 0.5f),
-                                Color.Transparent
+                                color.copy(alpha = 1.00f), // Left: 100% Solid
+                                color.copy(alpha = 0.92f), // Mid-left: 92%
+                                color.copy(alpha = 0.60f)  // Right: 60% (Shows image through)
                             ),
-                            center = Offset(
-                                size.width * (0.25f + motionX),
-                                size.height * (0.15f + motionY)
+                            startX = 0f,
+                            endX = s.width
+                        ),
+                        alpha = (1f - scroll * 0.4f).coerceIn(0f, 1f)
+                    )
+
+                    // 2.2 VERTICAL BLEND - Fade to pure app background color at the bottom
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Black.copy(alpha = 0.35f), // Top shadow
+                                Color.Transparent,
+                                Color.Transparent,
+                                Background.copy(alpha = 0.85f), // Start transition to black
+                                Background                      // Pure black
                             ),
-                            radius = size.width * 1.4f
+                            startY = 0f,
+                            endY = s.height
                         )
                     )
 
-                    // Layer 2: Content accent glow
-                    drawRect(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                animatedFocusColor.copy(alpha = focusAlpha),
-                                animatedFocusColor.copy(alpha = focusAlpha * 0.3f),
-                                Color.Transparent
-                            ),
-                            center = Offset(
-                                size.width * (0.5f + motionX * 0.7f),
-                                size.height * (0.3f + motionY * 0.7f)
-                            ),
-                            radius = size.width * 1.6f
-                        )
-                    )
-
-                    // Layer 3: Secondary brand glow (only HIGH)
-                    if (deviceClass == DeviceClass.HIGH) {
+                    // 2.3 AMBIENT GLOW
+                    if (animateGlow) {
                         drawRect(
                             brush = Brush.radialGradient(
                                 colors = listOf(
-                                    animatedBrandColor.copy(alpha = 0.08f),
+                                    animatedFocusColor.copy(alpha = 0.12f),
                                     Color.Transparent
                                 ),
-                                center = Offset(
-                                    size.width * (0.9f + motionPhase2X),
-                                    size.height * (0.9f + motionY * 0.5f)
-                                ),
-                                radius = size.width * 0.7f
+                                center = Offset(s.width * 0.1f, s.height * 0.4f),
+                                radius = s.width * 1.5f
                             )
                         )
                     }
                 }
-            )
-        }
+        )
+
         content()
     }
 }

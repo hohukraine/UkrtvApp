@@ -17,7 +17,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
@@ -25,7 +24,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import ua.ukrtv.app.util.AppLogger
 
-@UnstableApi
 @Composable
 fun ExternalPlayerScreen(
     url: String,
@@ -53,13 +51,16 @@ fun ExternalPlayerScreen(
 
     LaunchedEffect(showAdvanceCountdown) {
         if (showAdvanceCountdown) {
+            AppLogger.d("ExternalPlayer", "Countdown started")
             while (advanceCountdown > 0) {
                 delay(1000)
                 advanceCountdown--
             }
+            AppLogger.d("ExternalPlayer", "Countdown finished, resetting states")
             showAdvanceCountdown = false
             playerLaunched = false
             resultHandled = false
+            // Reset ViewModel's resolving state if needed
         }
     }
 
@@ -68,17 +69,21 @@ fun ExternalPlayerScreen(
     val externalPlayerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        AppLogger.d("ExternalPlayer", "ActivityResult received: code=${result.resultCode}")
         resultHandled = true
         viewModel.releaseExternalPlayerLaunchLock()
         scope.launch {
             val returnResult = viewModel.handleExternalPlayerResult(result.resultCode, result.data)
+            AppLogger.d("ExternalPlayer", "handleExternalPlayerResult returned: $returnResult")
             viewModel.releaseEngine()
             when (returnResult) {
                 is ExternalPlayerReturnResult.Advanced -> {
+                    AppLogger.d("ExternalPlayer", "Showing advance countdown")
                     showAdvanceCountdown = true
                     advanceCountdown = 5
                 }
                 else -> {
+                    AppLogger.d("ExternalPlayer", "Not advancing, closing screen")
                     playerLaunched = false
                     onBack()
                 }
@@ -90,30 +95,36 @@ fun ExternalPlayerScreen(
         viewModel.initialize(contentId, title, url, season, episode, poster)
     }
 
-    LaunchedEffect(state.status, playerLaunched) {
+    LaunchedEffect(state.status is PlayerStatus.Ready, playerLaunched) {
         val status = state.status
-        if (status is PlayerStatus.Ready && !playerLaunched && viewModel.tryAcquireExternalPlayerLaunchLock()) {
+        if (status is PlayerStatus.Ready && !playerLaunched && !resultHandled && viewModel.tryAcquireExternalPlayerLaunchLock()) {
+            AppLogger.d("ExternalPlayer", "Ready to launch: ${status.title}, url=${status.url}")
             try {
                 withTimeoutOrNull(1500L) {
                     viewModel.deepResolutionCompleted.filter { it }.first()
                 }
-                playerLaunched = true
                 viewModel.saveBeforeExternalPlayerLaunch()
                 val intent = viewModel.createExternalPlayerIntent()
                 if (intent != null) {
                     try {
+                        AppLogger.d("ExternalPlayer", "Launching intent for ${status.title}")
                         externalPlayerLauncher.launch(intent)
+                        playerLaunched = true
                     } catch (e: android.content.ActivityNotFoundException) {
                         val playerLabel = viewModel.getCurrentExternalPlayerInfo()?.label ?: "плеєр"
                         AppLogger.w("ExternalPlayer", "Player not found: $playerLabel")
                         viewModel.releaseExternalPlayerLaunchLock()
                         onBack()
+                        return@LaunchedEffect
                     }
                 } else {
+                    AppLogger.w("ExternalPlayer", "Failed to create intent for ${status.title}")
                     viewModel.releaseExternalPlayerLaunchLock()
                     onBack()
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                AppLogger.e("ExternalPlayer", "Launch failed", e)
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 viewModel.releaseExternalPlayerLaunchLock()
                 onBack()
             }
@@ -146,7 +157,6 @@ fun ExternalPlayerScreen(
     BackHandler(enabled = isLoadingVisible || showAdvanceCountdown) {
         if (showAdvanceCountdown) {
             showAdvanceCountdown = false
-            playerLaunched = false
             onBack()
         } else {
             viewModel.releaseExternalPlayerLaunchLock()
@@ -180,6 +190,7 @@ fun ExternalPlayerScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     EpisodeLoadingOverlay(
+                        id = contentId,
                         poster = poster,
                         season = state.currentSeason,
                         episode = state.currentEpisode,
@@ -198,7 +209,6 @@ fun ExternalPlayerScreen(
                             .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
                             .clickable {
                                 showAdvanceCountdown = false
-                                playerLaunched = false
                                 onBack()
                             }
                             .padding(horizontal = 24.dp, vertical = 12.dp)
@@ -210,6 +220,7 @@ fun ExternalPlayerScreen(
             else -> {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     EpisodeLoadingOverlay(
+                        id = contentId,
                         poster = poster,
                         season = state.currentSeason,
                         episode = state.currentEpisode,

@@ -66,23 +66,6 @@ class DleParserDetailTest {
     }
 
     @Test
-    fun `eneyida parseSearch returns results from parseList`() {
-        val html = """
-            <html><body>
-                <article class="short">
-                    <a class="short_title" href="https://eneyida.tv/111-film.html">Знайдений фільм</a>
-                    <a class="short_img"><img src="https://eneyida.tv/poster.jpg"></a>
-                </article>
-            </body></html>
-        """.trimIndent()
-        val parser = DleParser(EneyidaProfile)
-        val results = parser.parseSearch(html)
-
-        assertTrue(results.isNotEmpty())
-        assertEquals("Знайдений фільм", results[0].title)
-    }
-
-    @Test
     fun `parseSearch filters blacklisted items`() {
         val html = """
             <html><body>
@@ -103,60 +86,5 @@ class DleParserDetailTest {
 
         assertEquals(1, results.size)
         assertEquals("Фільм", results[0].title)
-    }
-
-    @Test
-    fun `eneyida parseComments parses comm-two fallback`() {
-        val html = """
-            <html><body>
-                <div class="comm-item">
-                    <span class="comm-author">Женя Харків</span>
-                    <div class="comm-left img-box"><img src="https://eneyida.tv/avatar.jpg"></div>
-                    <div class="comm-two full-text">Гарний серіал, дуже сподобався!</div>
-                    <div class="comm-date">Сьогодні, 15:30</div>
-                </div>
-            </body></html>
-        """.trimIndent()
-        val parser = DleParser(EneyidaProfile)
-        val doc = org.jsoup.Jsoup.parse(html)
-        val comments = parser.parseComments(doc)
-
-        assertEquals(1, comments.size)
-        assertEquals("Женя Харків", comments[0].author)
-        assertEquals("Сьогодні, 15:30", comments[0].date)
-    }
-
-    @Test
-    fun `eneyida parseDetail extracts duration`() {
-        val html = """
-            <html><body>
-                <h1>Фільм з тривалістю</h1>
-                <ul class="full_info">
-                    <li>Тривалість: 01:45:00</li>
-                </ul>
-                <div class="full-text">Досить довгий опис фільму з тривалістю для тестування фільтру тексту.</div>
-            </body></html>
-        """.trimIndent()
-        val parser = DleParser(EneyidaProfile)
-        val detail = parser.parseDetail(html, "https://eneyida.tv/12345-duration-test.html")
-
-        assertEquals("01:45:00", detail.duration)
-    }
-
-    @Test
-    fun `parseDetail extracts seasonCount from text`() {
-        val html = """
-            <html><body>
-                <h1>Серіал 4 сезон</h1>
-                <ul class="full_info">
-                    <li>Статус: 4 сезон 6 серія</li>
-                </ul>
-                <div class="full-text">Досить довгий опис серіалу з багатьма сезонами.</div>
-            </body></html>
-        """.trimIndent()
-        val parser = DleParser(EneyidaProfile)
-        val detail = parser.parseDetail(html, "https://eneyida.tv/12345-season-count-test.html")
-
-        assertEquals(4, detail.seasonCount)
     }
 }

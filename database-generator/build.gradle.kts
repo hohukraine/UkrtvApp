@@ -1,5 +1,10 @@
 plugins {
     kotlin("jvm")
+    application
+}
+
+application {
+    mainClass.set("ua.ukrtv.app.generator.DbGeneratorKt")
 }
 
 dependencies {

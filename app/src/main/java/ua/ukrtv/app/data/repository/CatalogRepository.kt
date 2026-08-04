@@ -5,6 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,7 +14,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.local.entity.CatalogIndexEntity
-import ua.ukrtv.app.data.providers.EneyidaProfile
+import ua.ukrtv.app.data.providers.UaflixProfile
 import ua.ukrtv.app.data.providers.UakinoProfile
 import ua.ukrtv.app.util.AppLogger
 import javax.inject.Inject
@@ -21,9 +22,9 @@ import javax.inject.Singleton
 
 data class CatalogIndexState(
     val uakinoReady: Boolean = false,
-    val eneyidaReady: Boolean = false,
+    val uaflixReady: Boolean = false,
     val uakinoCount: Int = 0,
-    val eneyidaCount: Int = 0,
+    val uaflixCount: Int = 0,
     val isBuilding: Boolean = false,
     val progress: String = ""
 )
@@ -34,7 +35,7 @@ class CatalogRepository @Inject constructor(
     private val catalogDao: CatalogIndexDao,
     private val builder: CatalogIndexBuilder
 ) {
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val scope = CoroutineScope(Dispatchers.IO.limitedParallelism(2) + SupervisorJob())
 
     private var buildJob: Job? = null
 
@@ -64,11 +65,15 @@ class CatalogRepository @Inject constructor(
     }
 
     private suspend fun importFromAssetIfEmpty() {
+        // Phase 3: Delay catalog import to avoid competition with Home content loading
+        delay(8000)
+
+        try { catalogDao.deleteByProviderNotIn(listOf("Uakino", "UAFLIX")) } catch (_: Exception) { }
         val uCount = try { catalogDao.countByProvider("Uakino") } catch (_: Exception) { 0 }
-        val eCount = try { catalogDao.countByProvider("Eneyida") } catch (_: Exception) { 0 }
-        if (uCount > 1000 && eCount > 1000) {
+        val uaCount = try { catalogDao.countByProvider("UAFLIX") } catch (_: Exception) { 0 }
+        if (uCount > 1000 && uaCount > 1000) {
             _state.update {
-                it.copy(uakinoReady = true, eneyidaReady = true, uakinoCount = uCount, eneyidaCount = eCount)
+                it.copy(uakinoReady = true, uaflixReady = true, uakinoCount = uCount, uaflixCount = uaCount)
             }
             return
         }
@@ -122,6 +127,7 @@ class CatalogRepository @Inject constructor(
                     if (items.size >= 500) {
                         catalogDao.insertAll(items.toList())
                         items.clear()
+                        kotlinx.coroutines.yield()
                     }
                 }
                 reader.endArray()
@@ -131,16 +137,16 @@ class CatalogRepository @Inject constructor(
                 }
 
                 val uakinoCount = catalogDao.countByProvider("Uakino")
-                val eneyidaCount = catalogDao.countByProvider("Eneyida")
+                val uaflixCount = catalogDao.countByProvider("UAFLIX")
                 _state.update {
                     it.copy(
                         uakinoReady = uakinoCount > 1000,
-                        eneyidaReady = eneyidaCount > 1000,
+                        uaflixReady = uaflixCount > 1000,
                         uakinoCount = uakinoCount,
-                        eneyidaCount = eneyidaCount
+                        uaflixCount = uaflixCount
                     )
                 }
-                AppLogger.i("CatalogRepository", "Imported catalog from asset ($uakinoCount Uakino, $eneyidaCount Eneyida)")
+                AppLogger.i("CatalogRepository", "Imported catalog from asset ($uakinoCount Uakino, $uaflixCount UAFLIX)")
             }
         } catch (e: Exception) {
             AppLogger.w("CatalogRepository", "Asset import failed: ${e.message}")
@@ -150,8 +156,9 @@ class CatalogRepository @Inject constructor(
 
     fun ensureBuilt() {
         val s = _state.value
-        if (s.isBuilding || (s.uakinoReady && s.eneyidaReady)) return
+        if (s.isBuilding || (s.uakinoReady && s.uaflixReady)) return
         launchBuild("ensureBuilt") {
+            try { catalogDao.deleteByProviderNotIn(listOf("Uakino", "UAFLIX")) } catch (_: Exception) { }
             _state.update { it.copy(isBuilding = true, progress = "Building catalog index...") }
 
             if (!_state.value.uakinoReady) {
@@ -168,18 +175,18 @@ class CatalogRepository @Inject constructor(
                 _state.update { it.copy(uakinoReady = newTotal > 1000, uakinoCount = newTotal) }
             }
 
-            if (!_state.value.eneyidaReady) {
-                _state.update { it.copy(progress = "Building Eneyida index...") }
-                val eCurrent = _state.value.eneyidaCount
-                val eResult = if (eCurrent > 0) {
-                    val existingUrls = catalogDao.getUrlsByProvider("Eneyida").toSet()
-                    builder.buildForProviderIncremental(EneyidaProfile, CatalogIndexBuilder.EneyidaSources, existingUrls)
+            if (!_state.value.uaflixReady) {
+                _state.update { it.copy(progress = "Building UAFLIX index...") }
+                val uaCurrent = _state.value.uaflixCount
+                val uaResult = if (uaCurrent > 0) {
+                    val existingUrls = catalogDao.getUrlsByProvider("UAFLIX").toSet()
+                    builder.buildForProviderIncremental(UaflixProfile, CatalogIndexBuilder.UaflixSources, existingUrls)
                 } else {
-                    builder.buildForProvider(EneyidaProfile, CatalogIndexBuilder.EneyidaSources)
+                    builder.buildForProvider(UaflixProfile, CatalogIndexBuilder.UaflixSources)
                 }
-                val newTotal = eCurrent + eResult.itemsInserted
-                AppLogger.i("CatalogRepository", "Eneyida: +${eResult.itemsInserted} new items, ${eResult.pagesScanned} pages, ${eResult.errors} errors")
-                _state.update { it.copy(eneyidaReady = newTotal > 1000, eneyidaCount = newTotal) }
+                val newTotal = uaCurrent + uaResult.itemsInserted
+                AppLogger.i("CatalogRepository", "UAFLIX: +${uaResult.itemsInserted} new items, ${uaResult.pagesScanned} pages, ${uaResult.errors} errors")
+                _state.update { it.copy(uaflixReady = newTotal > 1000, uaflixCount = newTotal) }
             }
         }
     }
@@ -197,13 +204,13 @@ class CatalogRepository @Inject constructor(
         val s = _state.value
         return when (providerName) {
             "Uakino" -> s.uakinoReady
-            "Eneyida" -> s.eneyidaReady
+            "UAFLIX" -> s.uaflixReady
             else -> false
         }
     }
 
     suspend fun awaitReady() {
-        if (!_state.value.isBuilding && _state.value.uakinoReady && _state.value.eneyidaReady) return
+        if (!_state.value.isBuilding && _state.value.uakinoReady && _state.value.uaflixReady) return
         ensureBuilt()
         state.first { !it.isBuilding }
     }
@@ -223,13 +230,13 @@ class CatalogRepository @Inject constructor(
                 _state.update { it.copy(uakinoReady = newTotal > 1000, uakinoCount = newTotal) }
             }
 
-            val eCount = catalogDao.countByProvider("Eneyida")
-            if (eCount > 0) {
-                val existingUrls = catalogDao.getUrlsByProvider("Eneyida").toSet()
-                val result = builder.buildForProviderIncremental(EneyidaProfile, CatalogIndexBuilder.EneyidaSources, existingUrls)
-                val newTotal = eCount + result.itemsInserted
-                AppLogger.i("CatalogRepository", "Eneyida update: +${result.itemsInserted} new items, ${result.pagesScanned} pages, ${result.errors} errors")
-                _state.update { it.copy(eneyidaReady = newTotal > 1000, eneyidaCount = newTotal) }
+            val uaCount = catalogDao.countByProvider("UAFLIX")
+            if (uaCount > 0) {
+                val existingUrls = catalogDao.getUrlsByProvider("UAFLIX").toSet()
+                val result = builder.buildForProviderIncremental(UaflixProfile, CatalogIndexBuilder.UaflixSources, existingUrls)
+                val newTotal = uaCount + result.itemsInserted
+                AppLogger.i("CatalogRepository", "UAFLIX update: +${result.itemsInserted} new items, ${result.pagesScanned} pages, ${result.errors} errors")
+                _state.update { it.copy(uaflixReady = newTotal > 1000, uaflixCount = newTotal) }
             }
         }
     }
@@ -238,20 +245,21 @@ class CatalogRepository @Inject constructor(
         val s = _state.value
         if (s.isBuilding) return
         launchBuild("rebuild") {
+            try { catalogDao.deleteByProviderNotIn(listOf("Uakino", "UAFLIX")) } catch (_: Exception) { }
             _state.update { it.copy(isBuilding = true, progress = "Rebuilding all indexes...") }
             val uResult = builder.buildForProvider(UakinoProfile, CatalogIndexBuilder.UakinoSources)
             _state.update {
                 it.copy(
                     uakinoReady = uResult.itemsInserted > 1000,
                     uakinoCount = uResult.itemsInserted,
-                    progress = "Uakino done (${uResult.itemsInserted}), building Eneyida..."
+                    progress = "Uakino done (${uResult.itemsInserted}), building UAFLIX..."
                 )
             }
-            val eResult = builder.buildForProvider(EneyidaProfile, CatalogIndexBuilder.EneyidaSources)
+            val uaResult = builder.buildForProvider(UaflixProfile, CatalogIndexBuilder.UaflixSources)
             _state.update {
                 it.copy(
-                    eneyidaReady = eResult.itemsInserted > 1000,
-                    eneyidaCount = eResult.itemsInserted
+                    uaflixReady = uaResult.itemsInserted > 1000,
+                    uaflixCount = uaResult.itemsInserted
                 )
             }
         }

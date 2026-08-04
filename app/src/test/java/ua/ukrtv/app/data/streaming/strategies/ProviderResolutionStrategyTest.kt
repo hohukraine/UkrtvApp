@@ -30,8 +30,8 @@ class ProviderResolutionStrategyTest {
     }
 
     @Test
-    fun `canHandle eneyida URL`() = runTest {
-        assertTrue(strategy.canHandle("https://eneyida.tv/movie.html", ResolutionContext()))
+    fun `canHandle uaflix URL`() = runTest {
+        assertTrue(strategy.canHandle("https://uafix.net/movie.html", ResolutionContext()))
     }
 
     @Test
@@ -140,10 +140,10 @@ class ProviderResolutionStrategyTest {
         val source = MediaSource.Movie("https://cdn.example.com/movie.m3u8", referer = "")
         coEvery { streamManager.getStream(any(), any(), any(), any(), any()) } returns source
 
-        val result = strategy.resolve("https://eneyida.tv/movie.html", ResolutionContext())
+        val result = strategy.resolve("https://uafix.net/movie.html", ResolutionContext())
 
         assertNotNull(result)
-        assertEquals("https://eneyida.tv/", result!!.referer)
+        assertEquals("https://uafix.net/", result!!.referer)
     }
 
     @Test

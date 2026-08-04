@@ -17,7 +17,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.SpanStyle
@@ -33,6 +35,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.ui.components.RatingCircle
 import ua.ukrtv.app.ui.theme.Gold
@@ -114,7 +117,7 @@ private fun HeroPage(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Content
+            // Content (Backdrop is handled by HomeBackground to avoid double shading)
             Row(
                 modifier = Modifier
                     .fillMaxSize()

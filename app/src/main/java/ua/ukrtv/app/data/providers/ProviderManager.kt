@@ -27,7 +27,7 @@ class ProviderManager @Inject constructor(
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val allProviders: List<MediaProvider> = listOf(
-        EneyidaProvider(htmlHttpClient, sessionRepository, catalogRepository),
+        UaflixProvider(htmlHttpClient, sessionRepository, catalogRepository),
         UakinoProvider(htmlHttpClient, sessionRepository, catalogRepository)
     )
 
@@ -35,12 +35,12 @@ class ProviderManager @Inject constructor(
         allProviders.find { it.name.equals(id, ignoreCase = true) }
 
     val uakinoProvider: MediaProvider get() = getById("Uakino") ?: allProviders.first()
-    val eneyidaProvider: MediaProvider get() = getById("Eneyida") ?: allProviders.first()
+    val uaflixProvider: MediaProvider get() = getById("UAFLIX") ?: allProviders.first()
 
-    private val _activeProvider = MutableStateFlow<MediaProvider>(eneyidaProvider)
+    private val _activeProvider = MutableStateFlow<MediaProvider>(uaflixProvider)
     val activeProvider: StateFlow<MediaProvider> = _activeProvider
 
-    private val _brandColor = MutableStateFlow(Color.parseColor(eneyidaProvider.brandColor))
+    private val _brandColor = MutableStateFlow(Color.parseColor(uaflixProvider.brandColor))
     val brandColor: StateFlow<Int> = _brandColor
 
     val availableProviders: List<MediaProvider> get() = allProviders
@@ -64,8 +64,8 @@ class ProviderManager @Inject constructor(
 
     fun getOppositeProvider(url: String): MediaProvider? {
         return when {
-            url.contains("uakino") -> eneyidaProvider
-            url.contains("eneyida") -> uakinoProvider
+            url.contains("uakino") -> uaflixProvider
+            url.contains("uafix") || url.contains("uaflix") -> uakinoProvider
             else -> null
         }
     }

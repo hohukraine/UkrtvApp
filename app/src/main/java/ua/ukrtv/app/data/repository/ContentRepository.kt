@@ -69,8 +69,17 @@ class ContentRepository @Inject constructor(
         trendsCache.clear()
     }
 
-    fun getHomeGrid(provider: MediaProvider): Flow<List<Movie>> =
-        homeSource.getHomeGrid(provider)
+    suspend fun getCategoryCache(providerName: String): Map<String, List<Movie>>? =
+        homeCacheRepository.getCategoryCache(providerName)
+
+    suspend fun saveCategoryCache(providerName: String, categories: Map<String, List<Movie>>) =
+        homeCacheRepository.saveCategoryCache(providerName, categories)
+
+    suspend fun isCategoryCacheStale(providerName: String, staleHours: Long = 6): Boolean =
+        homeCacheRepository.isCategoryCacheStale(providerName, staleHours)
+
+    fun getHomeGrid(provider: MediaProvider, forceRefresh: Boolean = false): Flow<List<Movie>> =
+        homeSource.getHomeGrid(provider, forceRefresh)
 
     suspend fun getTrendsForGrid(): List<Movie> {
         val provider = providerManager.activeProvider.value
@@ -79,12 +88,12 @@ class ContentRepository @Inject constructor(
         trendsCache.get(cacheKey)?.let { return it }
 
         val cachedSections = homeCacheRepository.getHomeCache(provider.name)
-        val cachedItems = cachedSections?.firstOrNull()?.items.orEmpty()
+        val cachedItems = cachedSections?.firstOrNull()?.items?.map { it.copy(provider = it.provider ?: provider.name) }.orEmpty()
 
         val newItems = coroutineScope {
             (1..4).map { page ->
                 async(Dispatchers.IO) {
-                    provider.getMoviesByCategory(ContentCategory.TRENDS, page)
+                    provider.getMoviesByCategory(ContentCategory.TRENDS, page).map { it.copy(provider = it.provider ?: provider.name) }
                 }
             }.awaitAll().flatten()
         }
@@ -117,6 +126,12 @@ class ContentRepository @Inject constructor(
                     val pUrl = progress.pageUrl
                     if (pUrl.isEmpty()) return@mapNotNull null
                     val (season, episode) = parseSeasonEpisode(progress.episodeId)
+                    
+                    val providerName = when {
+                        pUrl.contains("uaflix") || pUrl.contains("uafix") -> "UAFLIX"
+                        else -> "Uakino"
+                    }
+
                     Movie(
                         id = progress.contentId,
                         title = ContentUtils.cleanTitle(progress.title),
@@ -125,7 +140,8 @@ class ContentRepository @Inject constructor(
                         watchProgress = progress.progressPercentage,
                         contentType = if (season != null || progress.episodeId != null) "СЕРІАЛ" else null,
                         season = season,
-                        episode = episode
+                        episode = episode,
+                        provider = providerName
                     )
                 }
         }.distinctUntilChanged().flowOn(Dispatchers.IO)

@@ -75,6 +75,9 @@ interface CatalogIndexDao {
     @Query("DELETE FROM catalog_index WHERE provider = :provider")
     suspend fun deleteByProvider(provider: String)
 
+    @Query("DELETE FROM catalog_index WHERE provider NOT IN (:providers)")
+    suspend fun deleteByProviderNotIn(providers: List<String>)
+
     @Query("DELETE FROM catalog_index")
     suspend fun deleteAll()
 

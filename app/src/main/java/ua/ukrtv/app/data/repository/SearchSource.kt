@@ -30,7 +30,7 @@ internal class SearchSource(
             providerManager.availableProviders.map { provider ->
                 async(Dispatchers.IO) {
                     try {
-                        provider.getMoviesByCategory(category)
+                        provider.getMoviesByCategory(category).map { it.copy(provider = it.provider ?: provider.name) }
                     } catch (_: Exception) {
                         emptyList()
                     }

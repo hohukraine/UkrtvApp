@@ -174,30 +174,25 @@ class DetailViewModel @Inject constructor(
 
     fun watchContent(season: Int? = null, episode: Int? = null, voiceover: String? = null) {
         val detail = currentDetail ?: return
+        val isSeries = !detail.seasons.isNullOrEmpty()
+        val effectiveSeason = season ?: (if (isSeries) detail.seasons.firstOrNull()?.number ?: 1 else null)
+        val effectiveEpisode = episode ?: if (isSeries && effectiveSeason != null) {
+            detail.seasons.find { it.number == effectiveSeason }?.episodes?.firstOrNull()?.number ?: 1
+        } else null
         _launchState.value = MediaLaunchState.Resolving(detail.title)
-
         viewModelScope.launch {
             try {
                 val res = streamResolvingInteractor.resolve(
-                    url = detail.pageUrl,
-                    title = detail.title,
-                    season = season,
-                    episode = episode,
-                    voiceover = voiceover
+                    url = detail.pageUrl, title = detail.title,
+                    season = effectiveSeason, episode = effectiveEpisode, voiceover = voiceover
                 )
-
                 if (res != null) {
                     _launchState.value = MediaLaunchState.Ready(
-                        contentId = detail.id,
-                        title = detail.title,
-                        subtitle = if (season != null && episode != null) "S$season E$episode" else "",
-                        posterUrl = detail.poster,
-                        streamResult = res,
-                        season = season,
-                        episode = episode,
-                        voiceover = voiceover,
-                        seasons = res.seasons ?: detail.seasons,
-                        brandColor = detail.brandColor
+                        contentId = detail.id, title = detail.title,
+                        subtitle = if (effectiveSeason != null && effectiveEpisode != null) "S$effectiveSeason E$effectiveEpisode" else "",
+                        posterUrl = detail.poster, streamResult = res,
+                        season = effectiveSeason, episode = effectiveEpisode, voiceover = voiceover,
+                        seasons = res.seasons ?: detail.seasons, brandColor = detail.brandColor
                     )
                 } else {
                     _launchState.value = MediaLaunchState.Error(AppError.StreamNotFoundError("Стрім не знайдено"))

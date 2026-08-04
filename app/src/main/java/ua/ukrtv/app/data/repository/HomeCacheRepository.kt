@@ -80,6 +80,11 @@ class HomeCacheRepository @Inject constructor(
         } catch (_: Exception) {}
     }
 
+    suspend fun isHomeCacheStale(providerName: String, staleHours: Long = 6): Boolean {
+        val ts = homeCacheDao.getCache(providerName)?.lastUpdated ?: 0L
+        return (System.currentTimeMillis() - ts) / (60 * 60 * 1000L) >= staleHours
+    }
+
     suspend fun isCategoryCacheStale(providerName: String, staleHours: Long = 3): Boolean {
         val ts = homeCacheDao.getCache(providerName)?.categoryLastUpdated ?: 0L
         return (System.currentTimeMillis() - ts) / (60 * 60 * 1000L) >= staleHours

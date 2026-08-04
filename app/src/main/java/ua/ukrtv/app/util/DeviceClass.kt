@@ -8,38 +8,49 @@ enum class DeviceClass {
     LOW, MID, HIGH
 }
 
+@Volatile
+private var cachedDeviceClass: DeviceClass? = null
+
 fun getDeviceClass(context: Context): DeviceClass {
-    val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return DeviceClass.MID
-    val memInfo = ActivityManager.MemoryInfo()
-    am.getMemoryInfo(memInfo)
-    val totalRamGb = memInfo.totalMem / (1024.0 * 1024.0 * 1024.0)
-    val cores = Runtime.getRuntime().availableProcessors()
-    val density = context.resources.displayMetrics.densityDpi
+    cachedDeviceClass?.let { return it }
+    
+    synchronized(DeviceClass::class.java) {
+        cachedDeviceClass?.let { return it }
+        
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return DeviceClass.MID
+        val memInfo = ActivityManager.MemoryInfo()
+        am.getMemoryInfo(memInfo)
+        val totalRamGb = memInfo.totalMem / (1024.0 * 1024.0 * 1024.0)
+        val cores = Runtime.getRuntime().availableProcessors()
+        val density = context.resources.displayMetrics.densityDpi
 
-    if (am.isLowRamDevice || totalRamGb <= 1.0) return DeviceClass.LOW
+        if (am.isLowRamDevice || totalRamGb <= 1.0) return DeviceClass.LOW.also { cachedDeviceClass = it }
 
-    var score = 0
-    score += when {
-        totalRamGb >= 3.5 -> 2
-        totalRamGb >= 2.0 -> 1
-        else -> 0
-    }
-    score += when {
-        cores >= 8 -> 2
-        cores >= 4 -> 1
-        else -> 0
-    }
-    // High-density screens cost more GPU bandwidth to composite
-    score += when {
-        density <= 320 -> 2
-        density <= 420 -> 1
-        else -> 0
-    }
+        var score = 0
+        score += when {
+            totalRamGb >= 3.5 -> 2
+            totalRamGb >= 2.0 -> 1
+            else -> 0
+        }
+        score += when {
+            cores >= 8 -> 2
+            cores >= 4 -> 1
+            else -> 0
+        }
+        // High-density screens cost more GPU bandwidth to composite
+        score += when {
+            density <= 320 -> 2
+            density <= 420 -> 1
+            else -> 0
+        }
 
-    return when {
-        score <= 1 -> DeviceClass.LOW
-        score <= 3 -> DeviceClass.MID
-        else -> DeviceClass.HIGH
+        val result = when {
+            score <= 1 -> DeviceClass.LOW
+            score <= 3 -> DeviceClass.MID
+            else -> DeviceClass.HIGH
+        }
+        cachedDeviceClass = result
+        return result
     }
 }
 
@@ -74,17 +85,17 @@ object PlayerBufferConfig {
                 maxVideoSize = 1280,
             )
             DeviceClass.MID -> BufferParams(
-                minBufferMs = 50_000,
-                maxBufferMs = 120_000,
-                bufferForPlaybackMs = 2_500,
+                minBufferMs = 60_000,
+                maxBufferMs = 180_000,
+                bufferForPlaybackMs = 2_000,
                 bufferForPlaybackAfterRebufferMs = 5_000,
                 maxVideoBitrate = 15_000_000,
                 maxVideoSize = 1920,
             )
             DeviceClass.HIGH -> BufferParams(
-                minBufferMs = 60_000,
-                maxBufferMs = 120_000,
-                bufferForPlaybackMs = 2_500,
+                minBufferMs = 90_000,
+                maxBufferMs = 300_000,
+                bufferForPlaybackMs = 1_500,
                 bufferForPlaybackAfterRebufferMs = 4_000,
                 maxVideoBitrate = 20_000_000,
                 maxVideoSize = 1920,
@@ -102,7 +113,12 @@ object PlayerBufferConfig {
     }
 }
 
+@Volatile
+private var cachedMediatek: Boolean? = null
+
 fun hasMediatekChipset(): Boolean {
+    cachedMediatek?.let { return it }
+
     val board = Build.BOARD.lowercase()
     val manufacturer = Build.MANUFACTURER.lowercase()
     val model = Build.MODEL.lowercase()
@@ -119,12 +135,13 @@ fun hasMediatekChipset(): Boolean {
         "mtk5887", "mtk5889", "mtk5867",
     )
 
-    return board in knownMediatekBoards ||
+    val result = board in knownMediatekBoards ||
         board.contains("mt") || board.contains("mediatek") ||
         hardware.contains("mt") || hardware.contains("mediatek") ||
         brand.contains("mediatek") || manufacturer.contains("mediatek") ||
         fingerprint.contains("mediatek") ||
         (model.contains("mt") && model.any { it.isDigit() })
+
+    cachedMediatek = result
+    return result
 }
-
-

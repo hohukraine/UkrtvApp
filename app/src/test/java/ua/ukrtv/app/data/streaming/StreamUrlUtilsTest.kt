@@ -124,10 +124,10 @@ class StreamUrlUtilsTest {
     // --- inferReferer ---
 
     @Test
-    fun `inferReferer eneyida`() = assertEquals("https://eneyida.tv/", inferReferer("https://eneyida.tv/stream.m3u8"))
+    fun `inferReferer uaflix`() = assertEquals("https://uafix.net/", inferReferer("https://uafix.net/stream.m3u8"))
 
     @Test
-    fun `inferReferer hdvbua`() = assertEquals("https://eneyida.tv/", inferReferer("https://s11.hdvbua.pro/media/stream.m3u8"))
+    fun `inferReferer uafix alias`() = assertEquals("https://uafix.net/", inferReferer("https://uaflix.net/media/stream.m3u8"))
 
     @Test
     fun `inferReferer uakino`() = assertEquals("https://uakino.best/", inferReferer("https://uakino.best/stream.m3u8"))

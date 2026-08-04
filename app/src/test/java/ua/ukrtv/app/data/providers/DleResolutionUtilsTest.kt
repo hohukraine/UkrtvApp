@@ -141,6 +141,43 @@ class DleResolutionUtilsTest {
         assertNull(DleResolutionUtils.extractSeasonNum(""))
     }
 
+    // --- extractEpisodeNum ---
+
+    @Test
+    fun `extractEpisodeNum from Uaflix season-episode URL`() {
+        assertEquals(8, DleResolutionUtils.extractEpisodeNum("https://uafix.net/serials/gt-diim-v-drakona/season-01-episode-08/"))
+    }
+
+    @Test
+    fun `extractEpisodeNum from sNeN pattern`() {
+        assertEquals(5, DleResolutionUtils.extractEpisodeNum("https://cdn.example.com/clarksons.farm.s01e05.1080p.m3u8"))
+    }
+
+    @Test
+    fun `extractEpisodeNum from seriya label`() {
+        assertEquals(5, DleResolutionUtils.extractEpisodeNum("https://uakino.best/5-seriya.html"))
+    }
+
+    @Test
+    fun `extractEpisodeNum from episode label`() {
+        assertEquals(3, DleResolutionUtils.extractEpisodeNum("https://example.com/episode-3/"))
+    }
+
+    @Test
+    fun `extractEpisodeNum does not read numeric content id from season page URL`() {
+        assertNull(DleResolutionUtils.extractEpisodeNum("https://uakino.best/seriesss/comedy_series/34310-ferma-klarksona-5-sezon.html"))
+    }
+
+    @Test
+    fun `extractEpisodeNum returns null for plain text`() {
+        assertNull(DleResolutionUtils.extractEpisodeNum("just a movie"))
+    }
+
+    @Test
+    fun `extractEpisodeNum returns null for empty`() {
+        assertNull(DleResolutionUtils.extractEpisodeNum(""))
+    }
+
     // --- ensureAbsoluteUrl ---
 
     @Test

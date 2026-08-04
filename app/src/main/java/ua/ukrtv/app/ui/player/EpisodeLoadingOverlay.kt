@@ -1,5 +1,8 @@
 package ua.ukrtv.app.ui.player
 
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -22,12 +25,16 @@ import coil3.request.crossfade
 import coil3.request.ImageRequest
 import ua.ukrtv.app.ui.theme.BrandBlue
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun EpisodeLoadingOverlay(
+    id: String,
     poster: String,
     season: Int?,
     episode: Int?,
-    visible: Boolean = true
+    visible: Boolean = true,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null
 ) {
     val alpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -44,6 +51,15 @@ fun EpisodeLoadingOverlay(
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (poster.isNotBlank()) {
+                val sharedModifier = if (sharedTransitionScope != null && animatedContentScope != null) {
+                    with(sharedTransitionScope) {
+                        Modifier.sharedElement(
+                            rememberSharedContentState(key = "movie_poster_$id"),
+                            animatedVisibilityScope = animatedContentScope
+                        )
+                    }
+                } else Modifier
+
                 AsyncImage(
                     model = ImageRequest.Builder(LocalContext.current)
                         .data(poster)
@@ -53,6 +69,7 @@ fun EpisodeLoadingOverlay(
                     modifier = Modifier
                         .width(200.dp)
                         .height(280.dp)
+                        .then(sharedModifier)
                         .clip(RoundedCornerShape(12.dp))
                         .graphicsLayer {
                             scaleX = 0.95f

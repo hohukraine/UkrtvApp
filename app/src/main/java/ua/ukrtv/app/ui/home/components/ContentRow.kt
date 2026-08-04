@@ -2,6 +2,9 @@ package ua.ukrtv.app.ui.home.components
 
 import android.content.Context
 import android.media.AudioManager
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.BringIntoViewSpec
@@ -60,6 +63,8 @@ import ua.ukrtv.app.ui.home.MovieCard
 import ua.ukrtv.app.ui.components.ShimmerBox
 import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.GridDefaults
+import ua.ukrtv.app.ui.theme.PosterStyle
+import ua.ukrtv.app.ui.theme.ProviderSizes
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
@@ -70,7 +75,7 @@ import ua.ukrtv.app.ui.theme.Shapes
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.PosterColorCache
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun ContentRow(
     title: String,
@@ -79,28 +84,46 @@ fun ContentRow(
     onItemClick: (Movie) -> Unit,
     onItemDismiss: ((Movie) -> Unit)? = null,
     onItemFocused: ((Movie) -> Unit)? = null,
-    useWideCards: Boolean = false,
     useLargeCards: Boolean = false,
     trailingContent: @Composable (() -> Unit)? = null,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
+    providerHint: String? = null
 ) {
     val formFactor = LocalFormFactor.current
     when (formFactor) {
-        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useWideCards, useLargeCards, trailingContent, isLoading)
-        FormFactor.PHONE, FormFactor.TABLET -> PhoneContentRow(title, items, brandColor, onItemClick, useWideCards, trailingContent, isLoading)
+        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useLargeCards, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint)
+        FormFactor.PHONE, FormFactor.TABLET -> PhoneContentRow(title, items, brandColor, onItemClick, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint)
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun PhoneContentRow(
     title: String,
     items: List<Movie>,
     brandColor: Color,
     onItemClick: (Movie) -> Unit,
-    useWideCards: Boolean = false,
     trailingContent: @Composable (() -> Unit)? = null,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
+    providerHint: String? = null
 ) {
+    val rowEntrance = remember { Animatable(0f) }
+    LaunchedEffect(items) {
+        if (items.isNotEmpty()) {
+            rowEntrance.animateTo(1f, tween(250))
+        }
+    }
+
+    val posterStyle = remember(items, providerHint) {
+        val provider = items.firstOrNull()?.provider ?: providerHint
+        PosterStyle.forProvider(provider)
+    }
+    val phoneDims = ProviderSizes.phoneCard(posterStyle)
+
     Column(modifier = Modifier.padding(bottom = 16.dp)) {
         SectionHeader(
             title = title,
@@ -115,10 +138,8 @@ private fun PhoneContentRow(
         ) {
             if (isLoading && items.isEmpty()) {
                 items(5, key = { "phone_shimmer_$it" }) {
-                    val width = if (useWideCards) PhoneCardDefaults.wideWidth else PhoneCardDefaults.posterWidth
-                    val height = if (useWideCards) PhoneCardDefaults.wideHeight else PhoneCardDefaults.posterHeight
                     ShimmerBox(
-                        modifier = Modifier.width(width).height(height),
+                        modifier = Modifier.width(phoneDims.width).height(phoneDims.height),
                         shape = Shapes.card
                     )
                 }
@@ -127,36 +148,40 @@ private fun PhoneContentRow(
             itemsIndexed(
                 items = items,
                 key = { _, it -> "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" },
-                contentType = { _, _ -> if (useWideCards) "wide" else "movie" }
+                contentType = { _, it -> if (it.watchProgress != null) "wide" else "movie" }
             ) { index, item ->
-                val enterAlpha = remember(item) { Animatable(0f) }
-                LaunchedEffect(item) {
-                    delay(index * 40L)
-                    enterAlpha.animateTo(1f, tween(300))
-                }
                 val onClick = remember(item) { { onItemClick(item) } }
                 val accentColor = remember(item.brandColor) {
                     item.brandColor?.let { try { Color(android.graphics.Color.parseColor(it)) } catch(_: Exception) { null } }
                         ?: PosterColorCache.getCached(item.poster)
                         ?: brandColor
                 }
-                if (useWideCards) {
+                val entranceMod = Modifier.graphicsLayer {
+                    val start = index * 0.04f
+                    alpha = ((rowEntrance.value - start) * 5f).coerceIn(0f, 1f)
+                }
+
+                if (item.watchProgress != null) {
                     ContinueWatchingCard(
                         movie = item,
                         brandColor = brandColor,
                         accentColor = accentColor,
+                        width = phoneDims.width,
+                        height = phoneDims.height,
                         onClick = onClick,
-                        modifier = Modifier.graphicsLayer { alpha = enterAlpha.value }
+                        modifier = entranceMod
                     )
                 } else {
                     MovieCard(
                         movie = item,
                         brandColor = brandColor,
                         accentColor = accentColor,
-                        width = PhoneCardDefaults.posterWidth,
-                        height = PhoneCardDefaults.posterHeight,
+                        width = phoneDims.width,
+                        height = phoneDims.height,
                         onClick = onClick,
-                        modifier = Modifier.graphicsLayer { alpha = enterAlpha.value }
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
+                        modifier = entranceMod
                     )
                 }
             }
@@ -170,7 +195,7 @@ private fun PhoneContentRow(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 private fun TvContentRow(
     title: String,
@@ -179,10 +204,12 @@ private fun TvContentRow(
     onItemClick: (Movie) -> Unit,
     onItemDismiss: ((Movie) -> Unit)? = null,
     onItemFocused: ((Movie) -> Unit)? = null,
-    useWideCards: Boolean = false,
     useLargeCards: Boolean = false,
     trailingContent: @Composable (() -> Unit)? = null,
-    isLoading: Boolean = false
+    isLoading: Boolean = false,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
+    providerHint: String? = null
 ) {
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
@@ -198,18 +225,27 @@ private fun TvContentRow(
     val context = LocalContext.current
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
 
-    val animateEntrance = deviceClass != DeviceClass.LOW && !isMediatek
-    val staggerMs = when { animateEntrance && deviceClass == DeviceClass.HIGH -> 60; animateEntrance && deviceClass == DeviceClass.MID -> 30; else -> 0 }
-    val animDuration = when { animateEntrance && deviceClass == DeviceClass.HIGH -> 300; animateEntrance && deviceClass == DeviceClass.MID -> 200; else -> 0 }
-    val enterAnimated = animateEntrance
-    val enterStartScale = if (animateEntrance && deviceClass == DeviceClass.HIGH) 0.92f else 1f
-    val enterTranslateYDp = if (animateEntrance && deviceClass == DeviceClass.HIGH) 12f else 0f
+    val animateEntrance = deviceClass == DeviceClass.HIGH && !isMediatek
+    val rowEntrance = remember { Animatable(0f) }
+    LaunchedEffect(items) {
+        if (animateEntrance && items.isNotEmpty()) {
+            rowEntrance.animateTo(1f, tween(300))
+        } else {
+            rowEntrance.snapTo(1f)
+        }
+    }
+
     val scope = rememberCoroutineScope()
 
-    val rowHeight = remember(useWideCards, useLargeCards, cardScale) {
-        val baseHeight = if (useWideCards) CardDefaults.wideHeight
-        else if (useLargeCards) CardDefaults.posterHeight * 1.15f
-        else CardDefaults.posterHeight
+    val posterStyle = remember(items, providerHint) {
+        val provider = items.firstOrNull()?.provider ?: providerHint
+        PosterStyle.forProvider(provider)
+    }
+    val tvDims = ProviderSizes.card(posterStyle)
+
+    val rowHeight = remember(useLargeCards, cardScale, posterStyle) {
+        val baseHeight = if (useLargeCards) tvDims.height * 1.15f
+        else tvDims.height
         (baseHeight * cardScale) + 32.dp
     }
 
@@ -250,8 +286,8 @@ private fun TvContentRow(
             ) {
                 if (items.isEmpty() && isLoading) {
                     items(6, key = { "shimmer_$it" }) { shimmerIndex ->
-                        val shimmerWidth = (if (useWideCards) CardDefaults.wideWidth else CardDefaults.compactWidth) * cardScale
-                        val shimmerHeight = (if (useWideCards) CardDefaults.wideHeight else CardDefaults.compactHeight) * cardScale
+                        val shimmerWidth = tvDims.width * cardScale
+                        val shimmerHeight = tvDims.height * cardScale
                         ShimmerBox(
                             modifier = Modifier
                                 .width(shimmerWidth)
@@ -264,7 +300,7 @@ private fun TvContentRow(
                 itemsIndexed(
                     items = items,
                     key = { _, it -> "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" },
-                    contentType = { _, _ -> if (useWideCards) "wide" else "movie" }
+                    contentType = { _, it -> if (it.watchProgress != null) "wide" else "movie" }
                 ) { index, item ->
                     val isFirst = index == 0
                     val isLast = index == items.lastIndex && trailingContent == null
@@ -308,33 +344,18 @@ private fun TvContentRow(
                         }
                     }
 
-                    val enterAlpha = if (enterAnimated) remember { Animatable(0f) } else null
-                    val enterScale = if (enterAnimated) remember { Animatable(enterStartScale) } else null
-                    val density = LocalDensity.current
-                    val translateYPx = remember(enterTranslateYDp) { with(density) { enterTranslateYDp.dp.toPx() } }
-                    val enterTranslateY = if (enterAnimated && translateYPx > 0f) remember { Animatable(translateYPx) } else null
-                    
-                    val animated = remember { mutableStateOf(!enterAnimated) }
-                    LaunchedEffect(animated.value) {
-                        if (!animated.value && enterAnimated) {
-                            delay(index * staggerMs.toLong())
-                            launch { enterScale?.animateTo(1f, tween(animDuration)) }
-                            if (translateYPx > 0f) {
-                                launch { enterTranslateY?.animateTo(0f, tween(animDuration)) }
-                            }
-                            enterAlpha?.animateTo(1f, tween(animDuration))
-                            animated.value = true
-                        }
-                    }
-
                     val entranceMod = focusMod
-                        .graphicsLayer(
-                            alpha = enterAlpha?.value ?: 1f,
-                            scaleX = enterScale?.value ?: 1f,
-                            scaleY = enterScale?.value ?: 1f,
-                            translationY = enterTranslateY?.value ?: 0f,
+                        .graphicsLayer {
+                            if (animateEntrance) {
+                                val start = index * 0.05f
+                                alpha = ((rowEntrance.value - start) * 4f).coerceIn(0f, 1f)
+                                val s = 0.95f + (alpha * 0.05f)
+                                scaleX = s
+                                scaleY = s
+                                translationY = (1f - alpha) * 20.dp.toPx()
+                            }
                             compositingStrategy = CompositingStrategy.ModulateAlpha
-                        )
+                        }
 
                     val onClick = remember(item) { { onItemClick(item) } }
                     val onDismiss = onItemDismiss?.let { remember(item) { { it(item) } } }
@@ -344,11 +365,15 @@ private fun TvContentRow(
                             ?: brandColor
                     }
 
-                    if (useWideCards) {
+                    if (item.watchProgress != null) {
+                        val cwWidth = (if (useLargeCards) tvDims.width * 1.15f else tvDims.width) * cardScale
+                        val cwHeight = (if (useLargeCards) tvDims.height * 1.15f else tvDims.height) * cardScale
                         ContinueWatchingCard(
                             movie = item,
                             brandColor = brandColor,
                             accentColor = accentColor,
+                            width = cwWidth,
+                            height = cwHeight,
                             onClick = onClick,
                             onLongClick = onDismiss,
                             onDismiss = onDismiss,
@@ -359,10 +384,12 @@ private fun TvContentRow(
                             movie = item,
                             brandColor = brandColor,
                             accentColor = accentColor,
-                            width = (if (useLargeCards) CardDefaults.posterWidth * 1.15f else CardDefaults.posterWidth) * cardScale,
-                            height = (if (useLargeCards) CardDefaults.posterHeight * 1.15f else CardDefaults.posterHeight) * cardScale,
+                            width = (if (useLargeCards) tvDims.width * 1.15f else tvDims.width) * cardScale,
+                            height = (if (useLargeCards) tvDims.height * 1.15f else tvDims.height) * cardScale,
                             onClick = onClick,
                             onDismiss = onDismiss,
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedContentScope = animatedContentScope,
                             modifier = entranceMod
                         )
                     }

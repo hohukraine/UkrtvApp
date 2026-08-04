@@ -1,5 +1,8 @@
 package ua.ukrtv.app.ui.detail
 
+import androidx.compose.animation.AnimatedContentScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -26,6 +29,8 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlin.math.sin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -75,14 +80,18 @@ import ua.ukrtv.app.ui.theme.LocalFormFactor
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import coil3.compose.rememberAsyncImagePainter
+import ua.ukrtv.app.ui.theme.PosterStyle
+import ua.ukrtv.app.ui.theme.ProviderSizes
 import ua.ukrtv.app.ui.theme.PhoneCardDefaults
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun DetailScreen(
     onMovieClick: (Movie) -> Unit = {},
     onPlayClick: (MediaLaunchState) -> Unit,
     onBackClick: () -> Unit,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
     viewModel: DetailViewModel = hiltViewModel(),
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -108,6 +117,8 @@ fun DetailScreen(
                 if (formFactor == FormFactor.PHONE) {
                     PhoneDetailContent(
                         uiState = uiState,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
                         onMovieClick = onMovieClick,
                         onWatchClick = { viewModel.watchContent() },
                         onEpisodeClick = { s_num, ep, vo -> viewModel.watchContent(season = s_num, episode = ep.number, voiceover = vo) },
@@ -117,6 +128,8 @@ fun DetailScreen(
                 } else {
                     DetailContent(
                         uiState = uiState,
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope,
                         onMovieClick = onMovieClick,
                         onWatchClick = { viewModel.watchContent() },
                         onEpisodeClick = { s_num, ep, vo -> viewModel.watchContent(season = s_num, episode = ep.number, voiceover = vo) },
@@ -146,10 +159,12 @@ fun DetailScreen(
     }
 }
 
-@OptIn(ExperimentalTvMaterial3Api::class)
+@OptIn(ExperimentalTvMaterial3Api::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun DetailContent(
     uiState: DetailUiState,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
     onMovieClick: (Movie) -> Unit,
     onWatchClick: () -> Unit,
     onEpisodeClick: (Int, Episode, String?) -> Unit,
@@ -171,12 +186,24 @@ fun DetailContent(
     }
 
     val isMediatek = LocalIsMediatek.current
-    val (posterW, posterH) = when (deviceClass) {
-        DeviceClass.LOW -> 200 to 300
-        DeviceClass.MID -> 400 to 600
-        DeviceClass.HIGH -> 600 to 900
+    val posterStyle = remember(detail.providerName) {
+        PosterStyle.forProvider(detail.providerName)
     }
-    val posterRequest = remember(detail.poster, deviceClass) {
+    val detailDims = ProviderSizes.detailPoster(posterStyle)
+    
+    val (posterW, posterH) = when (posterStyle) {
+        PosterStyle.WIDE -> when (deviceClass) {
+            DeviceClass.LOW -> 400 to 225
+            DeviceClass.MID -> 800 to 450
+            DeviceClass.HIGH -> 1200 to 675
+        }
+        PosterStyle.VERTICAL -> when (deviceClass) {
+            DeviceClass.LOW -> 230 to 345
+            DeviceClass.MID -> 460 to 690
+            DeviceClass.HIGH -> 690 to 1035
+        }
+    }
+    val posterRequest = remember(detail.poster, deviceClass, posterStyle) {
         ImageRequest.Builder(context)
             .data(detail.poster)
             .size(posterW, posterH)
@@ -198,6 +225,17 @@ fun DetailContent(
 
     val scrollState = rememberLazyListState()
     val disableMotion = deviceClass == DeviceClass.LOW || isMediatek
+    val isWideStyle = posterStyle == PosterStyle.WIDE
+
+    // Staggered entrance animations
+    val entranceProgress = remember { Animatable(0f) }
+    LaunchedEffect(detail.id) {
+        if (deviceClass != DeviceClass.LOW) {
+            entranceProgress.animateTo(1f, tween(1000, easing = EaseOutCubic))
+        } else {
+            entranceProgress.snapTo(1f)
+        }
+    }
 
     val infiniteTransition = rememberInfiniteTransition(label = "detailMotion")
     val periodX = if (deviceClass == DeviceClass.HIGH) 4000 else 6000
@@ -229,170 +267,216 @@ fun DetailContent(
         )
     }
 
-    // Premium color-only backdrop: radial glow + vertical gradient, no stretched images
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .drawBehind {
-                val w = size.width
-                val h = size.height
-                val driftX = if (disableMotion) 0f else sin(driftXState.value.toDouble()).toFloat()
-                val driftY = if (disableMotion) 0f else sin(driftYState.value.toDouble()).toFloat()
-
-                val driftAmount = if (disableMotion) 0f else when (deviceClass) {
-                    DeviceClass.LOW -> 0f
-                    DeviceClass.MID -> 0.015f
-                    DeviceClass.HIGH -> 0.03f
-                }
-                val dx = driftX * driftAmount * w
-                val dy = driftY * driftAmount * h
-
-                // Layer 1: Radial glow from top-center (poster-derived color)
-                val glowAlpha = when (deviceClass) {
-                    DeviceClass.LOW -> 0.15f
-                    DeviceClass.MID -> 0.35f
-                    DeviceClass.HIGH -> 0.55f
-                }
-                val glowRadius = when (deviceClass) {
-                    DeviceClass.LOW -> w * 0.8f
-                    DeviceClass.MID -> w * 1.2f
-                    DeviceClass.HIGH -> w * 1.5f
-                }
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            animatedBackdropColor.copy(alpha = glowAlpha),
-                            animatedBackdropColor.copy(alpha = glowAlpha * 0.3f),
-                            Color.Transparent
-                        ),
-                        center = androidx.compose.ui.geometry.Offset(
-                            w * 0.5f + dx,
-                            h * 0.1f + dy * 0.5f
-                        ),
-                        radius = glowRadius
+    // Cinematic backdrop for WIDE style (Netflix look)
+    if (isWideStyle) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            AsyncImage(
+                model = posterRequest,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.85f)
+                    .graphicsLayer {
+                        alpha = (entranceProgress.value * 0.7f).coerceIn(0f, 0.7f)
+                    }
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Background.copy(alpha = 0.5f),
+                                Background
+                            ),
+                            startY = 0f,
+                            endY = context.resources.displayMetrics.heightPixels.toFloat() * 0.7f
+                        )
                     )
-                )
-
-                // Layer 2: Vertical gradient from backdrop to Background
-                val gradEnd = if (deviceClass == DeviceClass.HIGH) h * 0.7f else h * 0.5f
-                val topAlpha = when (deviceClass) {
-                    DeviceClass.LOW -> 0.1f
-                    DeviceClass.MID -> 0.2f
-                    DeviceClass.HIGH -> 0.35f
-                }
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            animatedBackdropColor.copy(alpha = topAlpha),
-                            animatedBackdropColor.copy(alpha = topAlpha * 0.5f),
-                            Color.Transparent
-                        ),
-                        startY = 0f,
-                        endY = gradEnd
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(
+                                Background,
+                                Background.copy(alpha = 0.8f),
+                                Color.Transparent
+                            ),
+                            startX = 0f,
+                            endX = context.resources.displayMetrics.widthPixels.toFloat() * 0.6f
+                        )
                     )
-                )
+            )
+        }
+    }
 
-                // Layer 3: Provider glow (bottom-left, complementary to top-center backdrop)
-                val providerGlowAlpha = when (deviceClass) {
-                    DeviceClass.LOW -> 0.03f
-                    DeviceClass.MID -> 0.06f
-                    DeviceClass.HIGH -> 0.10f
-                }
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            providerColor.copy(alpha = providerGlowAlpha),
-                            Color.Transparent
-                        ),
-                        center = androidx.compose.ui.geometry.Offset(
-                            w * 0.15f + dx * 0.5f,
-                            h * 0.85f + dy * 0.3f
-                        ),
-                        radius = w * 0.8f
-                    )
-                )
+    // Premium color-only backdrop for VERTICAL style
+    if (!isWideStyle) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val w = size.width
+                    val h = size.height
+                    val driftX = if (disableMotion) 0f else sin(driftXState.value.toDouble()).toFloat()
+                    val driftY = if (disableMotion) 0f else sin(driftYState.value.toDouble()).toFloat()
 
-                // Layer 4 (HIGH only): Second glow from bottom-right for depth
-                if (deviceClass == DeviceClass.HIGH) {
+                    val driftAmount = if (disableMotion) 0f else when (deviceClass) {
+                        DeviceClass.LOW -> 0f
+                        DeviceClass.MID -> 0.015f
+                        DeviceClass.HIGH -> 0.03f
+                    }
+                    val dx = driftX * driftAmount * w
+                    val dy = driftY * driftAmount * h
+
+                    // Layer 1: Radial glow from top-center (poster-derived color)
+                    val glowAlpha = when (deviceClass) {
+                        DeviceClass.LOW -> 0.15f
+                        DeviceClass.MID -> 0.35f
+                        DeviceClass.HIGH -> 0.55f
+                    }
+                    val glowRadius = when (deviceClass) {
+                        DeviceClass.LOW -> w * 0.8f
+                        DeviceClass.MID -> w * 1.2f
+                        DeviceClass.HIGH -> w * 1.5f
+                    }
                     drawRect(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                animatedBackdropColor.copy(alpha = 0.1f),
+                                animatedBackdropColor.copy(alpha = glowAlpha),
+                                animatedBackdropColor.copy(alpha = glowAlpha * 0.3f),
                                 Color.Transparent
                             ),
                             center = androidx.compose.ui.geometry.Offset(
-                                w * 0.85f - dx * 0.3f,
-                                h * 0.85f + dy * 0.4f
+                                w * 0.5f + dx,
+                                h * 0.1f + dy * 0.5f
                             ),
-                            radius = w * 0.7f
+                            radius = glowRadius
                         )
                     )
-                }
-            }
-        )
 
-        // Content
-        LazyColumn(
-            state = scrollState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = DetailDefaults.horizontalPadding,
-                end = DetailDefaults.horizontalPadding,
-                top = 32.dp,
-                bottom = 100.dp
-            )
-        ) {
-            item(key = "back_button", contentType = "back_button") {
-                Column {
-                    // Back button with glassmorphism for HIGH
-                    if (deviceClass == DeviceClass.HIGH) {
-                        Surface(
-                            onClick = onBackClick,
-                            shape = ClickableSurfaceDefaults.shape(CircleShape),
-                            colors = ClickableSurfaceDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.1f),
-                                focusedContainerColor = Color.White,
-                                contentColor = Color.White,
-                                focusedContentColor = Color.Black
-                            ),
-                            modifier = Modifier
-                                .size(44.dp)
-                                .background(Color.White.copy(alpha = 0.05f), CircleShape)
-                        ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", modifier = Modifier.size(24.dp))
-                            }
-                        }
-                    } else {
-                        Surface(
-                            onClick = onBackClick,
-                            shape = ClickableSurfaceDefaults.shape(CircleShape),
-                            colors = ClickableSurfaceDefaults.colors(
-                                containerColor = Color.White.copy(alpha = 0.1f),
-                                focusedContainerColor = Color.White,
-                                contentColor = Color.White,
-                                focusedContentColor = Color.Black
-                            ),
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", modifier = Modifier.size(24.dp))
-                            }
-                        }
+                    // Layer 2: Vertical gradient from backdrop to Background
+                    val gradEnd = if (deviceClass == DeviceClass.HIGH) h * 0.7f else h * 0.5f
+                    val topAlpha = when (deviceClass) {
+                        DeviceClass.LOW -> 0.1f
+                        DeviceClass.MID -> 0.2f
+                        DeviceClass.HIGH -> 0.35f
                     }
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-            }
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(
+                                animatedBackdropColor.copy(alpha = topAlpha),
+                                animatedBackdropColor.copy(alpha = topAlpha * 0.5f),
+                                Color.Transparent
+                            ),
+                            startY = 0f,
+                            endY = gradEnd
+                        )
+                    )
 
-            item(key = "main_info", contentType = "main_info") {
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    // Poster
+                    // Layer 3: Provider glow (bottom-left, complementary to top-center backdrop)
+                    val providerGlowAlpha = when (deviceClass) {
+                        DeviceClass.LOW -> 0.03f
+                        DeviceClass.MID -> 0.06f
+                        DeviceClass.HIGH -> 0.10f
+                    }
+                    drawRect(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                providerColor.copy(alpha = providerGlowAlpha),
+                                Color.Transparent
+                            ),
+                            center = androidx.compose.ui.geometry.Offset(
+                                w * 0.15f + dx * 0.5f,
+                                h * 0.85f + dy * 0.3f
+                            ),
+                            radius = w * 0.8f
+                        )
+                    )
+
+                    // Layer 4 (HIGH only): Second glow from bottom-right for depth
+                    if (deviceClass == DeviceClass.HIGH) {
+                        drawRect(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    animatedBackdropColor.copy(alpha = 0.1f),
+                                    Color.Transparent
+                                ),
+                                center = androidx.compose.ui.geometry.Offset(
+                                    w * 0.85f - dx * 0.3f,
+                                    h * 0.85f + dy * 0.4f
+                                ),
+                                radius = w * 0.7f
+                            )
+                        )
+                    }
+                }
+        )
+    }
+
+    // Content
+    LazyColumn(
+        state = scrollState,
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = DetailDefaults.horizontalPadding,
+            end = DetailDefaults.horizontalPadding,
+            top = 32.dp,
+            bottom = 100.dp
+        )
+    ) {
+        item(key = "back_button", contentType = "back_button") {
+            Column {
+                // Back button
+                Surface(
+                    onClick = onBackClick,
+                    shape = ClickableSurfaceDefaults.shape(CircleShape),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = Color.White.copy(alpha = 0.1f),
+                        focusedContainerColor = Color.White,
+                        contentColor = Color.White,
+                        focusedContentColor = Color.Black
+                    ),
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", modifier = Modifier.size(24.dp))
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+
+        item(key = "main_info", contentType = "main_info") {
+            Row(modifier = Modifier.fillMaxWidth()) {
+                // Poster card (Only for Vertical style)
+                if (!isWideStyle) {
                     Surface(
                         onClick = {},
                         shape = ClickableSurfaceDefaults.shape(Shapes.card),
                         modifier = Modifier
-                            .width(DetailDefaults.posterWidth)
-                            .height(DetailDefaults.posterHeight)
+                            .width(detailDims.width)
+                            .height(detailDims.height)
+                            .then(
+                                if (sharedTransitionScope != null && animatedContentScope != null) {
+                                    with(sharedTransitionScope) {
+                                        Modifier.sharedElement(
+                                            rememberSharedContentState(key = "movie_poster_${detail.id}"),
+                                            animatedVisibilityScope = animatedContentScope
+                                        )
+                                    }
+                                } else Modifier
+                            )
+                            .graphicsLayer {
+                                alpha = (entranceProgress.value * 2f).coerceIn(0f, 1f)
+                                val s = 1.1f - (alpha * 0.1f)
+                                scaleX = s
+                                scaleY = s
+                            }
                             .shadow(24.dp, Shapes.card),
                         colors = ClickableSurfaceDefaults.colors(containerColor = Color.Transparent)
                     ) {
@@ -405,177 +489,163 @@ fun DetailContent(
                             error = PlaceholderDark
                         )
                     }
+                }
 
-                    Column(
-                        modifier = Modifier
-                            .padding(start = 56.dp)
-                            .weight(1f)
+                Column(
+                    modifier = Modifier
+                        .padding(start = if (isWideStyle) 0.dp else 56.dp)
+                        .weight(1f)
+                        .graphicsLayer {
+                            alpha = ((entranceProgress.value - 0.2f) * 3f).coerceIn(0f, 1f)
+                            translationY = (1f - alpha) * 20.dp.toPx()
+                        }
+                ) {
+                    // Title
+                    val titleSize = when (deviceClass) {
+                        DeviceClass.LOW -> 36.sp
+                        DeviceClass.MID -> 40.sp
+                        DeviceClass.HIGH -> 48.sp
+                    }
+                    Text(
+                        text = detail.title.uppercase(),
+                        fontSize = titleSize,
+                        fontWeight = FontWeight.Black,
+                        color = Color.White,
+                        letterSpacing = 1.sp,
+                        lineHeight = titleSize * 1.2f
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Metadata Row
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
-                        // Title
-                        val titleSize = when (deviceClass) {
-                            DeviceClass.LOW -> 36.sp
-                            DeviceClass.MID -> 40.sp
-                            DeviceClass.HIGH -> 48.sp
+                        RatingCircle(rating = parseRating(detail.rating))
+
+                        if (detail.year != null) {
+                            Text(detail.year.toString(), color = OnSurface.copy(alpha = 0.7f), fontSize = 16.sp)
                         }
+
+                        if (!detail.duration.isNullOrEmpty()) {
+                            Text(detail.duration, color = OnSurface.copy(alpha = 0.7f), fontSize = 16.sp)
+                        }
+
                         Text(
-                            text = detail.title.uppercase(),
-                            fontSize = titleSize,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White,
-                            letterSpacing = 1.sp,
-                            lineHeight = titleSize * 1.2f
+                            text = if (detail.seasons == null) "MOVIE" else "SERIES",
+                            color = brandColor,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.sp
                         )
+                    }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(32.dp))
 
-                        // Metadata Row
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(20.dp)
-                        ) {
-                            RatingCircle(rating = parseRating(detail.rating))
-
-                            if (detail.year != null) {
-                                Text(detail.year.toString(), color = OnSurface.copy(alpha = 0.7f), fontSize = 16.sp)
-                            }
-
-                            if (!detail.duration.isNullOrEmpty()) {
-                                Text(detail.duration, color = OnSurface.copy(alpha = 0.7f), fontSize = 16.sp)
-                            }
-
-                            Text(
-                                text = if (detail.seasons == null) "MOVIE" else "SERIES",
-                                color = brandColor,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 2.sp
-                            )
+                    // Actions Row
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.graphicsLayer {
+                            alpha = ((entranceProgress.value - 0.35f) * 3f).coerceIn(0f, 1f)
+                            translationY = (1f - alpha) * 15.dp.toPx()
                         }
+                    ) {
+                        val isResolving = launchState is MediaLaunchState.Resolving
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val isBtnFocused by interactionSource.collectIsFocusedAsState()
 
-                        Spacer(modifier = Modifier.height(32.dp))
-
-                        // Actions Row
-                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            val isResolving = launchState is MediaLaunchState.Resolving
-                            val interactionSource = remember { MutableInteractionSource() }
-                            val isBtnFocused by interactionSource.collectIsFocusedAsState()
-
-                            // Play button — gradient for HIGH
-                            if (deviceClass == DeviceClass.HIGH) {
-                                Surface(
-                                    onClick = onWatchClick,
-                                    interactionSource = interactionSource,
-                                    shape = ClickableSurfaceDefaults.shape(Shapes.chip),
-                                    colors = ClickableSurfaceDefaults.colors(
-                                        containerColor = Color.Transparent,
-                                        focusedContainerColor = Color.Transparent,
-                                        contentColor = Color.White,
-                                        focusedContentColor = Color.White
-                                    ),
-                                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
-                                    modifier = Modifier
-                                        .then(
-                                            if (isBtnFocused) {
-                                                Modifier.shadow(20.dp, Shapes.chip, ambientColor = brandColor.copy(alpha = 0.5f), spotColor = brandColor.copy(alpha = 0.3f))
-                                            } else Modifier
-                                        )
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(Shapes.chip)
-                                            .background(
-                                                if (isBtnFocused) {
-                                                    Brush.horizontalGradient(listOf(brandColor, brandColor.copy(alpha = 0.8f)))
-                                                } else {
-                                                    Brush.horizontalGradient(listOf(brandColor.copy(alpha = 0.9f), brandColor.copy(alpha = 0.7f)))
-                                                }
-                                            )
-                                            .padding(horizontal = 40.dp, vertical = 14.dp)
-                                    ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            if (isResolving) {
-                                                CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                                                Spacer(modifier = Modifier.width(12.dp))
-                                                Text("RESOLVING...", fontWeight = FontWeight.Black, fontSize = 14.sp)
-                                            } else {
-                                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
-                                                Spacer(Modifier.width(10.dp))
-                                                Text("PLAY NOW", fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 1.sp)
-                                            }
+                        // Play button
+                        Surface(
+                            onClick = onWatchClick,
+                            interactionSource = interactionSource,
+                            shape = ClickableSurfaceDefaults.shape(Shapes.chip),
+                            colors = ClickableSurfaceDefaults.colors(
+                                containerColor = brandColor,
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.White,
+                                focusedContentColor = Color.Black
+                            ),
+                            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
+                            modifier = Modifier
+                                .then(
+                                    if (isBtnFocused) {
+                                        Modifier.graphicsLayer {
+                                            shadowElevation = 20.dp.toPx()
+                                            ambientShadowColor = brandColor.copy(alpha = 0.5f)
+                                            spotShadowColor = brandColor.copy(alpha = 0.3f)
                                         }
-                                    }
-                                }
-                            } else {
-                                androidx.tv.material3.Button(
-                                    onClick = onWatchClick,
-                                    interactionSource = interactionSource,
-                                    colors = androidx.tv.material3.ButtonDefaults.colors(
-                                        containerColor = if (deviceClass == DeviceClass.MID) brandColor else Color(0xFF3B82F6),
-                                        focusedContainerColor = Color.White,
-                                        contentColor = Color.White,
-                                        focusedContentColor = Color.Black
-                                    ),
-                                    shape = androidx.tv.material3.ButtonDefaults.shape(Shapes.chip),
-                                    contentPadding = PaddingValues(horizontal = 32.dp, vertical = 12.dp)
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (isResolving) {
-                                            CircularProgressIndicator(modifier = Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                                            Spacer(modifier = Modifier.width(12.dp))
-                                            Text("RESOLVING...", fontWeight = FontWeight.Black, fontSize = 13.sp)
-                                        } else {
-                                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("PLAY NOW", fontWeight = FontWeight.Black, fontSize = 13.sp)
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Watchlist button
-                            Surface(
-                                onClick = onToggleWatchlist,
-                                shape = ClickableSurfaceDefaults.shape(Shapes.chip),
-                                colors = ClickableSurfaceDefaults.colors(
-                                    containerColor = Color.White.copy(alpha = 0.1f),
-                                    focusedContainerColor = Color.White,
-                                    contentColor = Color.White,
-                                    focusedContentColor = Color.Black
+                                    } else Modifier
                                 )
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = if (isInWatchlist) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("MY LIST", fontWeight = FontWeight.Black, fontSize = 13.sp)
-                                }
-                            }
-                        }
-
-                        // Genre chips
-                        if (detail.genres.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                detail.genres.take(4).forEach { genre ->
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(Shapes.chip)
-                                            .background(Color.White.copy(alpha = 0.1f))
-                                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                                    ) {
-                                        Text(genre, color = OnSurface, fontSize = 13.sp)
+                        ) {
+                            Box(modifier = Modifier.padding(horizontal = 32.dp, vertical = 12.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (isResolving) {
+                                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text("ЗАВАНТАЖЕННЯ...", fontWeight = FontWeight.Black, fontSize = 14.sp)
+                                    } else {
+                                        Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(22.dp))
+                                        Spacer(Modifier.width(10.dp))
+                                        Text("ДИВИТИСЯ", fontWeight = FontWeight.Black, fontSize = 14.sp, letterSpacing = 1.sp)
                                     }
                                 }
                             }
                         }
 
-                        // Meta info rows
+                        // Watchlist button
+                        Surface(
+                            onClick = onToggleWatchlist,
+                            shape = ClickableSurfaceDefaults.shape(Shapes.chip),
+                            colors = ClickableSurfaceDefaults.colors(
+                                containerColor = Color.White.copy(alpha = 0.1f),
+                                focusedContainerColor = Color.White,
+                                contentColor = Color.White,
+                                focusedContentColor = Color.Black
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isInWatchlist) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("MY LIST", fontWeight = FontWeight.Black, fontSize = 13.sp)
+                            }
+                        }
+                    }
+
+                    // Genre chips
+                    if (detail.genres.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.graphicsLayer { 
+                                alpha = ((entranceProgress.value - 0.5f) * 3f).coerceIn(0f, 1f) 
+                            }
+                        ) {
+                            detail.genres.take(4).forEach { genre ->
+                                Box(
+                                    modifier = Modifier
+                                        .clip(Shapes.chip)
+                                        .background(Color.White.copy(alpha = 0.1f))
+                                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                                ) {
+                                    Text(genre, color = OnSurface, fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+
+                    // Meta info rows
+                    Column(modifier = Modifier.graphicsLayer { 
+                        alpha = ((entranceProgress.value - 0.5f) * 3f).coerceIn(0f, 1f) 
+                    }) {
                         if (detail.country.isNotEmpty()) {
                             Spacer(modifier = Modifier.height(16.dp))
                             MetaRow(label = "Країна", values = detail.country, brandColor = brandColor)
@@ -602,83 +672,84 @@ fun DetailContent(
                     }
                 }
             }
+        }
 
-            // Actors horizontal scroll (HIGH only — Netflix-style)
-            if (deviceClass == DeviceClass.HIGH && detail.actors.isNotEmpty()) {
-                item(key = "actors_row", contentType = "actors_row") {
-                    Spacer(modifier = Modifier.height(48.dp))
-                    Text(
-                        text = "АКТОРИ",
-                        color = brandColor.copy(alpha = 0.8f),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 2.sp,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        items(detail.actors.take(12), key = { it }, contentType = { "actor" }) { actor ->
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.width(90.dp)
+        // Actors horizontal scroll
+        if (detail.actors.isNotEmpty()) {
+            item(key = "actors_row", contentType = "actors_row") {
+                Spacer(modifier = Modifier.height(48.dp))
+                Text(
+                    text = "АКТОРИ",
+                    color = brandColor.copy(alpha = 0.8f),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 2.sp,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    items(detail.actors.take(12), key = { it }, contentType = { "actor" }) { actor ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.width(90.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.1f)),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.1f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = actor.take(2).uppercase(),
-                                        color = Color.White.copy(alpha = 0.6f),
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
                                 Text(
-                                    text = actor,
-                                    color = OnSurface.copy(alpha = 0.7f),
-                                    fontSize = 12.sp,
-                                    maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                    text = actor.take(2).uppercase(),
+                                    color = Color.White.copy(alpha = 0.6f),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = actor,
+                                color = OnSurface.copy(alpha = 0.7f),
+                                fontSize = 12.sp,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
                         }
                     }
                 }
             }
+        }
 
-            // Seasons
-            if (!detail.seasons.isNullOrEmpty()) {
-                item(key = "seasons", contentType = "seasons") {
-                    Column {
-                        Spacer(modifier = Modifier.height(64.dp))
-                        SeasonEpisodePicker(
-                            seasons = detail.seasons,
-                            onEpisodeClick = onEpisodeClick,
-                            accentColor = brandColor
-                        )
-                    }
+        // Seasons
+        if (!detail.seasons.isNullOrEmpty()) {
+            item(key = "seasons", contentType = "seasons") {
+                Column {
+                    Spacer(modifier = Modifier.height(64.dp))
+                    SeasonEpisodePicker(
+                        seasons = detail.seasons,
+                        onEpisodeClick = onEpisodeClick,
+                        accentColor = brandColor
+                    )
                 }
             }
+        }
 
-            // Comments
-            if (detail.comments.isNotEmpty()) {
-                item(key = "comments", contentType = "comments") {
-                    Column {
-                        Spacer(modifier = Modifier.height(64.dp))
-                        CommentsSection(
-                            comments = detail.comments,
-                            providerName = detail.providerName,
-                            accentColor = brandColor
-                        )
-                    }
+        // Comments
+        if (detail.comments.isNotEmpty()) {
+            item(key = "comments", contentType = "comments") {
+                Column {
+                    Spacer(modifier = Modifier.height(64.dp))
+                    CommentsSection(
+                        comments = detail.comments,
+                        providerName = detail.providerName,
+                        accentColor = brandColor
+                    )
                 }
             }
+        }
     }
 }
 
@@ -705,9 +776,12 @@ private fun MetaRow(label: String, values: List<String>, brandColor: Color) {
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun PhoneDetailContent(
     uiState: DetailUiState,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
     onMovieClick: (Movie) -> Unit,
     onWatchClick: () -> Unit,
     onEpisodeClick: (Int, Episode, String?) -> Unit,
@@ -727,10 +801,19 @@ private fun PhoneDetailContent(
     val isPerformanceMode = performanceProfile == PerformanceProfile.PERFORMANCE
     val shouldBlur = !isPerformanceMode
 
-    val posterRequest = remember(detail.poster) {
+    val posterStyle = remember(detail.providerName) {
+        PosterStyle.forProvider(detail.providerName)
+    }
+    val phoneDetailDims = ProviderSizes.phoneCard(posterStyle)
+
+    val posterRequest = remember(detail.poster, posterStyle) {
+        val (iw, ih) = when (posterStyle) {
+            PosterStyle.WIDE -> 640 to 360
+            PosterStyle.VERTICAL -> 480 to 720
+        }
         ImageRequest.Builder(context)
             .data(detail.poster)
-            .size(480, 720)
+            .size(iw, ih)
             .crossfade(100)
             .build()
     }
@@ -756,10 +839,11 @@ private fun PhoneDetailContent(
     ) {
         item(key = "hero", contentType = "hero") {
             // Hero banner — poster with gradient overlay
+            val isWide = posterStyle == PosterStyle.WIDE
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(340.dp)
+                    .then(if (isWide) Modifier.aspectRatio(16f / 9f) else Modifier.height(340.dp))
                     .drawBehind {
                         val w = size.width
                         val h = size.height
@@ -782,6 +866,16 @@ private fun PhoneDetailContent(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxSize()
+                        .then(
+                            if (sharedTransitionScope != null && animatedContentScope != null) {
+                                with(sharedTransitionScope) {
+                                    Modifier.sharedElement(
+                                        rememberSharedContentState(key = "movie_poster_${detail.id}"),
+                                        animatedVisibilityScope = animatedContentScope
+                                    )
+                                }
+                            } else Modifier
+                        )
                         .graphicsLayer { translationY = scrollFraction * 120f }
                         .then(if (shouldBlur) Modifier.blur(20.dp, 20.dp) else Modifier)
                 )
@@ -994,5 +1088,3 @@ private fun PhoneDetailContent(
         }
     }
 }
-
-

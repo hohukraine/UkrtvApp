@@ -43,7 +43,7 @@ fun getStreamType(url: String): StreamType = when {
 }
 
 fun inferReferer(url: String): String = when {
-    url.contains("eneyida.tv") || url.contains("hdvbua.pro") -> "https://eneyida.tv/"
+    url.contains("uafix.net") || url.contains("uaflix.") -> "https://uafix.net/"
     url.contains("uakino.best") || url.contains("ashdi.vip") -> "https://uakino.best/"
     else -> ""
 }

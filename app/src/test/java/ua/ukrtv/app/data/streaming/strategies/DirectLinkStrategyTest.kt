@@ -58,9 +58,9 @@ class DirectLinkStrategyTest {
 
     @Test
     fun `resolve infers referer`() = runTest {
-        val result = strategy.resolve("https://s11.hdvbua.pro/media/stream.m3u8", ResolutionContext())
+        val result = strategy.resolve("https://uafix.net/media/stream.m3u8", ResolutionContext())
         assertNotNull(result)
-        assertEquals("https://eneyida.tv/", result!!.referer)
+        assertEquals("https://uafix.net/", result!!.referer)
     }
 
     @Test

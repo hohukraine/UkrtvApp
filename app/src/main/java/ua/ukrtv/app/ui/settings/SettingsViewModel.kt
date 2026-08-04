@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import ua.ukrtv.app.BuildConfig
 import ua.ukrtv.app.data.repository.InstallResult
@@ -18,7 +21,6 @@ import ua.ukrtv.app.player.ExternalPlayerLauncher
 import ua.ukrtv.app.util.PerformancePreferences
 import ua.ukrtv.app.util.PerformanceProfile
 import ua.ukrtv.app.util.PlayerPreferences
-import ua.ukrtv.app.util.PlayerType
 import ua.ukrtv.app.util.HomePreferences
 import ua.ukrtv.app.util.HomeLayout
 import javax.inject.Inject
@@ -34,6 +36,15 @@ sealed class UpdateState {
     data class Error(val message: String) : UpdateState()
 }
 
+data class SettingsUiState(
+    val performanceProfile: PerformanceProfile,
+    val externalPlayerPackage: String?,
+    val installedPlayers: List<ExternalPlayerInfo>,
+    val updateState: UpdateState,
+    val homeLayout: HomeLayout,
+    val defaultProvider: String
+)
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
@@ -44,8 +55,6 @@ class SettingsViewModel @Inject constructor(
 ) : ViewModel() {
 
     val performanceProfile: StateFlow<PerformanceProfile> = performancePreferences.profile
-
-    val playerType: StateFlow<PlayerType> = playerPreferences.playerType
 
     val externalPlayerPackage: StateFlow<String> = playerPreferences.externalPlayerPackage
 
@@ -58,6 +67,35 @@ class SettingsViewModel @Inject constructor(
 
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
+
+    val uiState: StateFlow<SettingsUiState> = combine(
+        performanceProfile,
+        playerPreferences.externalPlayerPackage,
+        installedPlayers,
+        updateState,
+        homeLayout,
+        defaultProvider
+    ) { array ->
+        SettingsUiState(
+            performanceProfile = array[0] as PerformanceProfile,
+            externalPlayerPackage = array[1] as String,
+            installedPlayers = array[2] as List<ExternalPlayerInfo>,
+            updateState = array[3] as UpdateState,
+            homeLayout = array[4] as HomeLayout,
+            defaultProvider = array[5] as String
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = SettingsUiState(
+            performanceProfile.value,
+            playerPreferences.externalPlayerPackage.value,
+            _installedPlayers.value,
+            _updateState.value,
+            homeLayout.value,
+            defaultProvider.value
+        )
+    )
 
     private var downloadedApk: java.io.File? = null
 
@@ -73,10 +111,6 @@ class SettingsViewModel @Inject constructor(
 
     fun setPerformanceProfile(profile: PerformanceProfile) {
         performancePreferences.setProfile(profile)
-    }
-
-    fun setPlayerType(type: PlayerType) {
-        playerPreferences.setPlayerType(type)
     }
 
     fun setExternalPlayerPackage(packageName: String) {

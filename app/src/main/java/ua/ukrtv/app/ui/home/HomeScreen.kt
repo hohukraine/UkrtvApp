@@ -2,7 +2,6 @@ package ua.ukrtv.app.ui.home
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,58 +9,53 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.BrokenImage
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import android.view.Choreographer
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.BrokenImage
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material3.Icon
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import kotlinx.coroutines.Dispatchers
+import coil3.request.crossfade
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.flow.filterNotNull
-import kotlinx.coroutines.flow.debounce
 import ua.ukrtv.app.domain.model.Movie
-import ua.ukrtv.app.util.AppLogger
-import androidx.compose.material3.*
+import ua.ukrtv.app.domain.model.Provider
+import ua.ukrtv.app.ui.theme.Background
+import ua.ukrtv.app.ui.theme.LocalFormFactor
+import ua.ukrtv.app.ui.theme.FormFactor
+import ua.ukrtv.app.ui.theme.Shapes
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import ua.ukrtv.app.domain.model.Top200Movie
-import ua.ukrtv.app.ui.home.components.BottomNavBar
 import ua.ukrtv.app.util.DeviceClass
+import ua.ukrtv.app.ui.home.components.BottomNavBar
 import androidx.tv.material3.ExperimentalTvMaterial3Api
-import androidx.tv.material3.Text
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.font.FontWeight
+import androidx.tv.material3.Text as TvText
+import androidx.tv.material3.Button as TvButton
+import androidx.tv.material3.ButtonDefaults as TvButtonDefaults
 import ua.ukrtv.app.ui.home.components.ContentRow
 import ua.ukrtv.app.ui.home.components.HeroCarousel
 import ua.ukrtv.app.ui.home.components.PhoneHeroSection
@@ -69,15 +63,16 @@ import ua.ukrtv.app.ui.home.components.PhoneProviderSwitcher
 import ua.ukrtv.app.ui.home.components.Top200SignatureHero
 import ua.ukrtv.app.ui.home.components.TopBar
 import ua.ukrtv.app.ui.home.components.HomeBackground
-import ua.ukrtv.app.ui.components.ShimmerBox
 import ua.ukrtv.app.ui.theme.*
+import ua.ukrtv.app.ui.theme.PosterStyle
+import ua.ukrtv.app.ui.theme.ProviderSizes
 import ua.ukrtv.app.ui.home.components.TrendsTrailingButton
-import ua.ukrtv.app.ui.home.MovieCard
 import ua.ukrtv.app.util.HomeLayout
 
 @Stable
 private data class HomeScreenState(
     val isLoading: Boolean,
+    val isCategoriesLoading: Boolean,
     val gridError: String?,
     val isOnline: Boolean,
     val top200Banners: List<Top200Movie>,
@@ -96,607 +91,404 @@ private data class HomeScreenState(
     val providerColor: Color,
     val focusColor: Color,
     val bannerFocusRequester: FocusRequester,
-    val providers: List<ua.ukrtv.app.domain.model.Provider>,
-    val currentProviderId: String,
+    val providers: List<Provider>,
+    val currentProviderId: String
+)
+
+private data class HomeScreenActions(
+    val onRetryGrid: () -> Unit,
+    val onSearchClick: () -> Unit,
+    val onMovieClick: (Movie) -> Unit,
+    val onContinueWatchingClick: (Movie) -> Unit,
+    val onTop200ItemClick: (Top200Movie) -> Unit,
+    val onTop200Click: () -> Unit,
+    val onMovieFocused: (Movie) -> Unit,
+    val onActiveColorChange: (Color) -> Unit,
+    val onDismissItem: (Movie) -> Unit,
+    val onActiveMovieChange: (Top200Movie) -> Unit,
+    val onSeeAllTrendsClick: () -> Unit,
+    val onSeeAllCategoryClick: (String) -> Unit,
+    val onProviderClick: (String) -> Unit,
+    val onSettingsClick: () -> Unit
 )
 
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
     onMovieClick: (Movie) -> Unit,
     onContinueWatchingClick: (Movie) -> Unit = onMovieClick,
     onSearchClick: () -> Unit,
-    onSearchQueryClick: (String) -> Unit = { onSearchClick() },
+    onSearchQueryClick: (String) -> Unit,
     onTop200Click: () -> Unit,
-    onTop200ItemClick: (Top200Movie) -> Unit = {},
-    onSeeAllTrendsClick: () -> Unit = {},
-    onSeeAllCategoryClick: (String) -> Unit = {},
-    onSettingsClick: () -> Unit = {}
+    onTop200ItemClick: (Top200Movie) -> Unit,
+    onSeeAllTrendsClick: () -> Unit,
+    onSeeAllCategoryClick: (String) -> Unit,
+    onSettingsClick: () -> Unit
 ) {
     val formFactor = LocalFormFactor.current
-    when (formFactor) {
-        FormFactor.TV -> TvHomeScreen(viewModel, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onTop200ItemClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onSettingsClick)
-        FormFactor.PHONE, FormFactor.TABLET -> PhoneHomeScreen(viewModel, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onSettingsClick, onSeeAllTrendsClick, onSeeAllCategoryClick)
+    if (formFactor == FormFactor.PHONE) {
+        PhoneHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onSettingsClick, onSeeAllTrendsClick, onSeeAllCategoryClick)
+    } else {
+        TvHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onTop200ItemClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onSettingsClick)
     }
 }
 
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun TvHomeScreen(
-    viewModel: HomeViewModel = hiltViewModel(),
+    viewModel: HomeViewModel,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
     onMovieClick: (Movie) -> Unit,
-    onContinueWatchingClick: (Movie) -> Unit = onMovieClick,
+    onContinueWatchingClick: (Movie) -> Unit,
     onSearchClick: () -> Unit,
-    onSearchQueryClick: (String) -> Unit = { onSearchClick() },
+    onSearchQueryClick: (String) -> Unit,
     onTop200Click: () -> Unit,
-    onTop200ItemClick: (Top200Movie) -> Unit = {},
-    onSeeAllTrendsClick: () -> Unit = {},
-    onSeeAllCategoryClick: (String) -> Unit = {},
-    onSettingsClick: () -> Unit = {}
+    onTop200ItemClick: (Top200Movie) -> Unit,
+    onSeeAllTrendsClick: () -> Unit,
+    onSeeAllCategoryClick: (String) -> Unit,
+    onSettingsClick: () -> Unit
 ) {
     val mainState by viewModel.mainContentState.collectAsStateWithLifecycle()
     val categoriesState by viewModel.categoriesState.collectAsStateWithLifecycle()
     val heroState by viewModel.heroState.collectAsStateWithLifecycle()
     val configState by viewModel.configState.collectAsStateWithLifecycle()
     val focusColor by viewModel.focusColor.collectAsStateWithLifecycle()
-
-    val deviceClass = LocalDeviceClass.current
-    val bannerFocusRequester = remember { FocusRequester() }
-    var activeBannerMovie by remember { mutableStateOf<Top200Movie?>(null) }
-    val providerColor = remember(configState.brandColor) { Color(configState.brandColor) }
-
-    val maxGridItems = remember(deviceClass) { when (deviceClass) { DeviceClass.LOW -> 8; DeviceClass.MID -> 15; DeviceClass.HIGH -> 30 } }
-    val maxContinueItems = remember(deviceClass) { when (deviceClass) { DeviceClass.LOW -> 5; DeviceClass.MID -> 10; DeviceClass.HIGH -> 20 } }
-    val maxBannerItems = remember(deviceClass) { when (deviceClass) { DeviceClass.LOW -> 3; DeviceClass.MID -> 5; DeviceClass.HIGH -> 8 } }
-
-    val homeTrending = remember(mainState.homeTrending, maxGridItems) { mainState.homeTrending.take(maxGridItems) }
-    val continueWatching = remember(mainState.continueWatching, maxContinueItems) { mainState.continueWatching.take(maxContinueItems) }
-    val watchlist = remember(mainState.watchlist, maxContinueItems) { mainState.watchlist.take(maxContinueItems) }
-    val bannerMovies = remember(heroState.bannerMovies, maxBannerItems) { heroState.bannerMovies.take(maxBannerItems) }
+    val focusedMovie by viewModel.focusedMovie.collectAsStateWithLifecycle()
     
-    val categoryMovies = remember(categoriesState.categoryMovies, maxGridItems) { categoriesState.categoryMovies.take(maxGridItems) }
-    val categorySeries = remember(categoriesState.categorySeries, maxGridItems) { categoriesState.categorySeries.take(maxGridItems) }
-    val categoryAnime = remember(categoriesState.categoryAnime, maxGridItems) { categoriesState.categoryAnime.take(maxGridItems) }
-    val categoryCartoons = remember(categoriesState.categoryCartoons, maxGridItems) { categoriesState.categoryCartoons.take(maxGridItems) }
-    val categoryCartoonSeries = remember(categoriesState.categoryCartoonSeries, maxGridItems) { categoriesState.categoryCartoonSeries.take(maxGridItems) }
-
-    if (ua.ukrtv.app.BuildConfig.DEBUG) JankMonitor()
-
-    LaunchedEffect(Unit) {
-        viewModel.navigateToDetail.collect { movie -> onMovieClick(movie) }
-    }
-    LaunchedEffect(Unit) {
-        viewModel.navigateToSearch.collect { query -> onSearchQueryClick(query) }
-    }
-
+    val providerColor = remember(configState.brandColor) { Color(configState.brandColor) }
+    val bannerFocusRequester = remember { FocusRequester() }
     val context = LocalContext.current
-    val onMovieFocused = remember { { movie: Movie -> viewModel.onMovieFocused(movie, context) } }
-    val onDismiss = remember { { movie: Movie -> viewModel.dismissContinueWatching(movie) } }
-    val top200ItemHandler = remember { { movie: Top200Movie -> viewModel.onTop200BannerClick(movie) } }
-
-    val screenState = remember(
-        mainState, categoriesState, heroState, configState, focusColor, activeBannerMovie,
-        providerColor, bannerFocusRequester, bannerMovies
-    ) {
-        HomeScreenState(
-            isLoading = mainState.isLoading,
-            gridError = mainState.gridError,
-            isOnline = configState.isOnline,
-            top200Banners = heroState.top200Banners,
-            bannerMovies = bannerMovies,
-            continueWatching = continueWatching,
-            watchlist = watchlist,
-            homeTrending = homeTrending,
-            trendingLabel = configState.trendingLabel,
-            homeLayout = configState.homeLayout,
-            categoryMovies = categoryMovies,
-            categorySeries = categorySeries,
-            categoryAnime = categoryAnime,
-            categoryCartoons = categoryCartoons,
-            categoryCartoonSeries = categoryCartoonSeries,
-            activeBannerMovie = activeBannerMovie,
-            providerColor = providerColor,
-            focusColor = focusColor,
-            bannerFocusRequester = bannerFocusRequester,
-            providers = viewModel.providers,
-            currentProviderId = configState.currentProviderId,
-        )
+    
+    var activeBannerMovie by remember(heroState.top200Banners) { 
+        mutableStateOf(heroState.top200Banners.firstOrNull()) 
+    }
+    val scrollState = rememberLazyListState()
+    
+    val scrollFraction by remember {
+        derivedStateOf {
+            if (scrollState.firstVisibleItemIndex > 0) 1f
+            else (scrollState.firstVisibleItemScrollOffset / 1000f).coerceIn(0f, 1f)
+        }
     }
 
-    HomeScreenContent(
-        screenState = screenState,
-        onRetryGrid = viewModel::retryGrid,
+    val homeState = HomeScreenState(
+        isLoading = mainState.isLoading,
+        isCategoriesLoading = categoriesState.isLoading,
+        gridError = mainState.gridError,
+        isOnline = configState.isOnline,
+        top200Banners = heroState.top200Banners,
+        bannerMovies = heroState.bannerMovies,
+        continueWatching = mainState.continueWatching,
+        watchlist = mainState.watchlist,
+        homeTrending = mainState.homeTrending,
+        trendingLabel = configState.trendingLabel,
+        homeLayout = configState.homeLayout,
+        categoryMovies = categoriesState.categoryMovies,
+        categorySeries = categoriesState.categorySeries,
+        categoryAnime = categoriesState.categoryAnime,
+        categoryCartoons = categoriesState.categoryCartoons,
+        categoryCartoonSeries = categoriesState.categoryCartoonSeries,
+        activeBannerMovie = activeBannerMovie,
+        providerColor = providerColor,
+        focusColor = focusColor,
+        bannerFocusRequester = bannerFocusRequester,
+        providers = viewModel.providers,
+        currentProviderId = configState.currentProviderId
+    )
+
+    val actions = HomeScreenActions(
+        onRetryGrid = { viewModel.retryGrid() },
         onSearchClick = onSearchClick,
         onMovieClick = onMovieClick,
         onContinueWatchingClick = onContinueWatchingClick,
-        onTop200ItemClick = top200ItemHandler,
+        onTop200ItemClick = onTop200ItemClick,
         onTop200Click = onTop200Click,
-        onMovieFocused = onMovieFocused,
+        onMovieFocused = { viewModel.onMovieFocused(it, context) },
         onActiveColorChange = { viewModel.provideFocusColor(it) },
-        onDismissItem = onDismiss,
+        onDismissItem = { viewModel.dismissContinueWatching(it) },
         onActiveMovieChange = { activeBannerMovie = it },
         onSeeAllTrendsClick = onSeeAllTrendsClick,
         onSeeAllCategoryClick = onSeeAllCategoryClick,
-        onProviderClick = viewModel::switchProvider,
+        onProviderClick = { viewModel.switchProvider(it) },
         onSettingsClick = onSettingsClick
     )
+
+    Box(modifier = Modifier.fillMaxSize().background(Background)) {
+        HomeBackground(
+            focusedColor = focusColor,
+            brandColor = providerColor,
+            backdropColor = activeBannerMovie?.accentColor?.let { try { Color(android.graphics.Color.parseColor(it)) } catch(_: Exception) { Color.Unspecified } } ?: Color.Unspecified,
+            backdropUrl = activeBannerMovie?.backdropUrl,
+            scrollFraction = { scrollFraction }
+        ) {
+            HomeScreenContent(
+                state = homeState,
+                actions = actions,
+                scrollState = scrollState,
+                sharedTransitionScope = sharedTransitionScope,
+                animatedContentScope = animatedContentScope
+            )
+        }
+    }
 }
 
+@OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 private fun HomeScreenContent(
-    screenState: HomeScreenState,
-    onRetryGrid: () -> Unit,
-    onSearchClick: () -> Unit,
-    onMovieClick: (Movie) -> Unit,
-    onContinueWatchingClick: (Movie) -> Unit,
-    onTop200ItemClick: (Top200Movie) -> Unit,
-    onTop200Click: () -> Unit,
-    onMovieFocused: (Movie) -> Unit,
-    onActiveColorChange: (Color) -> Unit,
-    onDismissItem: (Movie) -> Unit,
-    onActiveMovieChange: (Top200Movie) -> Unit,
-    onSeeAllTrendsClick: () -> Unit,
-    onSeeAllCategoryClick: (String) -> Unit = {},
-    onProviderClick: (String) -> Unit,
-    onSettingsClick: () -> Unit = {}
+    state: HomeScreenState,
+    actions: HomeScreenActions,
+    scrollState: LazyListState = rememberLazyListState(),
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null
 ) {
-    val gridState = rememberLazyListState()
-    val density = LocalDensity.current
-    val deviceClass = LocalDeviceClass.current
+    val (isLoading, isCategoriesLoading, gridError, isOnline, top200Banners, bannerMovies, continueWatching, watchlist, homeTrending, trendingLabel, homeLayout, categoryMovies, categorySeries, categoryAnime, categoryCartoons, categoryCartoonSeries, activeBannerMovie, providerColor, focusColor, bannerFocusRequester, providers, currentProviderId) = state
+    val (onRetryGrid, onSearchClick, onMovieClick, onContinueWatchingClick, onTop200ItemClick, onTop200Click, onMovieFocused, onActiveColorChange, onDismissItem, onActiveMovieChange, onSeeAllTrendsClick, onSeeAllCategoryClick, onProviderClick, onSettingsClick) = actions
 
-    val isLoading = screenState.isLoading
-    val gridError = screenState.gridError
-    val isOnline = screenState.isOnline
-    val top200Banners = screenState.top200Banners
-    val bannerMovies = screenState.bannerMovies
-    val continueWatching = screenState.continueWatching
-    val watchlist = screenState.watchlist
-    val homeTrending = screenState.homeTrending
-    val trendingLabel = screenState.trendingLabel
-    val homeLayout = screenState.homeLayout
-    val categoryMovies = screenState.categoryMovies
-    val categorySeries = screenState.categorySeries
-    val categoryAnime = screenState.categoryAnime
-    val categoryCartoons = screenState.categoryCartoons
-    val categoryCartoonSeries = screenState.categoryCartoonSeries
-    val activeBannerMovie = screenState.activeBannerMovie
-    val providerColor = screenState.providerColor
-    val focusColor = screenState.focusColor
-    val bannerFocusRequester = screenState.bannerFocusRequester
-    val providers = screenState.providers
-    val currentProviderId = screenState.currentProviderId
-
-    val scrollFraction by remember {
-        val hPx = with(density) { HeroDefaults.height.toPx() }
-        derivedStateOf {
-            if (gridState.firstVisibleItemIndex > 0) 1f
-            else (gridState.firstVisibleItemScrollOffset / hPx).coerceIn(0f, 1f)
-        }
-    }
-    val heroActive by remember { derivedStateOf { scrollFraction < 0.99f } }
-
-    LaunchedEffect(gridState) {
-        withContext(Dispatchers.Default) {
-            snapshotFlow {
-                if (gridState.isScrollInProgress) null
-                else gridState.layoutInfo.visibleItemsInfo
-            }.filterNotNull().debounce(800).collect { visibleItems ->
-                val focusedItem = visibleItems.maxByOrNull { it.index }
-                if (focusedItem != null) {
-                    AppLogger.d("ScrollGate", "Settled at item ${focusedItem.index}")
-                }
-            }
-        }
-    }
-
-    HandleBackNavigation(gridState, bannerFocusRequester, bannerMovies, top200Banners)
-    AutoRestoreFocus(bannerFocusRequester, top200Banners, bannerMovies)
-
-    val activeBannerAccent = remember(activeBannerMovie) {
-        activeBannerMovie?.accentColor?.let {
-            try { Color(android.graphics.Color.parseColor(it)) } catch (_: Exception) { null }
-        }
-    }
-
-    HomeBackground(
-        focusedColor = focusColor,
-        brandColor = providerColor,
-        backdropColor = if (heroActive && activeBannerAccent != null) activeBannerAccent else Color.Unspecified,
-        scrollFraction = { scrollFraction }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        state = scrollState,
+        contentPadding = PaddingValues(bottom = GridDefaults.contentBottomPadding)
     ) {
-        // Sync banner accent with background ambient
-        LaunchedEffect(activeBannerAccent, heroActive) {
-            if (heroActive && activeBannerAccent != null) {
-                onActiveColorChange(activeBannerAccent)
+        item(key = "top_bar") {
+            TopBar(
+                providers = providers,
+                currentProviderId = currentProviderId,
+                brandColor = providerColor,
+                onProviderClick = onProviderClick,
+                onSearchClick = onSearchClick,
+                onSettingsClick = onSettingsClick
+            )
+        }
+
+        if (!isOnline) {
+            item(key = "offline_banner") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = GridDefaults.horizontalPadding, vertical = 16.dp)
+                        .background(Color(0xFFE53935).copy(alpha = 0.8f), Shapes.card)
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TvText("Відсутнє підключення до мережі. Відображення кешованих даних.", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
 
-        BannerBackdrop(activeBannerMovie, activeBannerAccent, heroActive && activeBannerMovie != null, { scrollFraction })
-
-        Column {
-            if (heroActive) {
-                TopBar(
-                    brandColor = providerColor,
-                    providers = providers,
-                    currentProviderId = currentProviderId,
-                    scrollFraction = { scrollFraction },
-                    onSearchClick = onSearchClick,
-                    onProviderClick = onProviderClick,
-                    onSettingsClick = onSettingsClick
-                )
-            }
-
-            LazyColumn(
-                state = gridState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    start = GridDefaults.horizontalPadding,
-                    end = GridDefaults.horizontalPadding,
-                    top = 8.dp,
-                    bottom = GridDefaults.contentBottomPadding
-                )
-            ) {
-                if (!isOnline) {
-                    item(key = "offline_banner", contentType = "banner") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFFE53935).copy(alpha = 0.9f))
-                                .padding(horizontal = 16.dp, vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "\u26A0 Немає підключення до інтернету",
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-
-                if (isLoading) {
-                    items(6, key = { "shimmer_$it" }, contentType = { "shimmer" }) { ShimmerBox(Modifier.fillMaxWidth().height(280.dp).padding(bottom = 32.dp), Shapes.card) }
-                }
-
-                if (!isLoading && gridError != null) {
-                    item(key = "grid_error", contentType = "error") {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 80.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.ErrorOutline,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.3f),
-                                modifier = Modifier.size(64.dp)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                text = gridError,
-                                color = Color.White.copy(alpha = 0.6f),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Button(
-                                onClick = onRetryGrid,
-                                colors = ButtonDefaults.colors(
-                                    containerColor = providerColor
-                                )
-                            ) {
-                                Text("Повторити", fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-
+        item(key = "hero_carousel") {
+            Box(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
                 if (top200Banners.isNotEmpty()) {
-                    item(key = "banner_top200", contentType = "hero") {
-                        Top200SignatureHero(
-                            items = top200Banners,
-                            brandColor = providerColor,
-                            onItemClick = onTop200ItemClick,
-                            onItemLongClick = { onTop200Click() },
-                            onActiveMovieChange = onActiveMovieChange,
-                            modifier = Modifier.focusRequester(bannerFocusRequester)
-                        )
-                    }
+                    Top200SignatureHero(
+                        items = top200Banners,
+                        brandColor = providerColor,
+                        onItemClick = onTop200ItemClick,
+                        onItemLongClick = { onTop200Click() },
+                        onActiveMovieChange = onActiveMovieChange,
+                        modifier = Modifier.focusRequester(bannerFocusRequester)
+                    )
                 } else if (bannerMovies.isNotEmpty()) {
-                    item(key = "banner_hero", contentType = "hero") {
-                        HeroCarousel(
-                            items = bannerMovies,
+                    HeroCarousel(
+                        items = bannerMovies,
+                        brandColor = providerColor,
+                        onWatchClick = onMovieClick,
+                        onActiveColorChange = onActiveColorChange,
+                        modifier = Modifier.focusRequester(bannerFocusRequester)
+                    )
+                }
+            }
+        }
+
+        if (homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || isLoading)) {
+            item(key = "continue_watching", contentType = "content_row") {
+                ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, isLoading = isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = currentProviderId)
+            }
+        }
+
+        if (homeLayout.showWatchlist && (watchlist.isNotEmpty() || isLoading)) {
+            item(key = "watchlist", contentType = "content_row") {
+                ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused, isLoading = isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = currentProviderId)
+            }
+        }
+
+        if (homeLayout.showTrends && (homeTrending.isNotEmpty() || isLoading)) {
+            item(key = "trending", contentType = "content_row") {
+                ContentRow(
+                    title = trendingLabel,
+                    items = homeTrending,
+                    brandColor = providerColor,
+                    onItemClick = onMovieClick,
+                    onItemDismiss = null,
+                    onItemFocused = onMovieFocused,
+                    useLargeCards = true,
+                    isLoading = isLoading,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    providerHint = currentProviderId,
+                    trailingContent = {
+                        val provider = homeTrending.firstOrNull()?.provider ?: currentProviderId
+                        TrendsTrailingButton(
                             brandColor = providerColor,
-                            onWatchClick = onMovieClick,
-                            onActiveColorChange = onActiveColorChange,
-                            modifier = Modifier.focusRequester(bannerFocusRequester)
-                        )
-                    }
-                }
-
-                if (homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || isLoading)) {
-                    item(key = "continue_watching", contentType = "content_row") {
-                        ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, useWideCards = true, isLoading = isLoading)
-                    }
-                }
-
-                if (homeLayout.showWatchlist && (watchlist.isNotEmpty() || isLoading)) {
-                    item(key = "watchlist", contentType = "content_row") {
-                        ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused, isLoading = isLoading)
-                    }
-                }
-
-                if (homeLayout.showTrends && (homeTrending.isNotEmpty() || isLoading)) {
-                    item(key = "trending", contentType = "content_row") {
-                        ContentRow(
-                            title = trendingLabel,
-                            items = homeTrending,
-                            brandColor = providerColor,
-                            onItemClick = onMovieClick,
-                            onItemDismiss = null,
-                            onItemFocused = onMovieFocused,
+                            onClick = onSeeAllTrendsClick,
                             useLargeCards = true,
-                            isLoading = isLoading,
-                            trailingContent = {
-                                TrendsTrailingButton(
-                                    brandColor = providerColor,
-                                    onClick = onSeeAllTrendsClick,
-                                    useLargeCards = true
-                                )
-                            }
+                            provider = provider
                         )
                     }
-                }
-
-                if (homeLayout.showMovies && (categoryMovies.isNotEmpty() || isLoading)) {
-                    item(key = "category_movies", contentType = "content_row") {
-                        ContentRow(
-                            title = "Фільми",
-                            items = categoryMovies,
-                            brandColor = providerColor,
-                            onItemClick = onMovieClick,
-                            onItemDismiss = null,
-                            onItemFocused = onMovieFocused,
-                            isLoading = isLoading,
-                            trailingContent = {
-                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("movies") })
-                            }
-                        )
-                    }
-                }
-
-                if (homeLayout.showSeries && (categorySeries.isNotEmpty() || isLoading)) {
-                    item(key = "category_series", contentType = "content_row") {
-                        ContentRow(
-                            title = "Серіали",
-                            items = categorySeries,
-                            brandColor = providerColor,
-                            onItemClick = onMovieClick,
-                            onItemDismiss = null,
-                            onItemFocused = onMovieFocused,
-                            isLoading = isLoading,
-                            trailingContent = {
-                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("series") })
-                            }
-                        )
-                    }
-                }
-
-                if (homeLayout.showAnime && (categoryAnime.isNotEmpty() || isLoading)) {
-                    item(key = "category_anime", contentType = "content_row") {
-                        ContentRow(
-                            title = "Аніме",
-                            items = categoryAnime,
-                            brandColor = providerColor,
-                            onItemClick = onMovieClick,
-                            onItemDismiss = null,
-                            onItemFocused = onMovieFocused,
-                            isLoading = isLoading,
-                            trailingContent = {
-                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("anime") })
-                            }
-                        )
-                    }
-                }
-
-                if (homeLayout.showCartoons && (categoryCartoons.isNotEmpty() || isLoading)) {
-                    item(key = "category_cartoons", contentType = "content_row") {
-                        ContentRow(
-                            title = "Мультфільми",
-                            items = categoryCartoons,
-                            brandColor = providerColor,
-                            onItemClick = onMovieClick,
-                            onItemDismiss = null,
-                            onItemFocused = onMovieFocused,
-                            isLoading = isLoading,
-                            trailingContent = {
-                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoons") })
-                            }
-                        )
-                    }
-                }
-
-                if (homeLayout.showCartoonSeries && (categoryCartoonSeries.isNotEmpty() || isLoading)) {
-                    item(key = "category_cartoon_series", contentType = "content_row") {
-                        ContentRow(
-                            title = "Мультсеріали",
-                            items = categoryCartoonSeries,
-                            brandColor = providerColor,
-                            onItemClick = onMovieClick,
-                            onItemDismiss = null,
-                            onItemFocused = onMovieFocused,
-                            isLoading = isLoading,
-                            trailingContent = {
-                                TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoon_series") })
-                            }
-                        )
-                    }
-                }
+                )
             }
         }
-    }
-}
 
-@Composable
-private fun BannerBackdrop(movie: Top200Movie?, accent: Color?, visible: Boolean, scrollFraction: () -> Float = { 0f }) {
-    val deviceClass = LocalDeviceClass.current
-    val isMediatek = LocalIsMediatek.current
-    val parallaxFactor = when (deviceClass) {
-        DeviceClass.LOW -> 0f
-        DeviceClass.MID -> 0.15f
-        DeviceClass.HIGH -> 0.3f
-    }
-    if (visible && movie != null) {
-        val backdropColor = accent ?: Color(0xFF08121c)
+        if (homeLayout.showMovies && (categoryMovies.isNotEmpty() || isCategoriesLoading)) {
+            item(key = "category_movies", contentType = "content_row") {
+                ContentRow(
+                    title = "Фільми",
+                    items = categoryMovies,
+                    brandColor = providerColor,
+                    onItemClick = onMovieClick,
+                    onItemDismiss = null,
+                    onItemFocused = onMovieFocused,
+                    isLoading = isCategoriesLoading,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    providerHint = currentProviderId,
+                    trailingContent = {
+                        val provider = categoryMovies.firstOrNull()?.provider ?: currentProviderId
+                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("movies") }, provider = provider)
+                    }
+                )
+            }
+        }
 
-        if (deviceClass == DeviceClass.LOW) {
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .height(HeroDefaults.height + 80.dp)
-                .graphicsLayer {
-                    val h = size.height
-                    val f = scrollFraction()
-                    translationY = -f * h * parallaxFactor
-                    alpha = (1f - f).coerceIn(0f, 1f)
-                }
-            ) {
-                if (movie.backdropUrl.isNotEmpty()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(movie.backdropUrl)
-                            .size(960, 540)
-                            .deviceImage(deviceClass, isMediatek)
-                            .build(),
+        if (homeLayout.showSeries && (categorySeries.isNotEmpty() || isCategoriesLoading)) {
+            item(key = "category_series", contentType = "content_row") {
+                ContentRow(
+                    title = "Серіали",
+                    items = categorySeries,
+                    brandColor = providerColor,
+                    onItemClick = onMovieClick,
+                    onItemDismiss = null,
+                    onItemFocused = onMovieFocused,
+                    isLoading = isCategoriesLoading,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    providerHint = currentProviderId,
+                    trailingContent = {
+                        val provider = categorySeries.firstOrNull()?.provider ?: currentProviderId
+                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("series") }, provider = provider)
+                    }
+                )
+            }
+        }
+
+        if (homeLayout.showAnime && (categoryAnime.isNotEmpty() || isCategoriesLoading)) {
+            item(key = "category_anime", contentType = "content_row") {
+                ContentRow(
+                    title = "Аніме",
+                    items = categoryAnime,
+                    brandColor = providerColor,
+                    onItemClick = onMovieClick,
+                    onItemDismiss = null,
+                    onItemFocused = onMovieFocused,
+                    isLoading = isCategoriesLoading,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    providerHint = currentProviderId,
+                    trailingContent = {
+                        val provider = categoryAnime.firstOrNull()?.provider ?: currentProviderId
+                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("anime") }, provider = provider)
+                    }
+                )
+            }
+        }
+
+        if (homeLayout.showCartoons && (categoryCartoons.isNotEmpty() || isCategoriesLoading)) {
+            item(key = "category_cartoons", contentType = "content_row") {
+                ContentRow(
+                    title = "Мультфільми",
+                    items = categoryCartoons,
+                    brandColor = providerColor,
+                    onItemClick = onMovieClick,
+                    onItemDismiss = null,
+                    onItemFocused = onMovieFocused,
+                    isLoading = isCategoriesLoading,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    providerHint = currentProviderId,
+                    trailingContent = {
+                        val provider = categoryCartoons.firstOrNull()?.provider ?: currentProviderId
+                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoons") }, provider = provider)
+                    }
+                )
+            }
+        }
+
+        if (homeLayout.showCartoonSeries && (categoryCartoonSeries.isNotEmpty() || isCategoriesLoading)) {
+            item(key = "category_cartoon_series", contentType = "content_row") {
+                ContentRow(
+                    title = "Мультсеріали",
+                    items = categoryCartoonSeries,
+                    brandColor = providerColor,
+                    onItemClick = onMovieClick,
+                    onItemDismiss = null,
+                    onItemFocused = onMovieFocused,
+                    isLoading = isCategoriesLoading,
+                    sharedTransitionScope = sharedTransitionScope,
+                    animatedContentScope = animatedContentScope,
+                    providerHint = currentProviderId,
+                    trailingContent = {
+                        val provider = categoryCartoonSeries.firstOrNull()?.provider ?: currentProviderId
+                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoon_series") }, provider = provider)
+                    }
+                )
+            }
+        }
+
+        if (!isLoading && gridError != null) {
+            item(key = "grid_error", contentType = "error") {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 80.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.BrokenImage,
                         contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        tint = Color.White.copy(alpha = 0.3f),
+                        modifier = Modifier.size(80.dp)
                     )
-                }
-                Box(modifier = Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(listOf(backdropColor, backdropColor.copy(alpha = 0.85f), Color.Transparent), endX = 1400f)
-                ))
-                Box(modifier = Modifier.fillMaxWidth().height(HeroDefaults.bottomFadeHeight).align(Alignment.BottomCenter).background(
-                    Brush.verticalGradient(listOf(Color.Transparent, Background))
-                ))
-            }
-        } else {
-            val backdropHeight = if (deviceClass == DeviceClass.HIGH) 500.dp else 420.dp
-            Box(modifier = Modifier
-                .fillMaxWidth()
-                .height(backdropHeight)
-                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
-                .drawWithCache {
-                    val brush = Brush.verticalGradient(
-                        colors = listOf(Color.White, Color.Transparent),
-                        startY = size.height * 0.45f,
-                        endY = size.height
+                    Spacer(modifier = Modifier.height(24.dp))
+                    TvText(
+                        text = "Помилка завантаження:\n$gridError",
+                        color = Color.White.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center,
+                        fontSize = 18.sp
                     )
-                    onDrawWithContent {
-                        drawContent()
-                        drawRect(brush = brush, blendMode = BlendMode.DstIn)
+                    Spacer(modifier = Modifier.height(32.dp))
+                    TvButton(
+                        onClick = onRetryGrid,
+                        colors = TvButtonDefaults.colors(
+                            containerColor = providerColor,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        TvText("Спробувати знову", fontWeight = FontWeight.Bold)
                     }
                 }
-                .graphicsLayer {
-                    val h = size.height
-                    val f = scrollFraction()
-                    translationY = -f * h * parallaxFactor
-                    alpha = (1f - f).coerceIn(0f, 1f)
-                }
-            ) {
-                if (movie.backdropUrl.isNotEmpty()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(movie.backdropUrl)
-                            .size(1280, 720)
-                            .deviceImage(deviceClass, isMediatek)
-                            .build(),
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
-                // Multi-stage horizontal gradient for depth
-                Box(modifier = Modifier.fillMaxSize().background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            backdropColor,
-                            backdropColor.copy(alpha = 0.95f),
-                            backdropColor.copy(alpha = 0.85f),
-                            backdropColor.copy(alpha = 0.7f),
-                            Color.Transparent
-                        ),
-                        endX = 1800f
-                    )
-                ))
             }
         }
     }
 }
 
-@Composable
-private fun HandleBackNavigation(gridState: LazyListState, focusRequester: FocusRequester, bannerMovies: List<Movie>, top200Banners: List<Top200Movie>) {
-    val coroutineScope = rememberCoroutineScope()
-    val canGoBack by remember { derivedStateOf { gridState.firstVisibleItemIndex > 0 || gridState.canScrollBackward } }
-    BackHandler(enabled = canGoBack) {
-        coroutineScope.launch {
-            gridState.animateScrollToItem(0)
-            if (top200Banners.isNotEmpty() || bannerMovies.isNotEmpty()) {
-                focusRequester.requestFocus()
-            }
-        }
-    }
-}
 
-@Composable
-private fun JankMonitor() {
-    val minJankMs = 50
-    val lastFrameTime = remember { object { var value = 0L } }
-    val callback = remember {
-        object : Choreographer.FrameCallback {
-            override fun doFrame(frameTimeNanos: Long) {
-                if (lastFrameTime.value != 0L) {
-                    val durationMs = (frameTimeNanos - lastFrameTime.value) / 1_000_000
-                    if (durationMs > minJankMs) {
-                        AppLogger.w("Jank", "Frame ${durationMs}ms (dropped ${durationMs / 16 - 1})")
-                    }
-                }
-                lastFrameTime.value = frameTimeNanos
-                Choreographer.getInstance().postFrameCallback(this)
-            }
-        }
-    }
-    DisposableEffect(Unit) {
-        Choreographer.getInstance().postFrameCallback(callback)
-        onDispose { Choreographer.getInstance().removeFrameCallback(callback) }
-    }
-}
-
-@Composable
-private fun AutoRestoreFocus(focusRequester: FocusRequester, top200: List<Top200Movie>, banner: List<Movie>) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val scope = rememberCoroutineScope()
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && (top200.isNotEmpty() || banner.isNotEmpty())) {
-                scope.launch {
-                    withFrameNanos { }
-                    focusRequester.requestFocus()
-                }
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-}
-
-// ── PHONE HOME SCREEN ──
-
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 private fun PhoneHomeScreen(
     viewModel: HomeViewModel = hiltViewModel(),
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
     onMovieClick: (Movie) -> Unit,
     onContinueWatchingClick: (Movie) -> Unit = onMovieClick,
     onSearchClick: () -> Unit,
@@ -728,9 +520,7 @@ private fun PhoneHomeScreen(
     val categoryCartoonSeries = remember(categoriesState.categoryCartoonSeries) { categoriesState.categoryCartoonSeries.take(maxItems) }
     val scope = rememberCoroutineScope()
 
-    val screenHeightDp = with(LocalDensity.current) {
-        androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-    }
+    val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
 
     val scrollFraction by remember {
         val hPx = with(density) { (50 * screenHeightDp / 100).dp.toPx() }
@@ -762,256 +552,298 @@ private fun PhoneHomeScreen(
                 .background(Background)
                 .statusBarsPadding()
         ) {
-        // TopBar: UKRTV logo + Search + Settings
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Background)
-                .padding(horizontal = 12.dp, vertical = 6.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            // TopBar: UKRTV logo + Search + Settings
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Background)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text("UKR", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                Text("TV", color = providerColor, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .background(Color(0xFF1A1A1D), RoundedCornerShape(8.dp))
-                        .clickable(onClick = onSearchClick)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Пошук...", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp)
-                    }
-                }
-            }
-        }
-
-        // Sticky provider segmented control
-        PhoneProviderSwitcher(
-            providers = providers,
-            currentProviderId = configState.currentProviderId,
-            brandColor = providerColor,
-            onProviderClick = { viewModel.switchProvider(it) }
-        )
-
-        val pullRefreshState = rememberPullToRefreshState()
-        PullToRefreshBox(
-            state = pullRefreshState,
-            isRefreshing = mainState.isLoading,
-            onRefresh = { viewModel.switchProvider(configState.currentProviderId) },
-            modifier = Modifier.weight(1f)
-        ) {
-            // Scrollable content — fills remaining space below header
-            LazyColumn(
-                state = gridState,
-                modifier = Modifier.fillMaxSize()
-            ) {
-            // Hero section (Top 200 carousel)
-            item(key = "hero", contentType = "hero") {
-                if (heroState.top200Banners.isNotEmpty()) {
-                    PhoneHeroSection(
-                        items = heroState.top200Banners,
-                        brandColor = providerColor,
-                        onItemClick = { movie -> onSearchQueryClick(movie.title) },
-                        onActiveMovieChange = { activeTop200Movie = it },
-                        scrollFraction = { scrollFraction },
-                        screenHeightDp = screenHeightDp.toFloat()
-                    )
-                }
-            }
-
-            if (!configState.isOnline) {
-                item(key = "offline", contentType = "banner") {
+                    Text("UKR", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Text("TV", color = providerColor, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    Spacer(Modifier.weight(1f))
                     Box(
-                        modifier = Modifier.fillMaxWidth().background(Color(0xFFE53935)).padding(8.dp),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier
+                            .background(Color(0xFF1A1A1D), RoundedCornerShape(8.dp))
+                            .clickable(onClick = onSearchClick)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
-                        Text("\u26A0 Немає підключення", color = Color.White, fontSize = 13.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Пошук...", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp)
+                        }
                     }
                 }
             }
 
-            // Content rows
-            if (configState.homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || mainState.isLoading)) {
-                item(key = "continue", contentType = "content_row") {
-                    ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, useWideCards = true, isLoading = mainState.isLoading)
-                }
-            }
+            // Sticky provider segmented control
+            PhoneProviderSwitcher(
+                providers = providers,
+                currentProviderId = configState.currentProviderId,
+                brandColor = providerColor,
+                onProviderClick = { viewModel.switchProvider(it) }
+            )
 
-            if (configState.homeLayout.showWatchlist && (watchlist.isNotEmpty() || mainState.isLoading)) {
-                item(key = "watchlist", contentType = "content_row") {
-                    ContentRow("Мій список", watchlist, providerColor, onMovieClick, isLoading = mainState.isLoading)
-                }
-            }
-
-            if (configState.homeLayout.showTrends && (homeTrending.isNotEmpty() || mainState.isLoading)) {
-                item(key = "trending", contentType = "content_row") {
-                    ContentRow(
-                        configState.trendingLabel,
-                        homeTrending,
-                        providerColor,
-                        onMovieClick,
-                        useLargeCards = true,
-                        isLoading = mainState.isLoading,
-                        trailingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .width(PhoneCardDefaults.posterWidth)
-                                    .height(PhoneCardDefaults.posterHeight)
-                                    .clip(Shapes.card)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .clickable { onSeeAllTrendsClick() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Усі тренди",
-                                    tint = Color.White.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
-                        }
-                    )
-                }
-            }
-
-            if (configState.homeLayout.showMovies && (categoryMovies.isNotEmpty() || mainState.isLoading)) {
-                item(key = "cat_movies", contentType = "content_row") {
-                    ContentRow(
-                        "Фільми", categoryMovies, providerColor, onMovieClick,
-                        isLoading = mainState.isLoading,
-                        trailingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .width(PhoneCardDefaults.posterWidth)
-                                    .height(PhoneCardDefaults.posterHeight)
-                                    .clip(Shapes.card)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .clickable { onSeeAllCategoryClick("movies") },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі фільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                            }
-                        }
-                    )
-                }
-            }
-
-            if (configState.homeLayout.showSeries && (categorySeries.isNotEmpty() || mainState.isLoading)) {
-                item(key = "cat_series", contentType = "content_row") {
-                    ContentRow(
-                        "Серіали", categorySeries, providerColor, onMovieClick,
-                        isLoading = mainState.isLoading,
-                        trailingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .width(PhoneCardDefaults.posterWidth)
-                                    .height(PhoneCardDefaults.posterHeight)
-                                    .clip(Shapes.card)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .clickable { onSeeAllCategoryClick("series") },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі серіали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                            }
-                        }
-                    )
-                }
-            }
-
-            if (configState.homeLayout.showAnime && (categoryAnime.isNotEmpty() || mainState.isLoading)) {
-                item(key = "cat_anime", contentType = "content_row") {
-                    ContentRow(
-                        "Аніме", categoryAnime, providerColor, onMovieClick,
-                        isLoading = mainState.isLoading,
-                        trailingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .width(PhoneCardDefaults.posterWidth)
-                                    .height(PhoneCardDefaults.posterHeight)
-                                    .clip(Shapes.card)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .clickable { onSeeAllCategoryClick("anime") },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усе аніме", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                            }
-                        }
-                    )
-                }
-            }
-
-            if (configState.homeLayout.showCartoons && (categoryCartoons.isNotEmpty() || mainState.isLoading)) {
-                item(key = "cat_cartoons", contentType = "content_row") {
-                    ContentRow(
-                        "Мультфільми", categoryCartoons, providerColor, onMovieClick,
-                        isLoading = mainState.isLoading,
-                        trailingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .width(PhoneCardDefaults.posterWidth)
-                                    .height(PhoneCardDefaults.posterHeight)
-                                    .clip(Shapes.card)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .clickable { onSeeAllCategoryClick("cartoons") },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультфільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                            }
-                        }
-                    )
-                }
-            }
-
-            if (configState.homeLayout.showCartoonSeries && (categoryCartoonSeries.isNotEmpty() || mainState.isLoading)) {
-                item(key = "cat_cartoon_series", contentType = "content_row") {
-                    ContentRow(
-                        "Мультсеріали", categoryCartoonSeries, providerColor, onMovieClick,
-                        isLoading = mainState.isLoading,
-                        trailingContent = {
-                            Box(
-                                modifier = Modifier
-                                    .width(PhoneCardDefaults.posterWidth)
-                                    .height(PhoneCardDefaults.posterHeight)
-                                    .clip(Shapes.card)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .clickable { onSeeAllCategoryClick("cartoon_series") },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультсеріали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                            }
-                        }
-                    )
-                }
-            }
-
-            if (!mainState.isLoading && continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
-                item(contentType = "empty") {
-                    Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Outlined.BrokenImage,
-                                contentDescription = null,
-                                tint = Color.White.copy(alpha = 0.3f),
-                                modifier = Modifier.size(64.dp)
+            val pullRefreshState = rememberPullToRefreshState()
+            PullToRefreshBox(
+                state = pullRefreshState,
+                isRefreshing = mainState.isLoading,
+                onRefresh = { viewModel.retryGrid() },
+                modifier = Modifier.weight(1f)
+            ) {
+                // Scrollable content — fills remaining space below header
+                LazyColumn(
+                    state = gridState,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Hero section (Top 200 carousel)
+                    item(key = "hero", contentType = "hero") {
+                        if (heroState.top200Banners.isNotEmpty()) {
+                            PhoneHeroSection(
+                                items = heroState.top200Banners,
+                                brandColor = providerColor,
+                                onItemClick = { movie -> onSearchQueryClick(movie.title) },
+                                onActiveMovieChange = { activeTop200Movie = it },
+                                scrollFraction = { scrollFraction },
+                                screenHeightDp = screenHeightDp.toFloat()
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(
-                                text = "Нічого не знайдено",
-                                color = Color.White.copy(alpha = 0.5f),
-                                fontSize = 14.sp
+                        }
+                    }
+
+                    if (!configState.isOnline) {
+                        item(key = "offline", contentType = "banner") {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().background(Color(0xFFE53935)).padding(8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("\u26A0 Немає підключення", color = Color.White, fontSize = 13.sp)
+                            }
+                        }
+                    }
+
+                    // Content rows
+                    if (configState.homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || mainState.isLoading)) {
+                        item(key = "continue", contentType = "content_row") {
+                            ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, isLoading = mainState.isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = configState.currentProviderId)
+                        }
+                    }
+
+                    if (configState.homeLayout.showWatchlist && (watchlist.isNotEmpty() || mainState.isLoading)) {
+                        item(key = "watchlist", contentType = "content_row") {
+                            ContentRow("Мій список", watchlist, providerColor, onMovieClick, isLoading = mainState.isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = configState.currentProviderId)
+                        }
+                    }
+
+                    if (configState.homeLayout.showTrends && (homeTrending.isNotEmpty() || mainState.isLoading)) {
+                        item(key = "trending", contentType = "content_row") {
+                            val provider = homeTrending.firstOrNull()?.provider ?: configState.currentProviderId
+                            val posterStyle = PosterStyle.forProvider(provider)
+                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                            
+                            ContentRow(
+                                configState.trendingLabel,
+                                homeTrending,
+                                providerColor,
+                                onMovieClick,
+                                useLargeCards = true,
+                                isLoading = mainState.isLoading,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                                providerHint = configState.currentProviderId,
+                                trailingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(phoneDims.width)
+                                            .height(phoneDims.height)
+                                            .clip(Shapes.card)
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .clickable { onSeeAllTrendsClick() },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                            contentDescription = "Усі тренди",
+                                            tint = Color.White.copy(alpha = 0.6f),
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                }
                             )
+                        }
+                    }
+
+                    if (configState.homeLayout.showMovies && (categoryMovies.isNotEmpty() || categoriesState.isLoading)) {
+                        item(key = "cat_movies", contentType = "content_row") {
+                            val provider = categoryMovies.firstOrNull()?.provider ?: configState.currentProviderId
+                            val posterStyle = PosterStyle.forProvider(provider)
+                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                            
+                            ContentRow(
+                                "Фільми", categoryMovies, providerColor, onMovieClick,
+                                isLoading = categoriesState.isLoading,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                                providerHint = configState.currentProviderId,
+                                trailingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(phoneDims.width)
+                                            .height(phoneDims.height)
+                                            .clip(Shapes.card)
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .clickable { onSeeAllCategoryClick("movies") },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі фільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    if (configState.homeLayout.showSeries && (categorySeries.isNotEmpty() || categoriesState.isLoading)) {
+                        item(key = "cat_series", contentType = "content_row") {
+                            val provider = categorySeries.firstOrNull()?.provider ?: configState.currentProviderId
+                            val posterStyle = PosterStyle.forProvider(provider)
+                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                            
+                            ContentRow(
+                                "Серіали", categorySeries, providerColor, onMovieClick,
+                                isLoading = categoriesState.isLoading,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                                providerHint = configState.currentProviderId,
+                                trailingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(phoneDims.width)
+                                            .height(phoneDims.height)
+                                            .clip(Shapes.card)
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .clickable { onSeeAllCategoryClick("series") },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі серіали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    if (configState.homeLayout.showAnime && (categoryAnime.isNotEmpty() || categoriesState.isLoading)) {
+                        item(key = "cat_anime", contentType = "content_row") {
+                            val provider = categoryAnime.firstOrNull()?.provider ?: configState.currentProviderId
+                            val posterStyle = PosterStyle.forProvider(provider)
+                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                            
+                            ContentRow(
+                                "Аніме", categoryAnime, providerColor, onMovieClick,
+                                isLoading = categoriesState.isLoading,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                                providerHint = configState.currentProviderId,
+                                trailingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(phoneDims.width)
+                                            .height(phoneDims.height)
+                                            .clip(Shapes.card)
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .clickable { onSeeAllCategoryClick("anime") },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усе аніме", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    if (configState.homeLayout.showCartoons && (categoryCartoons.isNotEmpty() || categoriesState.isLoading)) {
+                        item(key = "cat_cartoons", contentType = "content_row") {
+                            val provider = categoryCartoons.firstOrNull()?.provider ?: configState.currentProviderId
+                            val posterStyle = PosterStyle.forProvider(provider)
+                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                            
+                            ContentRow(
+                                "Мультфільми", categoryCartoons, providerColor, onMovieClick,
+                                isLoading = categoriesState.isLoading,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                                providerHint = configState.currentProviderId,
+                                trailingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(phoneDims.width)
+                                            .height(phoneDims.height)
+                                            .clip(Shapes.card)
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .clickable { onSeeAllCategoryClick("cartoons") },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультфільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    if (configState.homeLayout.showCartoonSeries && (categoryCartoonSeries.isNotEmpty() || categoriesState.isLoading)) {
+                        item(key = "cat_cartoon_series", contentType = "content_row") {
+                            val provider = categoryCartoonSeries.firstOrNull()?.provider ?: configState.currentProviderId
+                            val posterStyle = PosterStyle.forProvider(provider)
+                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                            
+                            ContentRow(
+                                "Мультсеріали", categoryCartoonSeries, providerColor, onMovieClick,
+                                isLoading = categoriesState.isLoading,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedContentScope = animatedContentScope,
+                                providerHint = configState.currentProviderId,
+                                trailingContent = {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(phoneDims.width)
+                                            .height(phoneDims.height)
+                                            .clip(Shapes.card)
+                                            .background(Color.White.copy(alpha = 0.08f))
+                                            .clickable { onSeeAllCategoryClick("cartoon_series") },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультсеріали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    if (!mainState.isLoading && continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
+                        item(contentType = "empty") {
+                            Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.BrokenImage,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(64.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Text(
+                                        text = "Нічого не знайдено",
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        fontSize = 14.sp
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
     }
-}
-}
 }

@@ -5,9 +5,6 @@
 # OkHttp
 -dontwarn okhttp3.internal.**
 
-# ExoPlayer (Media3)
--dontwarn androidx.media3.**
-
 # Dagger Hilt
 -keepclassmembers,allowobfuscation class * {
     @javax.inject.Inject *;

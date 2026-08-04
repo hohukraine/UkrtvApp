@@ -281,4 +281,52 @@ class EpisodeNavigatorTest {
         val result = EpisodeNavigator.previousEpisode(seasons, 2, 1)
         assertNull(result)
     }
+
+    // --- duplicate episode numbers (malformed provider output) ---
+
+    private val duplicateEpisodes = listOf(
+        season(1, ep(1), ep(1), ep(6), ep(7))
+    )
+
+    @Test
+    fun `nextEpisode skips duplicate number entries and jumps to real next episode`() {
+        val result = EpisodeNavigator.nextEpisode(duplicateEpisodes, 1, 1)
+        assertNotNull(result)
+        assertEquals(1, result!!.season)
+        assertEquals(6, result.episode)
+    }
+
+    @Test
+    fun `nextEpisode on trailing duplicate reaches next season`() {
+        val seasons = listOf(
+            season(1, ep(1), ep(1), ep(1)),
+            season(2, ep(1))
+        )
+        val result = EpisodeNavigator.nextEpisode(seasons, 1, 1)
+        assertNotNull(result)
+        assertEquals(2, result!!.season)
+        assertEquals(1, result.episode)
+    }
+
+    @Test
+    fun `previousEpisode skips duplicate number entries`() {
+        val result = EpisodeNavigator.previousEpisode(duplicateEpisodes, 1, 7)
+        assertNotNull(result)
+        assertEquals(1, result!!.season)
+        assertEquals(6, result.episode)
+    }
+
+    @Test
+    fun `previousEpisode from after duplicates lands on previous distinct episode`() {
+        val result = EpisodeNavigator.previousEpisode(duplicateEpisodes, 1, 6)
+        assertNotNull(result)
+        assertEquals(1, result!!.season)
+        assertEquals(1, result.episode)
+    }
+
+    @Test
+    fun `previousEpisode with only duplicates returns null`() {
+        val seasons = listOf(season(1, ep(1), ep(1), ep(1)))
+        assertNull(EpisodeNavigator.previousEpisode(seasons, 1, 1))
+    }
 }

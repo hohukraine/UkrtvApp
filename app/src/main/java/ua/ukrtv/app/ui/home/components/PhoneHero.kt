@@ -2,6 +2,7 @@ package ua.ukrtv.app.ui.home.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
@@ -14,12 +15,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +32,7 @@ import coil3.request.crossfade
 import coil3.request.ImageRequest
 import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.ui.theme.Gold
+import ua.ukrtv.app.ui.theme.Background as AppBackground
 import kotlinx.coroutines.delay
 
 private const val HERO_HEIGHT_FRACTION = 0.70f
@@ -140,13 +145,49 @@ private fun PhoneHeroPage(
     isActive: Boolean,
     onClick: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val accentColor = remember(movie.accentColor) {
+        try { Color(android.graphics.Color.parseColor(movie.accentColor)) } catch (_: Exception) { Color(0xFF08121c) }
+    }
+    val onAccentColor = remember(movie.onAccentColor) {
+        try { Color(android.graphics.Color.parseColor(movie.onAccentColor)) } catch (_: Exception) { Color.White }
+    }
+    
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0A0A))
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
+            .background(Color.Black)
+            .clickable { onClick() }
     ) {
+        // Backdrop Image (Always visible)
+        AsyncImage(
+            model = ImageRequest.Builder(context)
+                .data(movie.backdropUrl)
+                .crossfade(600)
+                .build(),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { alpha = 0.85f }
+        )
+
+        // Dynamic Gradient based on the movie's actual color
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            accentColor.copy(alpha = 0.3f),
+                            accentColor.copy(alpha = 0.6f),
+                            ua.ukrtv.app.ui.theme.Background
+                        ),
+                        startY = 0f
+                    )
+                )
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -155,15 +196,20 @@ private fun PhoneHeroPage(
         ) {
             Spacer(modifier = Modifier.weight(1f))
 
-            // Poster — fills available height, aspect ratio 2:3
+            // Poster with adaptive border
             Box(
                 modifier = Modifier
-                    .fillMaxHeight()
+                    .fillMaxHeight(0.6f)
                     .aspectRatio(2f / 3f)
                     .clip(RoundedCornerShape(12.dp))
                     .background(Color(0xFF141414))
+                    .border(
+                        width = 1.dp,
+                        color = onAccentColor.copy(alpha = 0.2f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .shadow(20.dp, RoundedCornerShape(12.dp))
             ) {
-                val context = LocalContext.current
                 val imageRequest = remember(movie.posterUrl) {
                     ImageRequest.Builder(context)
                         .data(movie.posterUrl)
@@ -178,7 +224,7 @@ private fun PhoneHeroPage(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Rank badge — top-left on poster
+                // Rank badge
                 if (movie.rank > 0) {
                     Box(
                         modifier = Modifier
@@ -198,9 +244,22 @@ private fun PhoneHeroPage(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Compact metadata row
+            // Adaptive Title (Uses contrast color from model)
+            Text(
+                text = movie.title,
+                color = onAccentColor,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Metadata row (Uses contrast color)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -216,31 +275,22 @@ private fun PhoneHeroPage(
                 if (movie.year.isNotEmpty()) {
                     Text(
                         movie.year,
-                        color = Color.White.copy(alpha = 0.6f),
+                        color = onAccentColor.copy(alpha = 0.8f),
                         fontSize = 13.sp
                     )
                 }
                 if (movie.genres.isNotEmpty()) {
                     Text(
-                        movie.genres.take(3).joinToString(" \u00B7 "),
-                        color = Color.White.copy(alpha = 0.5f),
+                        movie.genres.take(2).joinToString(" \u00B7 "),
+                        color = onAccentColor.copy(alpha = 0.7f),
                         fontSize = 12.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (movie.director.isNotEmpty()) {
-                    Text(
-                        movie.director,
-                        color = Color.White.copy(alpha = 0.45f),
-                        fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }

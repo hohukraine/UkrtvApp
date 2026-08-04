@@ -89,7 +89,8 @@ class WatchProgressRepository @Inject constructor(
         val streamUrl: String,
         val streamType: String,
         val referer: String,
-        val fallbackUrls: List<String>
+        val fallbackUrls: List<String>,
+        val durationMs: Long
     )
 
     suspend fun getStreamCache(contentId: String, episodeId: String?): StreamCache? {
@@ -103,7 +104,8 @@ class WatchProgressRepository @Inject constructor(
             streamUrl = entity.streamUrl,
             streamType = entity.streamType,
             referer = entity.referer ?: "",
-            fallbackUrls = entity.fallbackUrls?.split("|").orEmpty().filter { it.isNotEmpty() }
+            fallbackUrls = entity.fallbackUrls?.split("|").orEmpty().filter { it.isNotEmpty() },
+            durationMs = entity.durationMs
         )
     }
 
@@ -118,7 +120,8 @@ class WatchProgressRepository @Inject constructor(
                 streamUrl = entity.streamUrl!!,
                 streamType = entity.streamType!!,
                 referer = entity.referer ?: "",
-                fallbackUrls = entity.fallbackUrls?.split("|").orEmpty().filter { it.isNotEmpty() }
+                fallbackUrls = entity.fallbackUrls?.split("|").orEmpty().filter { it.isNotEmpty() },
+                durationMs = entity.durationMs
             )
         }
     }

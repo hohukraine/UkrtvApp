@@ -1,6 +1,7 @@
 package ua.ukrtv.app.data.repository
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 import ua.ukrtv.app.data.local.dao.CatalogIndexDao
@@ -8,7 +9,7 @@ import ua.ukrtv.app.data.local.entity.CatalogIndexEntity
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.providers.ContentUtils
 import ua.ukrtv.app.data.providers.DleProviderProfile
-import ua.ukrtv.app.data.providers.EneyidaProfile
+import ua.ukrtv.app.data.providers.UaflixProfile
 import ua.ukrtv.app.data.providers.UakinoProfile
 import ua.ukrtv.app.util.AppLogger
 import javax.inject.Inject
@@ -30,10 +31,12 @@ class CatalogIndexBuilder @Inject constructor(
     private val catalogDao: CatalogIndexDao
 ) {
     private val buildTimeoutMs = 180_000L
+    private val uaflixTimeoutMs = 600_000L
     private val incrementalMaxEmptyPages = 5
 
     suspend fun buildForProvider(profile: DleProviderProfile, sources: List<CatalogSource>): CatalogBuildResult =
         withContext(Dispatchers.IO) {
+            val timeout = if (profile.name == "UAFLIX") uaflixTimeoutMs else buildTimeoutMs
             val startTime = System.currentTimeMillis()
             var totalItems = 0
             var totalPages = 0
@@ -41,34 +44,37 @@ class CatalogIndexBuilder @Inject constructor(
 
             catalogDao.deleteByProvider(profile.name)
 
-            for (source in sources) {
-                var page = 1
-                var hasMore = true
+            for ((si, source) in sources.withIndex()) {
+                if (si > 0 && profile.name == "UAFLIX") delay(5000)
 
-                while (hasMore) {
-                    if (System.currentTimeMillis() - startTime > buildTimeoutMs) {
-                        AppLogger.w("CatalogIndexBuilder:${profile.name}", "Build timeout after ${buildTimeoutMs / 1000}s")
+                var page = 1
+                var emptyPagesInRow = 0
+
+                while (emptyPagesInRow < incrementalMaxEmptyPages) {
+                    if (System.currentTimeMillis() - startTime > timeout) {
+                        AppLogger.w("CatalogIndexBuilder:${profile.name}", "Build timeout after ${timeout / 1000}s")
                         break
                     }
                     val pageUrl = buildPageUrl(profile.baseUrl, source.path, page)
                     try {
                         val html = htmlHttpClient.getHtml(pageUrl, profile.baseUrl) ?: ""
-                        if (html.isBlank()) { hasMore = false; break }
+                        if (html.isBlank()) { emptyPagesInRow++; page++; continue }
 
                         val items = parseCategoryPage(html, profile.baseUrl, source.contentType, profile)
-                        if (items.isEmpty()) { hasMore = false; break }
+                        if (items.isEmpty()) { emptyPagesInRow++; page++; continue }
 
-                        // Chunked insertion instead of collecting all items in memory
                         items.chunked(50).forEach { chunk ->
                             catalogDao.insertAll(chunk)
                         }
                         totalItems += items.size
                         totalPages++
+                        emptyPagesInRow = 0
                     } catch (e: Exception) {
                         totalErrors++
+                        emptyPagesInRow++
                         AppLogger.w("CatalogIndexBuilder:${profile.name}", "Page $page failed: ${e.message}")
-                        hasMore = false
                     }
+                    if (profile.name == "UAFLIX") delay(100)
                     page++
                 }
             }
@@ -82,18 +88,21 @@ class CatalogIndexBuilder @Inject constructor(
         existingUrls: Set<String>
     ): CatalogBuildResult =
         withContext(Dispatchers.IO) {
+            val timeout = if (profile.name == "UAFLIX") uaflixTimeoutMs else buildTimeoutMs
             val startTime = System.currentTimeMillis()
             var totalNewItems = 0
             var totalPages = 0
             var totalErrors = 0
 
-            for (source in sources) {
+            for ((si, source) in sources.withIndex()) {
+                if (si > 0 && profile.name == "UAFLIX") delay(5000)
+
                 var page = 1
                 var emptyPagesInRow = 0
 
                 while (emptyPagesInRow < incrementalMaxEmptyPages) {
-                    if (System.currentTimeMillis() - startTime > buildTimeoutMs) {
-                        AppLogger.w("CatalogIndexBuilder:${profile.name}", "Incremental timeout after ${buildTimeoutMs / 1000}s")
+                    if (System.currentTimeMillis() - startTime > timeout) {
+                        AppLogger.w("CatalogIndexBuilder:${profile.name}", "Incremental timeout after ${timeout / 1000}s")
                         break
                     }
 
@@ -130,6 +139,7 @@ class CatalogIndexBuilder @Inject constructor(
                         emptyPagesInRow++
                         AppLogger.w("CatalogIndexBuilder:${profile.name}", "Incremental page $page failed: ${e.message}")
                     }
+                    if (profile.name == "UAFLIX") delay(100)
                     page++
                 }
             }
@@ -207,8 +217,8 @@ class CatalogIndexBuilder @Inject constructor(
                 val deck = el.select(".deck-value").firstOrNull()?.text() ?: ""
                 if (deck.isNotBlank() && deck.any { it == '.' }) deck else ""
             }
-            "Eneyida" -> {
-                el.select(".ratingplus").firstOrNull()?.text() ?: ""
+            "UAFLIX" -> {
+                el.select(".age").firstOrNull()?.text() ?: ""
             }
             else -> ""
         }
@@ -219,24 +229,12 @@ class CatalogIndexBuilder @Inject constructor(
             "Uakino" -> {
                 el.select(".full-quality").firstOrNull()?.text() ?: ""
             }
-            "Eneyida" -> {
-                el.select(".label_quel-hd").firstOrNull()?.text() ?: ""
-            }
             else -> ""
         }
     }
 
     private fun extractYearAndEnTitle(el: org.jsoup.nodes.Element, profile: DleProviderProfile): Pair<String, String> {
-        return when (profile.name) {
-            "Eneyida" -> {
-                val subtitle = el.select(".short_subtitle").firstOrNull()?.text()?.trim() ?: return "" to ""
-                val yearMatch = YEAR_PATTERN.find(subtitle)
-                val year = yearMatch?.value ?: ""
-                val enTitle = subtitle.replaceFirst(YEAR_PATTERN, "").trim('/').trim()
-                year to enTitle
-            }
-            else -> "" to ""
-        }
+        return "" to ""
     }
 
     companion object {
@@ -248,12 +246,12 @@ class CatalogIndexBuilder @Inject constructor(
             CatalogSource("cartoon/", "cartoon")
         )
 
-        val EneyidaSources = listOf(
-            CatalogSource("series/", "series"),
-            CatalogSource("cartoon/", "cartoon"),
-            CatalogSource("cartoon-series/", "cartoon"),
-            CatalogSource("anime/", "series"),
-            CatalogSource("f/sort=new/order=desc", "unknown")
+        val UaflixSources = listOf(
+            CatalogSource("film", "movie"),
+            CatalogSource("serials", "series"),
+            CatalogSource("cartoons", "cartoon"),
+            CatalogSource("anime", "series"),
+            CatalogSource("dorama", "series")
         )
     }
 }

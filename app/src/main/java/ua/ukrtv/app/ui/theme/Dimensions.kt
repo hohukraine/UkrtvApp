@@ -16,12 +16,18 @@ object Shapes {
 
 // ── Card Sizes ──
 object CardDefaults {
+    // UAFLIX (wide 16:9)
+    val wideWidth = 320.dp
+    val wideHeight = 180.dp
+    
+    // Uakino (poster 2:3)
     val posterWidth = 160.dp
     val posterHeight = 240.dp
     val compactWidth = 180.dp
     val compactHeight = 270.dp
-    val wideWidth = 320.dp
-    val wideHeight = 180.dp
+    
+    val defaultWidth get() = wideWidth
+    val defaultHeight get() = wideHeight
 }
 
 // ── Grid / Layout ──
@@ -45,6 +51,12 @@ object HeroDefaults {
 object DetailDefaults {
     val horizontalPadding = 64.dp
     val topPadding = 48.dp
+    
+    // UAFLIX (wide 16:9)
+    val wideWidth = 400.dp
+    val wideHeight = 225.dp
+    
+    // Uakino (poster 2:3)
     val posterWidth = 230.dp
     val posterHeight = 345.dp
 }
@@ -59,12 +71,16 @@ object FocusDefaults {
 
 // ── Phone-specific sizes ──
 object PhoneCardDefaults {
+    // UAFLIX (wide 16:9)
+    val wideWidth = 240.dp
+    val wideHeight = 135.dp
+    
+    // Uakino (poster 2:3)
     val posterWidth = 120.dp
     val posterHeight = 180.dp
     val compactWidth = 140.dp
     val compactHeight = 210.dp
-    val wideWidth = 240.dp
-    val wideHeight = 135.dp
+    
     val heroPosterWidth = 160.dp
     val heroPosterHeight = 240.dp
 }

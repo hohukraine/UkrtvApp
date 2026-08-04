@@ -71,7 +71,7 @@ object NetworkModule {
         return OkHttpClient.Builder()
             .cookieJar(cookieJar)
             .cache(cache)
-            .dispatcher(Dispatcher().apply { maxRequests = 32; maxRequestsPerHost = 5 })
+            .dispatcher(Dispatcher().apply { maxRequests = 64; maxRequestsPerHost = 10 })
             .connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
             .sslSocketFactory(sslSocketFactory, trustManager)
             .connectionSpecs(listOf(
@@ -79,7 +79,6 @@ object NetworkModule {
                 ConnectionSpec.COMPATIBLE_TLS,
                 ConnectionSpec.CLEARTEXT
             ))
-            .addInterceptor(ua.ukrtv.app.data.network.WebpToJpegInterceptor())
             .addInterceptor { chain ->
                 val request = chain.request()
                 val url = request.url.toString()
@@ -102,6 +101,25 @@ object NetworkModule {
             .followRedirects(true)
             .followSslRedirects(true)
             .build()
+    }
+
+    private val permissiveHostMarkers = listOf(
+        "ashdi", "hdvb", "vidmoly", "mcloud", "uakino", "uaflix", "uafix"
+    )
+
+    private fun isPermissiveTrustedCert(chain: Array<X509Certificate>): Boolean {
+        val leaf = chain.firstOrNull() ?: return false
+        val subject = leaf.subjectDN?.name ?: ""
+        val names = buildSet {
+            addAll(leaf.subjectAlternativeNames?.mapNotNull { entry ->
+                if (entry?.size == 2 && entry[0] == 2) entry[1]?.toString()?.lowercase() else null
+            } ?: emptyList())
+            addAll(subject.split(",").map { it.trim().lowercase() })
+        }
+        return names.any { name ->
+            name.contains(".ua", ignoreCase = true) ||
+                permissiveHostMarkers.any { name.contains(it, ignoreCase = true) }
+        }
     }
 
     private data class SslConfig(val socketFactory: javax.net.ssl.SSLSocketFactory, val trustManager: X509TrustManager)
@@ -153,11 +171,7 @@ object NetworkModule {
                         ourTrustManager.checkServerTrusted(chain, authType)
                     } catch (e2: CertificateException) {
                         val subject = chain.firstOrNull()?.subjectDN?.name ?: "unknown"
-                        val isTrustedProvider = subject.contains("eneyida", ignoreCase = true) ||
-                                               subject.contains("uakino", ignoreCase = true) ||
-                                               subject.contains(".ua", ignoreCase = true)
-                        
-                        if (isTrustedProvider) {
+                        if (isPermissiveTrustedCert(chain)) {
                             android.util.Log.w("NetworkModule", "Permissive SSL fallback ALLOWED for: $subject")
                         } else {
                             android.util.Log.e("NetworkModule", "SSL validation failed for: $subject")

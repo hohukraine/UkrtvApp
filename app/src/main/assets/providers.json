@@ -22,24 +22,24 @@
     "playlistEndpoints": ["engine/ajax/playlists.php", "engine/ajax/video.php", "engine/ajax/get_playlist.php"]
   },
   {
-    "name": "Eneyida",
-    "baseUrl": "https://eneyida.tv/",
-    "brandColor": "#FF9800",
-    "logoUrl": "https://eneyida.tv/templates/Eneyida/images/logo.png",
+    "name": "UAFLIX",
+    "baseUrl": "https://uafix.net/",
+    "brandColor": "#FF6600",
+    "logoUrl": "https://uafix.net/templates/uaflix/images/uaflix-logo-new.png",
     "selectors": {
-      "item": "article.short",
-      "title": "a.short_title",
-      "poster": "a.short_img img",
-      "description": ".full-text",
-      "year": ".short_subtitle"
+      "item": ".video-item",
+      "title": "a.vi-img",
+      "poster": "img.lazy",
+      "description": "#serial-kratko",
+      "year": "span.year"
     },
-    "seriesMarkers": ["/series/", "/cartoon-series/", "/anime-series/", "/serialy/"],
+    "seriesMarkers": ["/serials/", "/anime/", "/dorama/", "/cartoons/"],
     "categoryPaths": {
-      "MOVIES": "films/",
-      "SERIES": "series/",
+      "MOVIES": "film/",
+      "SERIES": "serials/",
       "ANIME": "anime/",
-      "CARTOONS": "cartoon/",
-      "CARTOON_SERIES": "cartoon-series/"
+      "CARTOONS": "cartoons/",
+      "CARTOON_SERIES": "cartoons/"
     }
   }
 ]

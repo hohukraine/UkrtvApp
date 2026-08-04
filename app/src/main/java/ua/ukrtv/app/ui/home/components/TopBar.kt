@@ -20,7 +20,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.*
 import ua.ukrtv.app.domain.model.Provider
-import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.GridDefaults
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.util.DeviceClass
@@ -57,8 +56,8 @@ fun TopBar(
                 }
             )
             .drawBehind {
-                val fraction = scrollFraction()
                 if (deviceClass == DeviceClass.HIGH) {
+                    val fraction = scrollFraction()
                     val bgBrightness = (0.08f + 0.25f * fraction).coerceIn(0f, 0.33f)
                     drawRect(
                         brush = Brush.verticalGradient(
@@ -68,15 +67,6 @@ fun TopBar(
                             )
                         )
                     )
-                } else {
-                    val bgAlpha = when (deviceClass) {
-                        DeviceClass.LOW -> (fraction * 0.3f).coerceIn(0f, 0.3f)
-                        DeviceClass.MID -> (fraction * 0.5f).coerceIn(0f, 0.5f)
-                        DeviceClass.HIGH -> 0f
-                    }
-                    if (bgAlpha > 0.01f) {
-                        drawRect(color = Background.copy(alpha = bgAlpha))
-                    }
                 }
             }
             .then(

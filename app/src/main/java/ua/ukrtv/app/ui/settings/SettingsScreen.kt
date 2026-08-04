@@ -26,9 +26,9 @@ import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.PerformanceProfile
-import ua.ukrtv.app.util.PlayerType
 import ua.ukrtv.app.util.HomeLayout
 import ua.ukrtv.app.util.resolveDeviceClass
 import ua.ukrtv.app.util.getDeviceClass
@@ -36,10 +36,14 @@ import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.Background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 
 @Composable
 fun SettingsScreen(
@@ -59,449 +63,387 @@ private fun TvSettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onBack: () -> Unit
 ) {
-    val performanceProfile by viewModel.performanceProfile.collectAsState()
-    val playerType by viewModel.playerType.collectAsState()
-    val externalPlayerPackage by viewModel.externalPlayerPackage.collectAsState()
-    val installedPlayers by viewModel.installedPlayers.collectAsState()
-    val updateState by viewModel.updateState.collectAsState()
-    val homeLayout by viewModel.homeLayout.collectAsState()
-    val defaultProvider by viewModel.defaultProvider.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val hardwareClass = remember { getDeviceClass(context) }
-    val scrollState = rememberScrollState()
-    val providers = remember { viewModel.let {
-        listOf("Eneyida" to "Eneyida", "Uakino" to "Uakino")
-    } }
+    
+    val resolvedDevices by remember(uiState.performanceProfile) {
+        derivedStateOf {
+            PerformanceProfile.entries.associateWith { profile ->
+                resolveDeviceClass(context, profile)
+            }
+        }
+    }
 
-    Column(
+    val providers = remember { listOf("UAFLIX" to "UAFLIX", "Uakino" to "Uakino") }
+    val homeSections = remember(uiState.homeLayout) {
+        listOf(
+            "Продовжити перегляд" to uiState.homeLayout.showContinueWatching,
+            "Мій список" to uiState.homeLayout.showWatchlist,
+            "Тренди" to uiState.homeLayout.showTrends
+        )
+    }
+    val categorySections = remember(uiState.homeLayout) {
+        listOf(
+            "Фільми" to uiState.homeLayout.showMovies,
+            "Серіали" to uiState.homeLayout.showSeries,
+            "Аніме" to uiState.homeLayout.showAnime,
+            "Мультфільми" to uiState.homeLayout.showCartoons,
+            "Мультсеріали" to uiState.homeLayout.showCartoonSeries
+        )
+    }
+
+    val onUpdateClick = remember {
+        {
+            val state = uiState.updateState
+            if (state is UpdateState.Idle || state is UpdateState.UpToDate || state is UpdateState.Error) {
+                viewModel.checkForUpdates()
+            } else if (state is UpdateState.NewVersionAvailable) {
+                viewModel.downloadAndInstallUpdate(state.info)
+            } else if (state is UpdateState.PermissionRequired) {
+                viewModel.openInstallPermissionSettings()
+            } else if (state is UpdateState.ReadyToInstall) {
+                viewModel.installUpdate()
+            }
+        }
+    }
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(64.dp)
-            .verticalScroll(scrollState)
+            .padding(horizontal = 64.dp)
+            .testTag("settings_list"),
+        contentPadding = PaddingValues(vertical = 64.dp)
     ) {
-        Text(
-            text = "НАЛАШТУВАННЯ",
-            color = Color.White,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 4.sp,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
+        item {
+            Text(
+                text = "НАЛАШТУВАННЯ",
+                color = Color.White,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 4.sp,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+        }
 
         // Update Section
-        Text(
-            text = "Оновлення",
-            color = Color.White.copy(alpha = 0.7f),
-            fontSize = 14.sp,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        item {
+            Text(
+                text = "Оновлення",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
 
-        Surface(
-            onClick = {
-                if (updateState is UpdateState.Idle || updateState is UpdateState.UpToDate || updateState is UpdateState.Error) {
-                    viewModel.checkForUpdates()
-                } else if (updateState is UpdateState.NewVersionAvailable) {
-                    viewModel.downloadAndInstallUpdate((updateState as UpdateState.NewVersionAvailable).info)
-                } else if (updateState is UpdateState.PermissionRequired) {
-                    viewModel.openInstallPermissionSettings()
-                } else if (updateState is UpdateState.ReadyToInstall) {
-                    viewModel.installUpdate()
+            Surface(
+                onClick = onUpdateClick,
+                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = Color(0xFF1A1A1A),
+                    focusedContainerColor = Color(0xFF3B82F6)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(
+                                text = "Версія додатка",
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Поточна версія: ${ua.ukrtv.app.BuildConfig.VERSION_NAME} (${ua.ukrtv.app.BuildConfig.VERSION_CODE})",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp
+                            )
+                        }
+
+                        when (val state = uiState.updateState) {
+                            is UpdateState.Idle -> {
+                                Text("Перевірити оновлення", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
+                            }
+                            is UpdateState.Checking -> {
+                                Text("Перевірка...", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
+                            }
+                            is UpdateState.NewVersionAvailable -> {
+                                Text("Доступна версія ${state.info.versionName} - Натисніть щоб оновити", color = Color(0xFF8AB4F8), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                            is UpdateState.UpToDate -> {
+                                Text("Оновлень немає", color = Color.Green.copy(alpha = 0.7f), fontSize = 14.sp)
+                            }
+                            is UpdateState.Downloading -> {
+                                Text("Завантаження: ${(state.progress * 100).toInt()}%", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
+                            }
+                            is UpdateState.ReadyToInstall -> {
+                                Text("Готово до встановлення", color = Color(0xFF8AB4F8), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                            is UpdateState.PermissionRequired -> {
+                                Text("Дозвольте встановлення — натисніть щоб відкрити налаштування", color = Color(0xFFFFA726), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
+                            is UpdateState.Error -> {
+                                Text(state.message, color = Color.Red.copy(alpha = 0.7f), fontSize = 14.sp)
+                            }
+                        }
+                    }
+
+                    if (uiState.updateState is UpdateState.NewVersionAvailable) {
+                        val info = (uiState.updateState as UpdateState.NewVersionAvailable).info
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            text = "Що нового:\n${info.changelog}",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 12.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
                 }
-            },
-            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-            colors = ClickableSurfaceDefaults.colors(
-                containerColor = Color(0xFF1A1A1A),
-                focusedContainerColor = Color(0xFF3B82F6)
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            }
+        }
+
+        item { Spacer(Modifier.height(32.dp)) }
+
+        // Device info
+        item {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+                    .padding(16.dp)
+            ) {
+                Column {
+                    Text("ПРИСТРІЙ", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, letterSpacing = 1.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Hardware: ${hardwareClass.name}", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                    Text("Поточний режим: ${uiState.performanceProfile.label}", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(32.dp)) }
+
+        item {
+            Text(
+                text = "Графіка та продуктивність",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
+
+        items(PerformanceProfile.entries.size) { index ->
+            val profile = PerformanceProfile.entries[index]
+            val isSelected = profile == uiState.performanceProfile
+            val resolvedDevice = resolvedDevices[profile] ?: DeviceClass.MID
+
+            Surface(
+                onClick = { viewModel.setPerformanceProfile(profile) },
+                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
+                    focusedContainerColor = Color(0xFF3B82F6),
+                    contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
+                    focusedContentColor = Color.White
+                ),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    PreviewCard(resolvedDevice, isSelected)
+                    Spacer(Modifier.width(20.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = profile.label,
+                                fontSize = 16.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                            if (isSelected) {
+                                Text("✓", color = Color(0xFF8AB4F8), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Text(
+                            text = profile.description,
+                            color = if (isSelected) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.3f),
+                            fontSize = 12.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(32.dp)) }
+
+        item {
+            Text(
+                text = "ДОМАШНЯ СТОРІНКА",
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+            Text(
+                text = "Провайдер за замовчуванням",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+
+        items(providers.size) { index ->
+            val (id, label) = providers[index]
+            val isSelected = id == uiState.defaultProvider
+            Surface(
+                onClick = { viewModel.setDefaultProvider(id) },
+                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
+                    focusedContainerColor = Color(0xFF3B82F6),
+                    contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
+                    focusedContentColor = Color.White
+                ),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
-                        Text(
-                            text = "Версія додатка",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Поточна версія: ${ua.ukrtv.app.BuildConfig.VERSION_NAME} (${ua.ukrtv.app.BuildConfig.VERSION_CODE})",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    when (val state = updateState) {
-                        is UpdateState.Idle -> {
-                            Text("Перевірити оновлення", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
-                        }
-                        is UpdateState.Checking -> {
-                            Text("Перевірка...", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
-                        }
-                        is UpdateState.NewVersionAvailable -> {
-                            Text("Доступна версія ${state.info.versionName} - Натисніть щоб оновити", color = Color(0xFF8AB4F8), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        }
-                        is UpdateState.UpToDate -> {
-                            Text("Оновлень немає", color = Color.Green.copy(alpha = 0.7f), fontSize = 14.sp)
-                        }
-                        is UpdateState.Downloading -> {
-                            Text("Завантаження: ${(state.progress * 100).toInt()}%", color = Color.White.copy(alpha = 0.7f), fontSize = 14.sp)
-                        }
-                        is UpdateState.ReadyToInstall -> {
-                            Text("Готово до встановлення", color = Color(0xFF8AB4F8), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        }
-                        is UpdateState.PermissionRequired -> {
-                            Text("Дозвольте встановлення — натисніть щоб відкрити налаштування", color = Color(0xFFFFA726), fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                        }
-                        is UpdateState.Error -> {
-                            Text(state.message, color = Color.Red.copy(alpha = 0.7f), fontSize = 14.sp)
-                        }
+                    Text(text = label, fontSize = 16.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                    if (isSelected) {
+                        Text("✓", color = Color(0xFF8AB4F8), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                 }
+            }
+        }
 
-                if (updateState is UpdateState.NewVersionAvailable) {
-                    val info = (updateState as UpdateState.NewVersionAvailable).info
-                    Spacer(Modifier.height(8.dp))
+        item {
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "Секції на головній",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
+
+        items(homeSections.size) { index ->
+            val (label, enabled) = homeSections[index]
+            Surface(
+                onClick = {
+                    viewModel.setHomeLayout(
+                        when (label) {
+                            "Продовжити перегляд" -> uiState.homeLayout.copy(showContinueWatching = !enabled)
+                            "Мій список" -> uiState.homeLayout.copy(showWatchlist = !enabled)
+                            "Тренди" -> uiState.homeLayout.copy(showTrends = !enabled)
+                            else -> uiState.homeLayout
+                        }
+                    )
+                },
+                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = if (enabled) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
+                    focusedContainerColor = Color(0xFF3B82F6),
+                    contentColor = if (enabled) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
+                    focusedContentColor = Color.White
+                ),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = label, fontSize = 16.sp, fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal)
                     Text(
-                        text = "Що нового:\n${info.changelog}",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp
+                        text = if (enabled) "✓" else "✗",
+                        color = if (enabled) Color(0xFF8AB4F8) else Color.White.copy(alpha = 0.3f),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
 
-        Spacer(Modifier.height(32.dp))
-
-        // Device info
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.05f))
-                .padding(16.dp)
-        ) {
-            Column {
-                Text("ПРИСТРІЙ", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, letterSpacing = 1.sp)
-                Spacer(Modifier.height(4.dp))
-                Text("Hardware: ${hardwareClass.name}", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
-                Text("Поточний режим: ${performanceProfile.label}", color = Color.White.copy(alpha = 0.7f), fontSize = 13.sp)
-            }
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        Text(
-            text = "Графіка та продуктивність",
-            color = Color.White.copy(alpha = 0.7f),
-            fontSize = 14.sp,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            PerformanceProfile.entries.forEach { profile ->
-                val isSelected = profile == performanceProfile
-                val resolvedDevice = resolveDeviceClass(context, profile)
-
-                Surface(
-                    onClick = { viewModel.setPerformanceProfile(profile) },
-                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
-                        focusedContainerColor = Color(0xFF3B82F6),
-                        contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
-                        focusedContentColor = Color.White
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Preview card
-                        PreviewCard(resolvedDevice, isSelected)
-
-                        Spacer(Modifier.width(20.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = profile.label,
-                                    fontSize = 16.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                                if (isSelected) {
-                                    Text(
-                                        text = "✓",
-                                        color = Color(0xFF8AB4F8),
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                            Text(
-                                text = profile.description,
-                                color = if (isSelected) Color.White.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.3f),
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(top = 4.dp)
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        // Home page layout
-        Text(
-            text = "ДОМАШНЯ СТОРІНКА",
-            color = Color.White.copy(alpha = 0.7f),
-            fontSize = 14.sp,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        // Default provider
-        Text(
-            text = "Провайдер за замовчуванням",
-            color = Color.White.copy(alpha = 0.5f),
-            fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            listOf("Eneyida" to "Eneyida", "Uakino" to "Uakino").forEach { (id, label) ->
-                val isSelected = id == defaultProvider
-                Surface(
-                    onClick = { viewModel.setDefaultProvider(id) },
-                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
-                        focusedContainerColor = Color(0xFF3B82F6),
-                        contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
-                        focusedContentColor = Color.White
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 16.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                        if (isSelected) {
-                            Text(
-                                text = "✓",
-                                color = Color(0xFF8AB4F8),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // Sections visibility
-        Text(
-            text = "Секції на головній",
-            color = Color.White.copy(alpha = 0.5f),
-            fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            listOf(
-                "Продовжити перегляд" to homeLayout.showContinueWatching,
-                "Мій список" to homeLayout.showWatchlist,
-                "Тренди" to homeLayout.showTrends
-            ).forEach { (label, enabled) ->
-                Surface(
-                    onClick = {
-                        viewModel.setHomeLayout(
-                            when (label) {
-                                "Продовжити перегляд" -> homeLayout.copy(showContinueWatching = !enabled)
-                                "Мій список" -> homeLayout.copy(showWatchlist = !enabled)
-                                "Тренди" -> homeLayout.copy(showTrends = !enabled)
-                                else -> homeLayout
-                            }
-                        )
-                    },
-                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = if (enabled) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
-                        focusedContainerColor = Color(0xFF3B82F6),
-                        contentColor = if (enabled) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
-                        focusedContentColor = Color.White
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 16.sp,
-                            fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal
-                        )
-                        Text(
-                            text = if (enabled) "✓" else "✗",
-                            color = if (enabled) Color(0xFF8AB4F8) else Color.White.copy(alpha = 0.3f),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        // Category rows
-        Text(
-            text = "Категорії контенту",
-            color = Color.White.copy(alpha = 0.5f),
-            fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            listOf(
-                "Фільми" to homeLayout.showMovies,
-                "Серіали" to homeLayout.showSeries,
-                "Аніме" to homeLayout.showAnime,
-                "Мультфільми" to homeLayout.showCartoons,
-                "Мультсеріали" to homeLayout.showCartoonSeries
-            ).forEach { (label, enabled) ->
-                Surface(
-                    onClick = {
-                        viewModel.setHomeLayout(
-                            when (label) {
-                                "Фільми" -> homeLayout.copy(showMovies = !enabled)
-                                "Серіали" -> homeLayout.copy(showSeries = !enabled)
-                                "Аніме" -> homeLayout.copy(showAnime = !enabled)
-                                "Мультфільми" -> homeLayout.copy(showCartoons = !enabled)
-                                "Мультсеріали" -> homeLayout.copy(showCartoonSeries = !enabled)
-                                else -> homeLayout
-                            }
-                        )
-                    },
-                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = if (enabled) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
-                        focusedContainerColor = Color(0xFF3B82F6),
-                        contentColor = if (enabled) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
-                        focusedContentColor = Color.White
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = label,
-                            fontSize = 16.sp,
-                            fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal
-                        )
-                        Text(
-                            text = if (enabled) "✓" else "✗",
-                            color = if (enabled) Color(0xFF8AB4F8) else Color.White.copy(alpha = 0.3f),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-
-        Spacer(Modifier.height(32.dp))
-
-        // Default player
-        Text(
-            text = "Плеєр за замовчуванням",
-            color = Color.White.copy(alpha = 0.7f),
-            fontSize = 14.sp,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            PlayerType.entries.forEach { type ->
-                val isSelected = type == playerType
-                Surface(
-                    onClick = { viewModel.setPlayerType(type) },
-                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                    colors = ClickableSurfaceDefaults.colors(
-                        containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
-                        focusedContainerColor = Color(0xFF3B82F6),
-                        contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
-                        focusedContentColor = Color.White
-                    ),
-                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = type.label,
-                            fontSize = 16.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                        )
-                        if (isSelected) {
-                            Text(
-                                text = "✓",
-                                color = Color(0xFF8AB4F8),
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        if (playerType == PlayerType.EXTERNAL_PLAYER) {
+        item {
             Spacer(Modifier.height(16.dp))
+            Text(
+                text = "Категорії контенту",
+                color = Color.White.copy(alpha = 0.5f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+        }
 
+        items(categorySections.size) { index ->
+            val (label, enabled) = categorySections[index]
+            Surface(
+                onClick = {
+                    viewModel.setHomeLayout(
+                        when (label) {
+                            "Фільми" -> uiState.homeLayout.copy(showMovies = !enabled)
+                            "Серіали" -> uiState.homeLayout.copy(showSeries = !enabled)
+                            "Аніме" -> uiState.homeLayout.copy(showAnime = !enabled)
+                            "Мультфільми" -> uiState.homeLayout.copy(showCartoons = !enabled)
+                            "Мультсеріали" -> uiState.homeLayout.copy(showCartoonSeries = !enabled)
+                            else -> uiState.homeLayout
+                        }
+                    )
+                },
+                shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                colors = ClickableSurfaceDefaults.colors(
+                    containerColor = if (enabled) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
+                    focusedContainerColor = Color(0xFF3B82F6),
+                    contentColor = if (enabled) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
+                    focusedContentColor = Color.White
+                ),
+                scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(text = label, fontSize = 16.sp, fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal)
+                    Text(
+                        text = if (enabled) "✓" else "✗",
+                        color = if (enabled) Color(0xFF8AB4F8) else Color.White.copy(alpha = 0.3f),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        item {
+            Spacer(Modifier.height(32.dp))
             Text(
                 text = "ЗОВНІШНІЙ ПЛЕЄР",
                 color = Color.White.copy(alpha = 0.7f),
@@ -509,77 +451,74 @@ private fun TvSettingsScreen(
                 letterSpacing = 1.sp,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
+        }
+            item {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "ЗОВНІШНІЙ ПЛЕЄР",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 14.sp,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+            }
 
-            if (installedPlayers.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFF1A1A1A), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 20.dp, vertical = 14.dp)
-                ) {
-                    Text(
-                        text = "Не знайдено зовнішніх плеєрів. Встановіть VLC або Just Player.",
-                        fontSize = 14.sp,
-                        color = Color(0xFFE1E1E1)
-                    )
+            if (uiState.installedPlayers.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF1A1A1A), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 20.dp, vertical = 14.dp)
+                    ) {
+                        Text(
+                            text = "Не знайдено зовнішніх плеєрів. Встановіть VLC або Just Player.",
+                            fontSize = 14.sp,
+                            color = Color(0xFFE1E1E1)
+                        )
+                    }
                 }
             } else {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    installedPlayers.forEach { player ->
-                        val isSelected = player.packageName == externalPlayerPackage
-                        Surface(
-                            onClick = { viewModel.setExternalPlayerPackage(player.packageName) },
-                            shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                            colors = ClickableSurfaceDefaults.colors(
-                                containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
-                                focusedContainerColor = Color(0xFF3B82F6),
-                                contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
-                                focusedContentColor = Color.White
-                            ),
-                            scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-                            modifier = Modifier.fillMaxWidth()
+                items(uiState.installedPlayers.size) { index ->
+                    val player = uiState.installedPlayers[index]
+                    val isSelected = player.packageName == uiState.externalPlayerPackage
+                    Surface(
+                        onClick = { viewModel.setExternalPlayerPackage(player.packageName) },
+                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                        colors = ClickableSurfaceDefaults.colors(
+                            containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
+                            focusedContainerColor = Color(0xFF3B82F6),
+                            contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
+                            focusedContentColor = Color.White
+                        ),
+                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column {
-                                    Text(
-                                        text = player.label,
-                                        fontSize = 16.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                    val features = mutableListOf<String>()
-                                    if (player.supportsHeaders) features.add("headers")
-                                    if (player.supportsSubtitles) features.add("субтитли")
-                                    if (player.supportsResult) features.add("прогрес")
-                                    if (features.isNotEmpty()) {
-                                        Text(
-                                            text = features.joinToString(" · "),
-                                            fontSize = 11.sp,
-                                            color = Color.White.copy(alpha = 0.4f)
-                                        )
-                                    }
+                            Column {
+                                Text(text = player.label, fontSize = 16.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                val features = mutableListOf<String>()
+                                if (player.supportsHeaders) features.add("headers")
+                                if (player.supportsSubtitles) features.add("субтитли")
+                                if (player.supportsResult) features.add("прогрес")
+                                if (features.isNotEmpty()) {
+                                    Text(text = features.joinToString(" · "), fontSize = 11.sp, color = Color.White.copy(alpha = 0.4f))
                                 }
-                                if (isSelected) {
-                                    Text(
-                                        text = "✓",
-                                        color = Color(0xFF8AB4F8),
-                                        fontSize = 18.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
+                            }
+                            if (isSelected) {
+                                Text("✓", color = Color(0xFF8AB4F8), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
             }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
+        item { Spacer(modifier = Modifier.height(32.dp)) }
     }
 }
 
@@ -588,13 +527,7 @@ private fun PhoneSettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
     onBack: () -> Unit
 ) {
-    val performanceProfile by viewModel.performanceProfile.collectAsState()
-    val playerType by viewModel.playerType.collectAsState()
-    val externalPlayerPackage by viewModel.externalPlayerPackage.collectAsState()
-    val installedPlayers by viewModel.installedPlayers.collectAsState()
-    val updateState by viewModel.updateState.collectAsState()
-    val homeLayout by viewModel.homeLayout.collectAsState()
-    val defaultProvider by viewModel.defaultProvider.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val hardwareClass = remember { getDeviceClass(context) }
     val scrollState = rememberScrollState()
@@ -628,13 +561,14 @@ private fun PhoneSettingsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clickable {
-                        if (updateState is UpdateState.Idle || updateState is UpdateState.UpToDate || updateState is UpdateState.Error) {
+                        val state = uiState.updateState
+                        if (state is UpdateState.Idle || state is UpdateState.UpToDate || state is UpdateState.Error) {
                             viewModel.checkForUpdates()
-                        } else if (updateState is UpdateState.NewVersionAvailable) {
-                            viewModel.downloadAndInstallUpdate((updateState as UpdateState.NewVersionAvailable).info)
-                        } else if (updateState is UpdateState.PermissionRequired) {
+                        } else if (state is UpdateState.NewVersionAvailable) {
+                            viewModel.downloadAndInstallUpdate(state.info)
+                        } else if (state is UpdateState.PermissionRequired) {
                             viewModel.openInstallPermissionSettings()
-                        } else if (updateState is UpdateState.ReadyToInstall) {
+                        } else if (state is UpdateState.ReadyToInstall) {
                             viewModel.installUpdate()
                         }
                     }
@@ -646,7 +580,7 @@ private fun PhoneSettingsScreen(
                         Text("Версія додатка", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         Text("Поточна версія: ${ua.ukrtv.app.BuildConfig.VERSION_NAME} (${ua.ukrtv.app.BuildConfig.VERSION_CODE})", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp)
                     }
-                    when (val state = updateState) {
+                    when (val state = uiState.updateState) {
                         is UpdateState.Idle -> Text("Перевірити", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
                         is UpdateState.Checking -> Text("Перевірка...", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
                         is UpdateState.NewVersionAvailable -> Text("Доступна версія ${state.info.versionName}", color = Color(0xFF8AB4F8), fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -657,8 +591,8 @@ private fun PhoneSettingsScreen(
                         is UpdateState.Error -> Text(state.message, color = Color(0xFFE53935), fontSize = 13.sp)
                     }
                 }
-                if (updateState is UpdateState.NewVersionAvailable) {
-                    val info = (updateState as UpdateState.NewVersionAvailable).info
+                if (uiState.updateState is UpdateState.NewVersionAvailable) {
+                    val info = (uiState.updateState as UpdateState.NewVersionAvailable).info
                     Spacer(Modifier.height(6.dp))
                     Text("Що нового:\n${info.changelog}", color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp, lineHeight = 14.sp)
                 }
@@ -674,7 +608,7 @@ private fun PhoneSettingsScreen(
                     Text("ПРИСТРІЙ", color = Color.White.copy(alpha = 0.4f), fontSize = 10.sp, letterSpacing = 1.sp)
                     Spacer(Modifier.height(4.dp))
                     Text("Hardware: ${hardwareClass.name}", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
-                    Text("Поточний режим: ${performanceProfile.label}", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                    Text("Поточний режим: ${uiState.performanceProfile.label}", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                 }
             }
 
@@ -684,7 +618,7 @@ private fun PhoneSettingsScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 PerformanceProfile.entries.forEach { profile ->
-                    val isSelected = profile == performanceProfile
+                    val isSelected = profile == uiState.performanceProfile
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -715,8 +649,8 @@ private fun PhoneSettingsScreen(
             Text("Провайдер за замовчуванням", color = Color.White.copy(alpha = 0.4f), fontSize = 10.sp, modifier = Modifier.padding(bottom = 6.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf("Eneyida" to "Eneyida", "Uakino" to "Uakino").forEach { (id, label) ->
-                    val isSelected = id == defaultProvider
+                listOf("UAFLIX" to "UAFLIX", "Uakino" to "Uakino").forEach { (id, label) ->
+                    val isSelected = id == uiState.defaultProvider
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -738,9 +672,9 @@ private fun PhoneSettingsScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf(
-                    "Продовжити перегляд" to homeLayout.showContinueWatching,
-                    "Мій список" to homeLayout.showWatchlist,
-                    "Тренди" to homeLayout.showTrends
+                    "Продовжити перегляд" to uiState.homeLayout.showContinueWatching,
+                    "Мій список" to uiState.homeLayout.showWatchlist,
+                    "Тренди" to uiState.homeLayout.showTrends
                 ).forEach { (label, enabled) ->
                     Box(
                         modifier = Modifier
@@ -748,10 +682,10 @@ private fun PhoneSettingsScreen(
                             .clickable {
                                 viewModel.setHomeLayout(
                                     when (label) {
-                                        "Продовжити перегляд" -> homeLayout.copy(showContinueWatching = !enabled)
-                                        "Мій список" -> homeLayout.copy(showWatchlist = !enabled)
-                                        "Тренди" -> homeLayout.copy(showTrends = !enabled)
-                                        else -> homeLayout
+                                        "Продовжити перегляд" -> uiState.homeLayout.copy(showContinueWatching = !enabled)
+                                        "Мій список" -> uiState.homeLayout.copy(showWatchlist = !enabled)
+                                        "Тренди" -> uiState.homeLayout.copy(showTrends = !enabled)
+                                        else -> uiState.homeLayout
                                     }
                                 )
                             }
@@ -772,11 +706,11 @@ private fun PhoneSettingsScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf(
-                    "Фільми" to homeLayout.showMovies,
-                    "Серіали" to homeLayout.showSeries,
-                    "Аніме" to homeLayout.showAnime,
-                    "Мультфільми" to homeLayout.showCartoons,
-                    "Мультсеріали" to homeLayout.showCartoonSeries
+                    "Фільми" to uiState.homeLayout.showMovies,
+                    "Серіали" to uiState.homeLayout.showSeries,
+                    "Аніме" to uiState.homeLayout.showAnime,
+                    "Мультфільми" to uiState.homeLayout.showCartoons,
+                    "Мультсеріали" to uiState.homeLayout.showCartoonSeries
                 ).forEach { (label, enabled) ->
                     Box(
                         modifier = Modifier
@@ -784,12 +718,12 @@ private fun PhoneSettingsScreen(
                             .clickable {
                                 viewModel.setHomeLayout(
                                     when (label) {
-                                        "Фільми" -> homeLayout.copy(showMovies = !enabled)
-                                        "Серіали" -> homeLayout.copy(showSeries = !enabled)
-                                        "Аніме" -> homeLayout.copy(showAnime = !enabled)
-                                        "Мультфільми" -> homeLayout.copy(showCartoons = !enabled)
-                                        "Мультсеріали" -> homeLayout.copy(showCartoonSeries = !enabled)
-                                        else -> homeLayout
+                                        "Фільми" -> uiState.homeLayout.copy(showMovies = !enabled)
+                                        "Серіали" -> uiState.homeLayout.copy(showSeries = !enabled)
+                                        "Аніме" -> uiState.homeLayout.copy(showAnime = !enabled)
+                                        "Мультфільми" -> uiState.homeLayout.copy(showCartoons = !enabled)
+                                        "Мультсеріали" -> uiState.homeLayout.copy(showCartoonSeries = !enabled)
+                                        else -> uiState.homeLayout
                                     }
                                 )
                             }
@@ -806,32 +740,9 @@ private fun PhoneSettingsScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            Text("Плеєр за замовчуванням", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
+            Text("ЗОВНІШНІЙ ПЛЕЄР", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                PlayerType.entries.forEach { type ->
-                    val isSelected = type == playerType
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { viewModel.setPlayerType(type) }
-                            .background(if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1D), RoundedCornerShape(10.dp))
-                            .padding(12.dp)
-                    ) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(type.label, color = Color.White, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                            if (isSelected) Text("✓", color = Color(0xFF8AB4F8), fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-            if (playerType == PlayerType.EXTERNAL_PLAYER) {
-                Spacer(Modifier.height(16.dp))
-
-                Text("ЗОВНІШНІЙ ПЛЕЄР", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
-
-                if (installedPlayers.isEmpty()) {
+                if (uiState.installedPlayers.isEmpty()) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -846,8 +757,8 @@ private fun PhoneSettingsScreen(
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        installedPlayers.forEach { player ->
-                            val isSelected = player.packageName == externalPlayerPackage
+                        uiState.installedPlayers.forEach { player ->
+                            val isSelected = player.packageName == uiState.externalPlayerPackage
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -870,7 +781,6 @@ private fun PhoneSettingsScreen(
                                 }
                             }
                         }
-                    }
                 }
             }
 

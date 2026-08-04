@@ -1,11 +1,9 @@
 package ua.ukrtv.app.ui.home
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
+import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -26,8 +24,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -49,6 +50,9 @@ import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.theme.CardDefaults
+import ua.ukrtv.app.ui.theme.PosterStyle
+import ua.ukrtv.app.ui.theme.ProviderSizes
+import ua.ukrtv.app.ui.theme.CardDimensions
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
@@ -64,6 +68,8 @@ fun ContinueWatchingCard(
     movie: Movie,
     brandColor: Color = Color(0xFF6E85B7),
     accentColor: Color = brandColor,
+    width: androidx.compose.ui.unit.Dp? = null,
+    height: androidx.compose.ui.unit.Dp? = null,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
@@ -87,21 +93,67 @@ fun ContinueWatchingCard(
     }
     val scale by animateFloatAsState(
         targetValue = if (isFocused && !deleteMode) targetScale else 1f,
-        animationSpec = tween(if (deviceClass == DeviceClass.LOW) 0 else if (deviceClass == DeviceClass.HIGH) 400 else 300),
+        animationSpec = spring(
+            dampingRatio = 0.7f,
+            stiffness = Spring.StiffnessMediumLow
+        ),
         label = "cardScale"
     )
 
     val translateY by animateFloatAsState(
         targetValue = if (isFocused && !deleteMode && deviceClass == DeviceClass.HIGH) (-6f) else 0f,
-        animationSpec = tween(400),
+        animationSpec = spring(
+            dampingRatio = 0.8f,
+            stiffness = Spring.StiffnessLow
+        ),
         label = "cardTranslateY"
     )
 
-    val imageRequest = remember(movie.poster, deviceClass) {
-        val (iw, ih) = when (deviceClass) {
-            DeviceClass.LOW -> 180 to 270
-            DeviceClass.MID -> 260 to 390
-            DeviceClass.HIGH -> 400 to 600
+    val playIconAlpha by animateFloatAsState(
+        targetValue = if (isFocused && !deleteMode && isTv) 1f else 0f,
+        animationSpec = tween(200),
+        label = "playIconAlpha"
+    )
+
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (isFocused || !isTv) 1f else 0f,
+        animationSpec = tween(300),
+        label = "contentAlpha"
+    )
+
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isFocused && isTv && !deleteMode) 0.5f else 0f,
+        animationSpec = tween(400),
+        label = "glowAlpha"
+    )
+
+    val posterStyle = remember(movie.provider) {
+        PosterStyle.forProvider(movie.provider)
+    }
+    val cardDims = remember(posterStyle, width, height) {
+        if (width != null && height != null) {
+            CardDimensions(width, height)
+        } else {
+            ProviderSizes.compactCard(posterStyle)
+        }
+    }
+
+    val imageRequest = remember(movie.poster, deviceClass, posterStyle, cardDims) {
+        val styleForImage = if (width != null && height != null) {
+            if (width > height) PosterStyle.WIDE else PosterStyle.VERTICAL
+        } else posterStyle
+
+        val (iw, ih) = when (styleForImage) {
+            PosterStyle.WIDE -> when (deviceClass) {
+                DeviceClass.LOW -> 240 to 135
+                DeviceClass.MID -> 320 to 180
+                DeviceClass.HIGH -> 480 to 270
+            }
+            PosterStyle.VERTICAL -> when (deviceClass) {
+                DeviceClass.LOW -> 180 to 270
+                DeviceClass.MID -> 240 to 360
+                DeviceClass.HIGH -> 360 to 540
+            }
         }
         ImageRequest.Builder(ctx)
             .data(movie.poster)
@@ -127,26 +179,38 @@ fun ContinueWatchingCard(
     }
 
     Column(
-        modifier = modifier.width(CardDefaults.compactWidth * cardScale)
+        modifier = modifier.width(cardDims.width * (if (width != null) 1f else cardScale))
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(CardDefaults.compactHeight * cardScale)
+                .height(cardDims.height * (if (height != null) 1f else cardScale))
+                .drawBehind {
+                    if (glowAlpha > 0f && deviceClass != DeviceClass.LOW) {
+                        val gColor = accentColor.copy(alpha = glowAlpha * 0.4f)
+                        val glowPadding = 10.dp.toPx()
+                        drawRoundRect(
+                            color = gColor,
+                            topLeft = Offset(-glowPadding, -glowPadding),
+                            size = androidx.compose.ui.geometry.Size(size.width + glowPadding * 2, size.height + glowPadding * 2),
+                            cornerRadius = CornerRadius(12.dp.toPx())
+                        )
+                    }
+                }
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
                     translationY = translateY * density
+                    
+                    if (isFocused && !deleteMode) {
+                        shadowElevation = if (deviceClass == DeviceClass.HIGH) 16.dp.toPx() else 8.dp.toPx()
+                        spotShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.4f else 0.2f)
+                        ambientShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.6f else 0.3f)
+                    }
+                    
                     clip = true
                     shape = cardShape
                 }
-                .then(
-                    if (isFocused && !deleteMode && deviceClass == DeviceClass.HIGH) {
-                        Modifier.shadow(16.dp, cardShape, ambientColor = accentColor.copy(alpha = 0.6f), spotColor = accentColor.copy(alpha = 0.4f))
-                    } else if (isFocused && !deleteMode && deviceClass == DeviceClass.MID) {
-                        Modifier.shadow(8.dp, cardShape, ambientColor = accentColor.copy(alpha = 0.3f), spotColor = accentColor.copy(alpha = 0.2f))
-                    } else Modifier
-                )
                 .background(Color(0xFF141414))
                 .onFocusChanged { if (!it.isFocused) deleteMode = false }
                 .combinedClickable(
@@ -199,25 +263,25 @@ fun ContinueWatchingCard(
                 error = PlaceholderDark
             )
 
-            androidx.compose.animation.AnimatedVisibility(
-                visible = isFocused && !deleteMode && isTv,
-                enter = scaleIn() + fadeIn(),
-                exit = scaleOut() + fadeOut(),
-                modifier = Modifier.align(Alignment.Center)
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .graphicsLayer {
+                        alpha = playIconAlpha
+                        val s = 0.8f + (playIconAlpha * 0.2f)
+                        scaleX = s
+                        scaleY = s
+                    }
+                    .size(48.dp)
+                    .background(brandColor.copy(alpha = 0.9f), CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .background(brandColor.copy(alpha = 0.9f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
             }
 
             Box(
@@ -236,6 +300,7 @@ fun ContinueWatchingCard(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .padding(start = 10.dp, end = 10.dp, bottom = 6.dp)
+                    .graphicsLayer { alpha = contentAlpha }
             ) {
                 Text(
                     text = movie.title.uppercase(),

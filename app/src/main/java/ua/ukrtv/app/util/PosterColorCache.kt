@@ -29,13 +29,40 @@ object PosterColorCache {
         }
     )
     private val semaphore = Semaphore(MAX_CONCURRENT_EXTRACTIONS)
+    private val urlToCoilKey = Collections.synchronizedMap(object : LinkedHashMap<String, coil3.memory.MemoryCache.Key?>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, coil3.memory.MemoryCache.Key?>?): Boolean = size > 128
+    })
 
     suspend fun getColor(context: Context, posterUrl: String, fallback: Color = Color(0xFF1A1A1A)): Color {
         cache[posterUrl]?.let { return it }
+
+        val loader = context.imageLoader
+
+        val cachedImage = loader.memoryCache?.let { memCache ->
+            val cachedKey = urlToCoilKey.getOrPut(posterUrl) {
+                memCache.keys.find { it.toString().contains(posterUrl) }
+            }
+            cachedKey?.let { key -> memCache[key]?.image }
+        }
+
+        if (cachedImage != null) {
+            val color = withContext(Dispatchers.Default) {
+                try {
+                    val drawable = cachedImage.asDrawable(context.resources)
+                    if (drawable is BitmapDrawable) {
+                        extractFromBitmap(drawable.bitmap)
+                    } else null
+                } catch (_: Exception) { null }
+            }
+            if (color != null) {
+                cache[posterUrl] = color
+                return color
+            }
+        }
+
         val color = semaphore.withPermit {
             withContext(Dispatchers.IO) {
                 try {
-                    val loader = context.imageLoader
                     val request = ImageRequest.Builder(context)
                         .data(posterUrl)
                         .size(50, 75)
@@ -47,15 +74,7 @@ object PosterColorCache {
                     if (result is SuccessResult) {
                         val drawable = result.image.asDrawable(context.resources)
                         if (drawable is BitmapDrawable) {
-                            val bitmap = drawable.bitmap
-                            val palette = Palette.from(bitmap)
-                                .maximumColorCount(6)
-                                .generate()
-                            val swatch = palette.vibrantSwatch
-                                ?: palette.mutedSwatch
-                                ?: palette.darkVibrantSwatch
-                                ?: palette.darkMutedSwatch
-                            if (swatch != null) extractedColor = Color(swatch.rgb)
+                            extractedColor = extractFromBitmap(drawable.bitmap)
                         }
                     }
                     extractedColor ?: fallback
@@ -66,6 +85,19 @@ object PosterColorCache {
         }
         cache[posterUrl] = color
         return color
+    }
+
+    private fun extractFromBitmap(bitmap: Bitmap): Color? {
+        val palette = Palette.from(bitmap)
+            .maximumColorCount(6)
+            .clearFilters() // Include all colors for better chances
+            .generate()
+        val swatch = palette.vibrantSwatch
+            ?: palette.mutedSwatch
+            ?: palette.darkVibrantSwatch
+            ?: palette.darkMutedSwatch
+            ?: palette.dominantSwatch
+        return swatch?.let { Color(it.rgb) }
     }
 
     fun getCached(posterUrl: String): Color? = cache[posterUrl]

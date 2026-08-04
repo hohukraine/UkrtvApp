@@ -1,7 +1,9 @@
 package ua.ukrtv.app.ui.home
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -23,10 +25,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -35,6 +41,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -42,8 +49,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
+import coil3.request.crossfade
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.theme.CardDefaults
+import ua.ukrtv.app.ui.theme.PosterStyle
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
@@ -54,6 +63,7 @@ import ua.ukrtv.app.util.DeviceClass
 
 private val cardShape = RoundedCornerShape(8.dp)
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun MovieCard(
     movie: Movie,
@@ -62,6 +72,8 @@ fun MovieCard(
     width: Dp = CardDefaults.posterWidth,
     height: Dp = CardDefaults.posterHeight,
     modifier: Modifier = Modifier,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedContentScope: AnimatedContentScope? = null,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
@@ -83,48 +95,110 @@ fun MovieCard(
     }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) targetScale else 1f,
-        animationSpec = tween(if (deviceClass == DeviceClass.HIGH) 400 else 300),
+        animationSpec = spring(
+            dampingRatio = 0.7f,
+            stiffness = Spring.StiffnessMediumLow
+        ),
         label = "cardScale"
     )
 
     val translateY by animateFloatAsState(
         targetValue = if (isFocused && deviceClass == DeviceClass.HIGH) (-6f) else 0f,
-        animationSpec = tween(400),
+        animationSpec = spring(
+            dampingRatio = 0.8f,
+            stiffness = Spring.StiffnessLow
+        ),
         label = "cardTranslateY"
     )
 
-    val imageRequest = remember(movie.poster, deviceClass) {
-        val (iw, ih) = when (deviceClass) {
-            DeviceClass.LOW -> 200 to 300
-            DeviceClass.MID -> 300 to 450
-            DeviceClass.HIGH -> 500 to 750
+    val playIconAlpha by animateFloatAsState(
+        targetValue = if (isFocused && isTv) 1f else 0f,
+        animationSpec = tween(200),
+        label = "playIconAlpha"
+    )
+
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (isFocused || !isTv) 1f else 0f,
+        animationSpec = tween(300),
+        label = "contentAlpha"
+    )
+
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isFocused && isTv) 0.5f else 0f,
+        animationSpec = tween(400),
+        label = "glowAlpha"
+    )
+
+    val posterStyle = remember(movie.provider) {
+        PosterStyle.forProvider(movie.provider)
+    }
+
+    val imageRequest = remember(movie.poster, deviceClass, posterStyle, width, height) {
+        val styleForImage = if (width > height) PosterStyle.WIDE else PosterStyle.VERTICAL
+
+        val (iw, ih) = when (styleForImage) {
+            PosterStyle.WIDE -> when (deviceClass) {
+                DeviceClass.LOW -> 320 to 180
+                DeviceClass.MID -> 480 to 270
+                DeviceClass.HIGH -> 640 to 360
+            }
+            PosterStyle.VERTICAL -> when (deviceClass) {
+                DeviceClass.LOW -> 160 to 240
+                DeviceClass.MID -> 320 to 480
+                DeviceClass.HIGH -> 480 to 720
+            }
         }
         ImageRequest.Builder(ctx)
             .data(movie.poster)
             .size(iw, ih)
             .deviceImage(deviceClass, isMediatek)
+            .crossfade(if (deviceClass == DeviceClass.HIGH) 100 else 0)
             .build()
     }
+
+    val sharedModifier = if (sharedTransitionScope != null && animatedContentScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedElement(
+                rememberSharedContentState(key = "movie_poster_${movie.id}"),
+                animatedVisibilityScope = animatedContentScope
+            )
+        }
+    } else Modifier
 
     Box(
         modifier = modifier
             .width(width)
             .height(height)
+            .testTag("movie_item")
+            .then(sharedModifier)
+            .drawBehind {
+                if (glowAlpha > 0f && deviceClass != DeviceClass.LOW) {
+                    val gColor = accentColor.copy(alpha = glowAlpha * 0.4f)
+                    val glowPadding = 12.dp.toPx()
+                    val s = this.size
+                    drawRoundRect(
+                        color = gColor,
+                        topLeft = Offset(-glowPadding, -glowPadding),
+                        size = androidx.compose.ui.geometry.Size(s.width + glowPadding * 2, s.height + glowPadding * 2),
+                        cornerRadius = CornerRadius(16.dp.toPx())
+                    )
+                }
+            }
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
                 translationY = translateY * density
+                
+                if (isFocused) {
+                    shadowElevation = if (deviceClass == DeviceClass.HIGH) 16.dp.toPx() else 8.dp.toPx()
+                    spotShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.4f else 0.2f)
+                    ambientShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.6f else 0.3f)
+                }
+                
                 clip = true
                 shape = cardShape
             }
-            .then(
-                if (isFocused && deviceClass == DeviceClass.HIGH) {
-                    Modifier.shadow(16.dp, cardShape, ambientColor = accentColor.copy(alpha = 0.6f), spotColor = accentColor.copy(alpha = 0.4f))
-                } else if (isFocused && deviceClass == DeviceClass.MID) {
-                    Modifier.shadow(8.dp, cardShape, ambientColor = accentColor.copy(alpha = 0.3f), spotColor = accentColor.copy(alpha = 0.2f))
-                } else Modifier
-            )
-            .background(Color(0xFF141414))
+            .background(accentColor.copy(alpha = 0.15f))
             .clickable(
                 interactionSource = interactionSource,
                 indication = if (formFactor == FormFactor.PHONE) ripple() else null,
@@ -165,25 +239,25 @@ fun MovieCard(
             error = PlaceholderDark
         )
 
-        AnimatedVisibility(
-            visible = isFocused && isTv,
-            enter = scaleIn() + fadeIn(),
-            exit = scaleOut() + fadeOut(),
-            modifier = Modifier.align(Alignment.Center)
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .graphicsLayer {
+                    alpha = playIconAlpha
+                    val s = 0.8f + (playIconAlpha * 0.2f)
+                    scaleX = s
+                    scaleY = s
+                }
+                .size(48.dp)
+                .background(brandColor.copy(alpha = 0.9f), CircleShape),
+            contentAlignment = Alignment.Center
         ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(brandColor.copy(alpha = 0.9f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(32.dp)
+            )
         }
 
         if (movie.provider != null) {
@@ -221,6 +295,7 @@ fun MovieCard(
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(start = 10.dp, end = 10.dp, bottom = 6.dp)
+                .graphicsLayer { alpha = contentAlpha }
         ) {
             Text(
                 text = movie.title.uppercase(),

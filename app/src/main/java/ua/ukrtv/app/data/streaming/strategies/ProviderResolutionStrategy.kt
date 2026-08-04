@@ -14,7 +14,7 @@ class ProviderResolutionStrategy @Inject constructor(
     override val name: String = "Provider"
 
     override suspend fun canHandle(url: String, context: ResolutionContext): Boolean {
-        return url.contains("uakino") || url.contains("eneyida")
+        return url.contains("uakino") || url.contains("uafix") || url.contains("uaflix")
     }
 
     override suspend fun resolve(url: String, context: ResolutionContext): StreamResolutionResult? {
