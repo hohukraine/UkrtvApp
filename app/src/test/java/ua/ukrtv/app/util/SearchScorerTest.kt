@@ -168,6 +168,64 @@ class SearchScorerTest {
         assertEquals("https://example.com/movies/avatar.html", result!!.pageUrl)
     }
 
+    @Test
+    fun `cleanSearchQuery strips boilerplate suffix`() {
+        assertEquals(
+            "angry birds у кіно 3",
+            SearchScorer.cleanSearchQuery("Angry Birds у кіно 3 дивитись")
+        )
+    }
+
+    @Test
+    fun `cleanSearchQuery strips online and ukrainskou`() {
+        assertEquals(
+            "дюна",
+            SearchScorer.cleanSearchQuery("Дюна дивитися онлайн українською")
+        )
+    }
+
+    @Test
+    fun `cleanSearchQuery keeps plain title`() {
+        assertEquals("avatar", SearchScorer.cleanSearchQuery("Avatar"))
+    }
+
+    @Test
+    fun `titleSlugConsistency matched pair is high`() {
+        val score = SearchScorer.titleSlugConsistency(
+            "Аватар: Вогонь і попіл",
+            "https://uakino.best/filmy/online/avatar-vogon-i-popil.html"
+        )
+        assertTrue("expected high consistency but got $score", score > 0.6f)
+    }
+
+    @Test
+    fun `titleSlugConsistency mismatched pair is low`() {
+        val score = SearchScorer.titleSlugConsistency(
+            "Angry Birds у кіно 3 дивитись",
+            "https://uakino.best/filmy/online/33170-avatar-vogon-i-popil.html"
+        )
+        assertTrue("expected low consistency but got $score", score < 0.3f)
+    }
+
+    @Test
+    fun `pickBestMatch returns null when only a different movie is present`() {
+        val movies = listOf(
+            makeMovie("Аватар: Вогонь і попіл", "https://uakino.best/filmy/online/avatar-vogon-i-popil.html", 2025)
+        )
+        val result = SearchScorer.pickBestMatch(movies, listOf("Angry Birds у кіно 3 дивитись"))
+        assertNull(result)
+    }
+
+    @Test
+    fun `pickBestMatch matches same movie even with noisy query`() {
+        val movies = listOf(
+            makeMovie("Angry Birds у кіно 3", "https://uakino.best/filmy/online/angry-birds-u-kino-3.html", 2025)
+        )
+        val result = SearchScorer.pickBestMatch(movies, listOf("Angry Birds у кіно 3 дивитись"))
+        assertNotNull(result)
+        assertEquals("Angry Birds у кіно 3", result!!.title)
+    }
+
     private fun makeMovie(title: String, url: String, year: Int? = null) = Movie(
         id = url.hashCode().toString(),
         title = title,

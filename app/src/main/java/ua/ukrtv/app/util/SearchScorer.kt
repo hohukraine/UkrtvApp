@@ -82,6 +82,38 @@ object SearchScorer {
         return transliterate(slugFromUrl(url))
     }
 
+    fun slugOf(url: String): String = slugFromUrlLatin(url)
+
+    /**
+     * How well a result's own title agrees with the movie slug embedded in its page URL.
+     * Loose list scans (e.g. [ua.ukrtv.app.data.providers.DleParser.parseListFastRegex]) can
+     * pair a title with a neighbour card's URL; such entries score ~0 here and must not be
+     * used for cross-provider playback.
+     */
+    fun titleSlugConsistency(title: String, url: String): Float {
+        val slug = slugOf(url)
+        if (slug.isEmpty()) return 0f
+        return maxOf(tokenSetSimilarity(title, slug), bigramSimilarity(title, slug))
+    }
+
+    private val SEARCH_NOISE_TOKENS: Set<String> by lazy {
+        listOf(
+            "дивитись", "дивитися", "дивись", "смотреть",
+            "онлайн", "українською", "фільм", "фильм"
+        ).map { normalizeTitle(it) }.filter { it.isNotEmpty() }.toSet()
+    }
+
+    /**
+     * Strips marketing/site boilerplate ("дивитись", "онлайн", "фільм"...) from a detail title
+     * so it can be used as a search query on another provider.
+     */
+    fun cleanSearchQuery(title: String): String {
+        return normalizeTitle(title)
+            .split(" ")
+            .filter { it.isNotEmpty() && it !in SEARCH_NOISE_TOKENS }
+            .joinToString(" ")
+    }
+
     private fun isSeriesUrl(url: String): Boolean {
         val lower = url.lowercase()
         return lower.contains("/serials/") || lower.contains("/seriesss/") ||

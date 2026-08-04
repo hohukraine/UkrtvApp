@@ -5,6 +5,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.*
@@ -35,6 +36,7 @@ import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.PerformancePreferences
 import ua.ukrtv.app.ui.theme.BrandBlue
 import ua.ukrtv.app.navigation.Screen
+import ua.ukrtv.app.ui.splash.SplashScreen
 import androidx.navigation.toRoute
 
 @AndroidEntryPoint
@@ -45,7 +47,19 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         window.decorView.keepScreenOn = true
         super.onCreate(savedInstanceState)
-        
+
+        val providerColor = try {
+            val prefs = getSharedPreferences("home_prefs", MODE_PRIVATE)
+            val providerName = prefs.getString("default_provider", "Eneyida") ?: "Eneyida"
+            val hex = when (providerName) {
+                "Uakino" -> "#ca563f"
+                else -> "#31C469"
+            }
+            Color(android.graphics.Color.parseColor(hex))
+        } catch (_: Exception) {
+            Color(0xFF31C469)
+        }
+
         val formFactor = detectFormFactor(this)
         requestedOrientation = if (formFactor == FormFactor.TV) {
             ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
@@ -54,7 +68,16 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             UkrtvTheme(performancePreferences = performancePreferences, formFactor = formFactor) {
-                UkrtvTVApp(formFactor)
+                var showIntro by remember { mutableStateOf(true) }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    UkrtvTVApp(formFactor)
+                    if (showIntro) {
+                        SplashScreen(
+                            providerColor = providerColor,
+                            onSplashFinished = { showIntro = false }
+                        )
+                    }
+                }
             }
         }
     }

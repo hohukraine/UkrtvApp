@@ -6,12 +6,14 @@ import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.TtlLruCache
+import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.MovieDetail
 import ua.ukrtv.app.domain.model.StreamResolutionResult
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.data.streaming.StreamResolver
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.PerformanceMonitor
+import ua.ukrtv.app.util.SearchScorer
 
 internal class DetailSource(
     private val providerManager: ProviderManager,
@@ -110,11 +112,32 @@ internal class DetailSource(
             val opposite = providerManager.getOppositeProvider(url)
             if (opposite != null) {
                 AppLogger.d("ContentRepository", "Primary provider returned no seasons, trying opposite: ${opposite.name}")
-                val results = opposite.search(detail.title, limit = 5)
-                val match = results.firstOrNull()
+                val query = SearchScorer.cleanSearchQuery(detail.title)
+                val results = opposite.search(query, limit = 10)
+
+                // Never enrich seasons from an entry whose title is paired with a neighbour
+                // card's URL (loose list scans). Only accept a confident same-movie match.
+                val candidates = results.mapNotNull { item ->
+                    if (SearchScorer.titleSlugConsistency(item.title, item.url) < MIN_SLUG_CONSISTENCY) {
+                        AppLogger.w("ContentRepository", "Rejected mismatched season candidate '${item.title}' @ ${item.url}")
+                        null
+                    } else {
+                        Movie(
+                            id = item.url,
+                            title = item.title,
+                            poster = item.imageUrl,
+                            pageUrl = item.url,
+                            year = item.year?.toIntOrNull(),
+                            provider = item.provider
+                        )
+                    }
+                }
+
+                val match = SearchScorer.pickBestMatch(candidates, listOf(query), detail.year)
                 if (match != null) {
+                    AppLogger.d("ContentRepository", "Cross-provider season match: '${match.title}' @ ${match.pageUrl}")
                     val oppResolution = withTimeout(Constants.STREAM_RESOLUTION_TIMEOUT_MS) {
-                        streamResolver.resolve(match.url, isDeep = true)
+                        streamResolver.resolve(match.pageUrl, isDeep = true)
                     }
                     if (oppResolution?.seasons != null && oppResolution.seasons.isNotEmpty()) {
                         val enriched = detail.copy(seasons = oppResolution.seasons)
@@ -122,6 +145,8 @@ internal class DetailSource(
                         navigationCache.put(cacheKey, enriched)
                         return enriched
                     }
+                } else {
+                    AppLogger.w("ContentRepository", "No confident season match for '${detail.title}' on ${opposite.name}")
                 }
             }
         } catch (e: Exception) {
@@ -130,5 +155,9 @@ internal class DetailSource(
         }
 
         return detail
+    }
+
+    companion object {
+        private const val MIN_SLUG_CONSISTENCY = 0.35f
     }
 }

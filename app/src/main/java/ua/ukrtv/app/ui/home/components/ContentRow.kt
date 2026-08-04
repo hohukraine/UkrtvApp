@@ -89,11 +89,12 @@ fun ContentRow(
     isLoading: Boolean = false,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedContentScope: AnimatedContentScope? = null,
-    providerHint: String? = null
+    providerHint: String? = null,
+    restoreMovie: Movie? = null
 ) {
     val formFactor = LocalFormFactor.current
     when (formFactor) {
-        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useLargeCards, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint)
+        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useLargeCards, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint, restoreMovie)
         FormFactor.PHONE, FormFactor.TABLET -> PhoneContentRow(title, items, brandColor, onItemClick, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint)
     }
 }
@@ -209,7 +210,8 @@ private fun TvContentRow(
     isLoading: Boolean = false,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedContentScope: AnimatedContentScope? = null,
-    providerHint: String? = null
+    providerHint: String? = null,
+    restoreMovie: Movie? = null
 ) {
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
@@ -224,6 +226,19 @@ private fun TvContentRow(
     val (rowFocus, firstItemFocus, trailingFocus) = remember { FocusRequester.createRefs() }
     val context = LocalContext.current
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
+
+    val restoreKey = restoreMovie?.let { "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" }
+    val targetIndex = if (restoreKey != null) items.indexOfFirst { "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" == restoreKey } else -1
+    val targetFocus = remember { FocusRequester() }
+    var didRestore by remember { mutableStateOf(false) }
+    LaunchedEffect(items, restoreMovie) {
+        if (didRestore || targetIndex < 0) return@LaunchedEffect
+        lazyListState.animateScrollToItem(targetIndex)
+        withFrameNanos { }
+        if (runCatching { targetFocus.requestFocus() }.getOrDefault(false)) {
+            didRestore = true
+        }
+    }
 
     val animateEntrance = deviceClass == DeviceClass.HIGH && !isMediatek
     val rowEntrance = remember { Animatable(0f) }
@@ -318,7 +333,9 @@ private fun TvContentRow(
                     }
 
                     val lastSoundTime = remember { mutableLongStateOf(0L) }
-                    val focusMod = remember(item, onItemFocused, audioManager, keyBlockMod, itemModifier) {
+                    val isRestoreTarget = restoreKey != null && "${item.pageUrl}_${item.season ?: ""}_${item.episode ?: ""}" == restoreKey
+                    val restoreMod = if (isRestoreTarget) Modifier.focusRequester(targetFocus) else Modifier
+                    val focusMod = remember(item, onItemFocused, audioManager, keyBlockMod, itemModifier, restoreMod) {
                         itemModifier
                             .focusProperties {
                                 exit = { focusDirection ->
@@ -332,6 +349,7 @@ private fun TvContentRow(
                                 }
                             }
                             .then(keyBlockMod)
+                            .then(restoreMod)
                             .onFocusChanged { state ->
                             if (state.isFocused) {
                                 onItemFocused?.invoke(item)

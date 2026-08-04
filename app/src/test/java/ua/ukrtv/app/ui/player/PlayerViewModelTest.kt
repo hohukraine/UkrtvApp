@@ -11,7 +11,8 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.cancelAndJoin
 import androidx.lifecycle.viewModelScope
 import org.junit.After
 import org.junit.Assert.*
@@ -40,6 +41,7 @@ class PlayerViewModelTest {
     private lateinit var streamResolver: StreamResolver
     private lateinit var playerPreferences: PlayerPreferences
     private lateinit var providerManager: ProviderManager
+    private val createdViewModels = mutableListOf<PlayerViewModel>()
 
     @Before
     fun setup() {
@@ -73,6 +75,13 @@ class PlayerViewModelTest {
 
     @After
     fun tearDown() {
+        createdViewModels.forEach { vm ->
+            runBlocking {
+                vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin()
+            }
+        }
+        createdViewModels.clear()
+        testDispatcher.scheduler.advanceUntilIdle()
         Dispatchers.resetMain()
         unmockkAll()
     }
@@ -87,7 +96,7 @@ class PlayerViewModelTest {
             playerPreferences = playerPreferences,
             streamResolvingInteractor = mockk(relaxed = true),
             hlsPlaylistDuration = mockk(relaxed = true)
-        )
+        ).also { createdViewModels.add(it) }
     }
 
     private fun ep(number: Int) = Episode(number, "Ep $number", "https://test/$number")
@@ -163,7 +172,7 @@ class PlayerViewModelTest {
         assertEquals(2, stateFlow.value.currentEpisode)
         val ready = stateFlow.value.status as? PlayerStatus.Ready
         assertEquals("https://cdn/s1e2.m3u8", ready?.url)
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -205,7 +214,7 @@ class PlayerViewModelTest {
         val stateFlow = statusField.get(vm) as MutableStateFlow<PlayerState>
         val ready = stateFlow.value.status as? PlayerStatus.Ready
         assertEquals("https://cdn/s1e2.m3u8", ready?.url)
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -236,7 +245,7 @@ class PlayerViewModelTest {
                 any(), "s1e3", any(), any(), any(), any(), any(), "https://cdn/s1e3.m3u8", "HLS", any(), any()
             )
         }
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -261,7 +270,7 @@ class PlayerViewModelTest {
         assertEquals(2, getField(vm, "episode"))
         assertEquals("s2e2", getField(vm, "episodeId"))
         assertFalse(argEpisode.isCaptured)
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -269,7 +278,7 @@ class PlayerViewModelTest {
         val vm = createViewModel()
         val result = vm.handleExternalPlayerResult(-1, mockk())
         assertEquals(ExternalPlayerReturnResult.NoData, result)
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -281,7 +290,7 @@ class PlayerViewModelTest {
 
         val result = vm.handleExternalPlayerResult(-1, mockk())
         assertEquals(ExternalPlayerReturnResult.NoData, result)
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -293,7 +302,7 @@ class PlayerViewModelTest {
 
         val result = vm.handleExternalPlayerResult(-1, mockk<Intent>())
         assertEquals(ExternalPlayerReturnResult.NotFinished(60000L, 60000L), result)
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -313,7 +322,7 @@ class PlayerViewModelTest {
         kotlinx.coroutines.runBlocking {
             vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.join() }
         }
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -329,7 +338,7 @@ class PlayerViewModelTest {
 
         val result = vm.handleExternalPlayerResult(Activity.RESULT_OK, mockk<Intent>())
         assertEquals(ExternalPlayerReturnResult.NotFinished(60_000L, 0L), result)
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -357,7 +366,7 @@ class PlayerViewModelTest {
 
         val result = vm.createExternalPlayerIntent()
         assertNotNull(result)
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -368,7 +377,7 @@ class PlayerViewModelTest {
         assertEquals(StreamType.MPD, vm.safeStreamType("WEIRD", "https://cdn.example.com/stream.mpd"))
         assertEquals(StreamType.MP4, vm.safeStreamType("", "https://cdn.example.com/video.mp4"))
         assertEquals(StreamType.MP4, vm.safeStreamType("MP4", "https://cdn.example.com/video.mp4"))
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
     @Test
@@ -399,6 +408,6 @@ class PlayerViewModelTest {
         }
 
         assertEquals(6000L, getField(vm, "lastSavedPosition"))
-        vm.viewModelScope.cancel()
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 }
