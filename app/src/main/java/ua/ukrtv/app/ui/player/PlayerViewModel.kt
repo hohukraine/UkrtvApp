@@ -20,11 +20,13 @@ import ua.ukrtv.app.data.repository.WatchProgressRepository
 import ua.ukrtv.app.data.streaming.HlsPlaylistDuration
 import ua.ukrtv.app.data.streaming.StreamResolver
 import ua.ukrtv.app.domain.model.Season
+import ua.ukrtv.app.domain.model.deserializeSeasons
+import ua.ukrtv.app.domain.model.serializeSeasons
 import ua.ukrtv.app.player.ExternalPlayerInfo
 import ua.ukrtv.app.player.ExternalPlayerLauncher
+import ua.ukrtv.app.player.HttpDowngradeProbe
 import ua.ukrtv.app.ui.player.PlayerStatus
 import ua.ukrtv.app.util.PlayerPreferences
-import ua.ukrtv.app.util.PlayerType
 import ua.ukrtv.app.domain.model.StreamType
 import android.content.Intent
 import javax.inject.Inject
@@ -38,7 +40,8 @@ class PlayerViewModel @Inject constructor(
     private val providerManager: ProviderManager,
     val playerPreferences: PlayerPreferences,
     private val streamResolvingInteractor: StreamResolvingInteractor,
-    private val hlsPlaylistDuration: HlsPlaylistDuration
+    private val hlsPlaylistDuration: HlsPlaylistDuration,
+    private val httpDowngradeProbe: HttpDowngradeProbe
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(PlayerState())
@@ -123,8 +126,6 @@ class PlayerViewModel @Inject constructor(
     private var pendingEpisode: Int? = null
     private var pendingVoiceover: String? = null
 
-    val playerType: StateFlow<ua.ukrtv.app.util.PlayerType> = playerPreferences.playerType
-
     fun initialize(contentId: String, title: String, pageUrl: String, season: Int? = null, episode: Int? = null, poster: String = "") {
         val savedSeason = savedStateHandle.get<Int>(KEY_SEASON)
         val savedEpisode = savedStateHandle.get<Int>(KEY_EPISODE)
@@ -201,7 +202,7 @@ class PlayerViewModel @Inject constructor(
                     val pos = forceStartPosition ?: withContext(Dispatchers.IO) { watchProgressRepository.getProgress(contentId, episodeId)?.positionMs } ?: 0L
                     val displayTitle = if (subtitle.isNotEmpty()) "${this@PlayerViewModel.title} ($subtitle)" else this@PlayerViewModel.title
                     _state.update { it.copy(
-                        status = PlayerStatus.Ready(cached.streamUrl, displayTitle, subtitle, pos, cached.durationMs, cached.referer, safeStreamType(cached.streamType, cached.streamUrl), loadTrigger = System.currentTimeMillis()),
+                        status = PlayerStatus.Ready(cached.streamUrl, displayTitle, subtitle, pos, cached.durationMs, cached.referer, safeStreamType(cached.streamType, cached.streamUrl)),
                         availableSeasons = this@PlayerViewModel.seasons
                     ) }
                     isResolving = false
@@ -262,7 +263,7 @@ class PlayerViewModel @Inject constructor(
         } else this.title
 
         _state.update { it.copy(
-            status = PlayerStatus.Ready(res.streamUrl, displayTitle, subtitle, pos, 0L, res.referer, res.streamType, loadTrigger = System.currentTimeMillis()),
+            status = PlayerStatus.Ready(res.streamUrl, displayTitle, subtitle, pos, 0L, res.referer, res.streamType),
             availableSeasons = seasons
         ) }
         launchDeepResolution()
@@ -374,12 +375,6 @@ class PlayerViewModel @Inject constructor(
         updateNavigationState()
     }
 
-    fun navigateToNextEpisode(): Boolean {
-        val nav = EpisodeNavigator.nextEpisode(seasons, season, episode) ?: return false
-        applyEpisodeNavigation(nav.season, nav.episode)
-        return true
-    }
-
     fun navigateToPreviousEpisode(): Boolean {
         val nav = EpisodeNavigator.previousEpisode(seasons, season, episode) ?: return false
         applyEpisodeNavigation(nav.season, nav.episode)
@@ -450,8 +445,14 @@ class PlayerViewModel @Inject constructor(
             AppLogger.d("ExternalPlayer", "createExternalPlayerIntent: playerInfo is null, pkg=${playerPreferences.externalPlayerPackage.value}, installed=${installedPlayers.map { it.packageName }}")
             return null
         }
+        // For VLC, untrusted-cert https streams are downgraded to plain http (when the host
+        // serves the same content over http) so VLC never shows its certificate dialog.
+        var streamUrl = status.url
+        if (playerInfo.packageName == ExternalPlayerInfo.VLC.packageName) {
+            streamUrl = httpDowngradeProbe.maybeDowngrade(streamUrl, status.streamType, status.referer)
+        }
         val config = ExternalPlayerLauncher.PlayerLaunchConfig(
-            streamUrl = status.url,
+            streamUrl = streamUrl,
             streamType = status.streamType,
             title = status.title,
             referer = status.referer,

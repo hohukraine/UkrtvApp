@@ -27,8 +27,10 @@ import ua.ukrtv.app.domain.model.Season
 import ua.ukrtv.app.domain.model.StreamResolutionResult
 import ua.ukrtv.app.domain.model.StreamType
 import ua.ukrtv.app.domain.model.Voiceover
+import ua.ukrtv.app.domain.model.serializeSeasons
 import ua.ukrtv.app.player.ExternalPlayerInfo
 import ua.ukrtv.app.player.ExternalPlayerLauncher
+import ua.ukrtv.app.player.HttpDowngradeProbe
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.PlayerPreferences
 
@@ -48,7 +50,7 @@ class PlayerViewModelTest {
         Dispatchers.setMain(testDispatcher)
 
         mockkStatic(android.util.Log::class)
-        mockkStatic("ua.ukrtv.app.ui.player.SeasonSerializerKt")
+        mockkStatic("ua.ukrtv.app.domain.model.SeasonSerializerKt")
         every { serializeSeasons(any()) } returns "[]"
         every { android.util.Log.d(any<String>(), any<String>()) } returns 0
         every { android.util.Log.e(any<String>(), any<String>()) } returns 0
@@ -95,7 +97,8 @@ class PlayerViewModelTest {
             providerManager = providerManager,
             playerPreferences = playerPreferences,
             streamResolvingInteractor = mockk(relaxed = true),
-            hlsPlaylistDuration = mockk(relaxed = true)
+            hlsPlaylistDuration = mockk(relaxed = true),
+            httpDowngradeProbe = mockk(relaxed = true)
         ).also { createdViewModels.add(it) }
     }
 
@@ -366,6 +369,71 @@ class PlayerViewModelTest {
 
         val result = vm.createExternalPlayerIntent()
         assertNotNull(result)
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
+    }
+
+    @Test
+    fun `createExternalPlayerIntent downgrades https to http for VLC when probe allows`() = runTest {
+        val vm = createViewModel()
+        val mockLauncher = mockk<ExternalPlayerLauncher>(relaxed = true)
+        setField(vm, "externalPlayerLauncher", mockLauncher)
+        setField(vm, "installedPlayers", listOf(ExternalPlayerInfo.VLC))
+        setField(vm, "contentId", "movie123")
+
+        val statusField = PlayerViewModel::class.java.getDeclaredField("_state")
+        statusField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val stateFlow = statusField.get(vm) as MutableStateFlow<PlayerState>
+        stateFlow.value = PlayerState(
+            status = PlayerStatus.Ready(
+                url = "https://ashdi.vip/stream/index.m3u8", title = "Movie", subtitle = "",
+                positionMs = 0L, durationMs = 0L, referer = "https://ashdi.vip/vod/1", streamType = StreamType.HLS
+            )
+        )
+
+        every { playerPreferences.externalPlayerPackage.value } returns "org.videolan.vlc"
+
+        val probe = getField(vm, "httpDowngradeProbe") as HttpDowngradeProbe
+        coEvery { probe.maybeDowngrade("https://ashdi.vip/stream/index.m3u8", StreamType.HLS, "https://ashdi.vip/vod/1") } returns "http://ashdi.vip/stream/index.m3u8"
+
+        val configSlot = slot<ExternalPlayerLauncher.PlayerLaunchConfig>()
+        val mockIntent = mockk<Intent>()
+        every { mockLauncher.buildIntent(any(), capture(configSlot)) } returns mockIntent
+
+        val result = vm.createExternalPlayerIntent()
+        assertEquals(mockIntent, result)
+        assertEquals("http://ashdi.vip/stream/index.m3u8", configSlot.captured.streamUrl)
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
+    }
+
+    @Test
+    fun `createExternalPlayerIntent keeps https url for non-VLC players`() = runTest {
+        val vm = createViewModel()
+        val mockLauncher = mockk<ExternalPlayerLauncher>(relaxed = true)
+        setField(vm, "externalPlayerLauncher", mockLauncher)
+        setField(vm, "installedPlayers", listOf(ExternalPlayerInfo.VLC, ExternalPlayerInfo.JUST_PLAYER))
+        setField(vm, "contentId", "movie123")
+
+        val statusField = PlayerViewModel::class.java.getDeclaredField("_state")
+        statusField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val stateFlow = statusField.get(vm) as MutableStateFlow<PlayerState>
+        stateFlow.value = PlayerState(
+            status = PlayerStatus.Ready(
+                url = "https://ashdi.vip/stream/index.m3u8", title = "Movie", subtitle = "",
+                positionMs = 0L, durationMs = 0L, referer = "", streamType = StreamType.HLS
+            )
+        )
+
+        every { playerPreferences.externalPlayerPackage.value } returns ExternalPlayerInfo.JUST_PLAYER.packageName
+
+        val probe = getField(vm, "httpDowngradeProbe") as HttpDowngradeProbe
+        val configSlot = slot<ExternalPlayerLauncher.PlayerLaunchConfig>()
+        every { mockLauncher.buildIntent(any(), capture(configSlot)) } returns mockk()
+
+        vm.createExternalPlayerIntent()
+        coVerify(exactly = 0) { probe.maybeDowngrade(any(), any(), any()) }
+        assertEquals("https://ashdi.vip/stream/index.m3u8", configSlot.captured.streamUrl)
         kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
 
