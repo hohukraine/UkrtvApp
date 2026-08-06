@@ -25,8 +25,8 @@ android {
         applicationId = "ua.ukrtv.app"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
-        versionName = "1.2.2"
+        versionCode = 7
+        versionName = "1.3.0"
         buildConfigField("String", "UPDATE_URL", "\"https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/update.json\"")
         buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
     }
