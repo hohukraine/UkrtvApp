@@ -52,6 +52,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.util.DeviceClass
+import ua.ukrtv.app.util.maxPostersPerRow
 import ua.ukrtv.app.ui.home.components.BottomNavBar
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text as TvText
@@ -162,6 +163,9 @@ private fun TvHomeScreen(
     val focusColor by viewModel.focusColor.collectAsStateWithLifecycle()
     val focusedMovie by viewModel.focusedMovie.collectAsStateWithLifecycle()
 
+    val deviceClass = LocalDeviceClass.current
+    val maxItems = deviceClass.maxPostersPerRow()
+
     var readyNotified by remember { mutableStateOf(false) }
     val mainReady = !mainState.isLoading || mainState.gridError != null
     LaunchedEffect(mainReady, categoriesState.isLoading) {
@@ -194,16 +198,16 @@ private fun TvHomeScreen(
         isOnline = configState.isOnline,
         top200Banners = heroState.top200Banners,
         bannerMovies = heroState.bannerMovies,
-        continueWatching = mainState.continueWatching,
-        watchlist = mainState.watchlist,
-        homeTrending = mainState.homeTrending,
+        continueWatching = mainState.continueWatching.take(maxItems),
+        watchlist = mainState.watchlist.take(maxItems),
+        homeTrending = mainState.homeTrending.take(maxItems),
         trendingLabel = configState.trendingLabel,
         homeLayout = configState.homeLayout,
-        categoryMovies = categoriesState.categoryMovies,
-        categorySeries = categoriesState.categorySeries,
-        categoryAnime = categoriesState.categoryAnime,
-        categoryCartoons = categoriesState.categoryCartoons,
-        categoryCartoonSeries = categoriesState.categoryCartoonSeries,
+        categoryMovies = categoriesState.categoryMovies.take(maxItems),
+        categorySeries = categoriesState.categorySeries.take(maxItems),
+        categoryAnime = categoriesState.categoryAnime.take(maxItems),
+        categoryCartoons = categoriesState.categoryCartoons.take(maxItems),
+        categoryCartoonSeries = categoriesState.categoryCartoonSeries.take(maxItems),
         activeBannerMovie = activeBannerMovie,
         providerColor = providerColor,
         focusColor = focusColor,
@@ -559,15 +563,16 @@ private fun PhoneHomeScreen(
     val providers = remember { viewModel.providers }
     var activeTop200Movie by remember { mutableStateOf<Top200Movie?>(null) }
 
-    val maxItems = 12
-    val continueWatching = remember(mainState.continueWatching) { mainState.continueWatching.take(maxItems) }
-    val watchlist = remember(mainState.watchlist) { mainState.watchlist.take(maxItems) }
-    val homeTrending = remember(mainState.homeTrending) { mainState.homeTrending.take(maxItems) }
-    val categoryMovies = remember(categoriesState.categoryMovies) { categoriesState.categoryMovies.take(maxItems) }
-    val categorySeries = remember(categoriesState.categorySeries) { categoriesState.categorySeries.take(maxItems) }
-    val categoryAnime = remember(categoriesState.categoryAnime) { categoriesState.categoryAnime.take(maxItems) }
-    val categoryCartoons = remember(categoriesState.categoryCartoons) { categoriesState.categoryCartoons.take(maxItems) }
-    val categoryCartoonSeries = remember(categoriesState.categoryCartoonSeries) { categoriesState.categoryCartoonSeries.take(maxItems) }
+    val deviceClass = LocalDeviceClass.current
+    val maxItems = deviceClass.maxPostersPerRow()
+    val continueWatching = remember(mainState.continueWatching, maxItems) { mainState.continueWatching.take(maxItems) }
+    val watchlist = remember(mainState.watchlist, maxItems) { mainState.watchlist.take(maxItems) }
+    val homeTrending = remember(mainState.homeTrending, maxItems) { mainState.homeTrending.take(maxItems) }
+    val categoryMovies = remember(categoriesState.categoryMovies, maxItems) { categoriesState.categoryMovies.take(maxItems) }
+    val categorySeries = remember(categoriesState.categorySeries, maxItems) { categoriesState.categorySeries.take(maxItems) }
+    val categoryAnime = remember(categoriesState.categoryAnime, maxItems) { categoriesState.categoryAnime.take(maxItems) }
+    val categoryCartoons = remember(categoriesState.categoryCartoons, maxItems) { categoriesState.categoryCartoons.take(maxItems) }
+    val categoryCartoonSeries = remember(categoriesState.categoryCartoonSeries, maxItems) { categoriesState.categoryCartoonSeries.take(maxItems) }
     val scope = rememberCoroutineScope()
 
     val screenHeightDp = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp

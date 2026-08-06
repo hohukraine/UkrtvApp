@@ -15,6 +15,10 @@ import javax.inject.Singleton
 class HlsPlaylistDuration @Inject constructor(
     private val okHttpClient: OkHttpClient
 ) {
+    private val durationCache = ua.ukrtv.app.data.TtlLruCache<String, Long>(
+        maxSize = 64,
+        ttlMs = 30 * 60 * 1000L // 30 хв
+    )
 
     data class Variant(
         val url: String,
@@ -24,9 +28,13 @@ class HlsPlaylistDuration @Inject constructor(
 
     suspend fun resolveDurationMs(playlistUrl: String, referer: String? = null): Long? =
         withContext(Dispatchers.IO) {
+            durationCache.get(playlistUrl)?.let { return@withContext it }
+            
             withTimeoutOrNull(TIMEOUT_MS) {
                 try {
-                    parsePlaylist(playlistUrl, referer, depth = 0)?.takeIf { it > 0L }
+                    parsePlaylist(playlistUrl, referer, depth = 0)?.takeIf { it > 0L }?.also {
+                        durationCache.put(playlistUrl, it)
+                    }
                 } catch (e: Exception) {
                     AppLogger.d("HlsDuration", "resolve failed for $playlistUrl: ${e.message}")
                     null

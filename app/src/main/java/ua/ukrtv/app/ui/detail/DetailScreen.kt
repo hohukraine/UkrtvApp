@@ -204,6 +204,7 @@ fun DetailContent(
         }
     }
     val posterRequest = remember(detail.poster, deviceClass, posterStyle) {
+        if (detail.poster.isBlank()) return@remember null
         ImageRequest.Builder(context)
             .data(detail.poster)
             .size(posterW, posterH)
@@ -807,6 +808,7 @@ private fun PhoneDetailContent(
     val phoneDetailDims = ProviderSizes.phoneCard(posterStyle)
 
     val posterRequest = remember(detail.poster, posterStyle) {
+        if (detail.poster.isBlank()) return@remember null
         val (iw, ih) = when (posterStyle) {
             PosterStyle.WIDE -> 640 to 360
             PosterStyle.VERTICAL -> 480 to 720

@@ -139,6 +139,8 @@ fun ContinueWatchingCard(
     }
 
     val imageRequest = remember(movie.poster, deviceClass, posterStyle, cardDims) {
+        if (movie.poster.isNullOrBlank()) return@remember null
+
         val styleForImage = if (width != null && height != null) {
             if (width > height) PosterStyle.WIDE else PosterStyle.VERTICAL
         } else posterStyle

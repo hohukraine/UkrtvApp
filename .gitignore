@@ -3,6 +3,7 @@
 /app/build/
 /app/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/
 /build/
+/matching/build/
 
 # Internal docs
 AGENTS.md

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.data.repository.WatchProgressRepository
 import ua.ukrtv.app.data.streaming.HlsPlaylistDuration
@@ -599,19 +600,23 @@ class PlayerViewModel @Inject constructor(
 
         // HLS streams often lack duration in the external player (VLC returns extra_duration=0).
         // Resolve it from the playlist so completion can still be detected on return.
+        // DO NOT BLOCK launch.
         if (dur <= 0L) {
-            val resolved = hlsPlaylistDuration.resolveDurationMs(status.url, status.referer)
-            if (resolved != null && resolved > 0L) {
-                dur = resolved
-                _state.update { state ->
-                    state.copy(duration = resolved, status = (state.status as? PlayerStatus.Ready)?.copy(durationMs = resolved) ?: state.status)
+            viewModelScope.launch(Dispatchers.IO) {
+                val resolved: Long? = withTimeoutOrNull(3000) {
+                    hlsPlaylistDuration.resolveDurationMs(status.url, status.referer) 
                 }
-                AppLogger.d("ExternalPlayer", "Resolved HLS duration: $dur ms")
+                if (resolved != null && resolved > 0L) {
+                    savedStateHandle[KEY_EXTERNAL_DURATION] = resolved
+                    _state.update { state ->
+                        state.copy(duration = resolved, status = (state.status as? PlayerStatus.Ready)?.copy(durationMs = resolved) ?: state.status)
+                    }
+                    AppLogger.d("ExternalPlayer", "Resolved HLS duration (async): $resolved ms")
+                }
             }
+        } else {
+            savedStateHandle.set<Long>(KEY_EXTERNAL_DURATION, dur)
         }
-
-        // Save duration for fallback
-        savedStateHandle.set<Long>(KEY_EXTERNAL_DURATION, dur)
 
         // Capture current state
         val currentContentId = this.contentId

@@ -64,6 +64,18 @@ fun resolveDeviceClass(context: Context, profile: PerformanceProfile): DeviceCla
     }
 }
 
+fun DeviceClass.maxPostersPerRow(): Int = when (this) {
+    DeviceClass.LOW -> 8
+    DeviceClass.MID -> 12
+    DeviceClass.HIGH -> 16
+}
+
+fun DeviceClass.maxShimmerItems(): Int = when (this) {
+    DeviceClass.LOW -> 4
+    DeviceClass.MID -> 6
+    DeviceClass.HIGH -> 8
+}
+
 object PlayerBufferConfig {
     data class BufferParams(
         val minBufferMs: Int,

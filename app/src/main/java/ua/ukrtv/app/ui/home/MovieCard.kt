@@ -134,6 +134,8 @@ fun MovieCard(
     }
 
     val imageRequest = remember(movie.poster, deviceClass, posterStyle, width, height) {
+        if (movie.poster.isNullOrBlank()) return@remember null
+
         val styleForImage = if (width > height) PosterStyle.WIDE else PosterStyle.VERTICAL
 
         val (iw, ih) = when (styleForImage) {

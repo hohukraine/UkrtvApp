@@ -74,6 +74,7 @@ import ua.ukrtv.app.ui.theme.FormFactor
 import ua.ukrtv.app.ui.theme.Shapes
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.PosterColorCache
+import ua.ukrtv.app.util.maxShimmerItems
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
@@ -305,7 +306,7 @@ private fun TvContentRow(
                 horizontalArrangement = Arrangement.spacedBy(GridDefaults.columnSpacing)
             ) {
                 if (items.isEmpty() && isLoading) {
-                    items(6, key = { "shimmer_$it" }) { shimmerIndex ->
+                    items(deviceClass.maxShimmerItems(), key = { "shimmer_$it" }) { shimmerIndex ->
                         val shimmerWidth = tvDims.width * cardScale
                         val shimmerHeight = tvDims.height * cardScale
                         ShimmerBox(

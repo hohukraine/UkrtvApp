@@ -70,12 +70,18 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
     @Inject
     lateinit var top200Repository: Lazy<ua.ukrtv.app.data.repository.Top200Repository>
 
+    @Volatile
     private var imageLoader: ImageLoader? = null
     private val prewarmScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var cachedMemoryClass: Int = 0
 
     private val sharedImageDispatcher by lazy {
-        Dispatchers.IO.limitedParallelism(4)
+        val deviceClass = getDeviceClass(this)
+        val parallelism = when (deviceClass) {
+            DeviceClass.LOW -> 2
+            else -> 4
+        }
+        Dispatchers.IO.limitedParallelism(parallelism)
     }
 
     override val workManagerConfiguration: Configuration
@@ -212,31 +218,13 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
     }
 
     override fun newImageLoader(context: android.content.Context): ImageLoader {
-        AppLogger.d("UkrtvApplication", "newImageLoader requested")
-        val loader = imageLoader
-        if (loader != null) return loader
-
-        prewarmScope.launch(Dispatchers.IO) {
-            if (imageLoader == null) {
-                imageLoader = buildImageLoader(this@UkrtvApplication,
-                    getDeviceClass(this@UkrtvApplication),
-                    hasMediatekChipset(), reuseCurrent = true)
-            }
-        }
-
-        return ImageLoader.Builder(context)
-            .components {
-                add(coil3.network.okhttp.OkHttpNetworkFetcherFactory(callFactory = { okHttpClient.get() }))
-                add(SvgDecoder.Factory())
-            }
-            .coroutineContext(sharedImageDispatcher)
-            .allowRgb565(true)
-            .bitmapConfig(Bitmap.Config.RGB_565)
-            .allowHardware(true)
-            .memoryCachePolicy(CachePolicy.ENABLED)
-            .diskCachePolicy(CachePolicy.DISABLED)
-            .crossfade(0)
-            .build()
+        val existing = imageLoader
+        if (existing != null) return existing
+        // Never hand out a throwaway loader: Coil caches the first factory result as the
+        // singleton, so a temp loader would permanently shadow the fully-configured one
+        // (this is what produced the second "newImageLoader requested" in the log).
+        AppLogger.d("UkrtvApplication", "newImageLoader requested (building primary synchronously)")
+        return buildImageLoader(context, getDeviceClass(context), hasMediatekChipset(), reuseCurrent = true)
     }
 
     fun applyImageLoaderFor(deviceClass: DeviceClass, isMediatek: Boolean) {
@@ -314,8 +302,8 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
 
         when {
             isComplete -> {
-                AppLogger.w("Memory", "COMPLETE memory pressure (level $level): clearing all caches")
-                clearCaches()
+                AppLogger.d("Memory", "COMPLETE memory pressure (level $level): trimming Coil cache by half (disk caches preserved)")
+                imageLoader?.memoryCache?.let { it.trimToSize((it.size * 0.5).toLong()) }
             }
             isRunningCritical -> {
                 AppLogger.d("Memory", "RUNNING_CRITICAL memory pressure (level $level): trimming Coil cache by 50%")
@@ -330,7 +318,6 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
                 imageLoader?.memoryCache?.let { cache ->
                     cache.trimToSize((cache.size * 0.5).toLong())
                 }
-                providerManager.get().clearCaches()
                 try { htmlHttpClient.get().clearMemoryCache() } catch(_: Exception) {}
                 try { contentRepository.get().clearTrendsCache() } catch(_: Exception) {}
             }

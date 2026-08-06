@@ -41,7 +41,7 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.toRoute
 import kotlinx.coroutines.delay
 
-private const val MIN_SPLASH_MS = 1200L
+private const val MIN_SPLASH_MS = 800L
 private const val MAX_SPLASH_MS = 8000L
 
 @AndroidEntryPoint

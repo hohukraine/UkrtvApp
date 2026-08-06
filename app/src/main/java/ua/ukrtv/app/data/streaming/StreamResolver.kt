@@ -59,10 +59,18 @@ class StreamResolver @Inject constructor(
             return withTimeout(timeoutMs) {
                 withContext(Dispatchers.IO) {
                     val cacheKey = "resolve|$url|$referer|$season|$episode|$voiceover|$isDeep"
+                    val lockKey = "lock|$url|$referer|$season|$episode|$voiceover"
 
                     streamResolutionCache.get(cacheKey)?.let { cached ->
-                        AppLogger.d("StreamResolver", "Cache hit for $url")
+                        AppLogger.d("StreamResolver", "Cache hit for $url (deep=$isDeep)")
                         return@withContext cached
+                    }
+                    
+                    if (!isDeep) {
+                        streamResolutionCache.get("resolve|$url|$referer|$season|$episode|$voiceover|true")?.let { cached ->
+                            AppLogger.d("StreamResolver", "Fast cache hit (from deep) for $url")
+                            return@withContext cached
+                        }
                     }
 
                     if (failedResolutionCache.get(cacheKey) == true) {
@@ -70,12 +78,16 @@ class StreamResolver @Inject constructor(
                         return@withContext null
                     }
 
-                    val mutex = inflightMutexes.computeIfAbsent(cacheKey) { Mutex() }
+                    val mutex = inflightMutexes.computeIfAbsent(lockKey) { Mutex() }
                     try {
                         mutex.withLock {
                             streamResolutionCache.get(cacheKey)?.let { cached ->
-                                AppLogger.d("StreamResolver", "Cache hit (after lock) for $url")
                                 return@withContext cached
+                            }
+                            if (!isDeep) {
+                                streamResolutionCache.get("resolve|$url|$referer|$season|$episode|$voiceover|true")?.let { cached ->
+                                    return@withContext cached
+                                }
                             }
 
                             if (isForbiddenUrl(url)) {
@@ -123,7 +135,7 @@ class StreamResolver @Inject constructor(
                             return@withLock currentResult
                         }
                     } finally {
-                        inflightMutexes.remove(cacheKey)
+                        inflightMutexes.remove(lockKey)
                     }
                 }
             }

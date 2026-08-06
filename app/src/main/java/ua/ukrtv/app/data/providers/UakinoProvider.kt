@@ -32,6 +32,14 @@ class UakinoProvider(
 ) : DleProviderBase(htmlHttpClient, sessionRepository, catalogRepository, UakinoProfile) {
 
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
+    private val seasonCache = ua.ukrtv.app.data.TtlLruCache<String, ProviderSeason>(
+        maxSize = 100,
+        ttlMs = Constants.STREAM_RESOLUTION_CACHE_TTL_MS
+    )
+    private val ajaxPlaylistCache = ua.ukrtv.app.data.TtlLruCache<String, Pair<List<ProviderEpisode>, List<String>>>(
+        maxSize = 50,
+        ttlMs = Constants.STREAM_RESOLUTION_CACHE_TTL_MS
+    )
 
     override val name: String = "Uakino"
     override val baseUrl: String = "https://uakino.best/"
@@ -78,6 +86,9 @@ class UakinoProvider(
 
         suspend fun fetchSeasonEpisodes(seasonUrl: String, seasonNum: Int): ProviderSeason? =
             withTimeoutOrNull(Constants.PER_SEASON_FETCH_TIMEOUT_MS) {
+                val cacheKey = "season|$seasonUrl|$seasonNum"
+                seasonCache.get(cacheKey)?.let { return@withTimeoutOrNull it }
+
                 val sHtml = try {
                     htmlHttpClient.getHtml(seasonUrl, pageUrl, skipRateLimitRetry = true)
                 } catch (e: CancellationException) {
@@ -91,7 +102,9 @@ class UakinoProvider(
                 val sNewsId = sPlaylistDiv.attr("data-news_id")
                 if (sNewsId.isBlank()) return@withTimeoutOrNull null
                 val ajaxData = fetchAjaxPlaylist(sNewsId, seasonUrl, skipRateLimitRetry = true) ?: return@withTimeoutOrNull null
-                ProviderSeason(seasonNum, ajaxData.first, voiceoverOptions = ajaxData.second)
+                ProviderSeason(seasonNum, ajaxData.first, voiceoverOptions = ajaxData.second).also {
+                    seasonCache.put(cacheKey, it)
+                }
             }
 
         val ajaxData = fetchAjaxPlaylist(newsId, pageUrl) ?: return null
@@ -108,7 +121,14 @@ class UakinoProvider(
 
         // When a concrete season is requested (play/prewarm path) only that season's page is
         // needed — fetching all seasons for a 20+ season series is what trips the 429 storm.
-        val targetSeasons = if (season != null) otherSeasons.filter { it.first == season } else otherSeasons
+        // Full season-structure discovery is a deep-resolution concern; shallow calls must never
+        // fan out to every season, otherwise countdown/prefetch paths re-POST the same
+        // playlists.php repeatedly (see log: deep=false chains re-fetching all seasons).
+        val targetSeasons = when {
+            isDeep -> otherSeasons
+            season != null -> otherSeasons.filter { it.first == season }
+            else -> emptyList()
+        }
 
         if (targetSeasons.isNotEmpty()) {
             val seasonSemaphore = Semaphore(3) // Increase parallel limit for speed
@@ -134,11 +154,22 @@ class UakinoProvider(
         return mergeSeasons(allSeasons, pageUrl)
     }
 
+    override fun clearCache(url: String?) {
+        super.clearCache(url)
+        if (url == null) {
+            seasonCache.clear()
+            ajaxPlaylistCache.clear()
+        }
+    }
+
     private suspend fun fetchAjaxPlaylist(
         newsId: String,
         referer: String,
         skipRateLimitRetry: Boolean = false
     ): Pair<List<ProviderEpisode>, List<String>>? {
+        val cacheKey = "ajax|$newsId"
+        ajaxPlaylistCache.get(cacheKey)?.let { return it }
+
         val ajaxUrl = "${baseUrl}engine/ajax/playlists.php"
         val body = FormBody.Builder()
             .add("news_id", newsId)
@@ -156,6 +187,8 @@ class UakinoProvider(
         }
         if (jsonObj?.get("success")?.jsonPrimitive?.booleanOrNull != true) return null
         val responseHtml = jsonObj["response"]?.jsonPrimitive?.content ?: return null
-        return SeriesPlaylistParser.parseAjaxPlaylistHtml(responseHtml)
+        return SeriesPlaylistParser.parseAjaxPlaylistHtml(responseHtml).also {
+            ajaxPlaylistCache.put(cacheKey, it)
+        }
     }
 }
