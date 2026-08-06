@@ -1,11 +1,15 @@
 package ua.ukrtv.app.data.providers
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.repository.SessionRepository
@@ -64,24 +68,32 @@ class UaflixProvider @Inject constructor(
             (season != null && episode != null && seasonsMap[season]?.any { it.number == episode } != true)
         if (needsCompleteList) {
             val seasonPageUrls = seasonPageLinks(doc, pageUrl)
+                .filter { (_, sUrl) -> sUrl != pageUrl }
+                .let { links ->
+                    if (season != null) links.filter { (sNum, _) -> sNum == season } else links
+                }
             if (seasonPageUrls.isNotEmpty()) {
                 val completed = coroutineScope {
                     seasonPageUrls
-                        .filter { (_, sUrl) -> sUrl != pageUrl }
-                        .map { (sNum, sUrl) ->
+                        .mapIndexed { idx, (sNum, sUrl) ->
                             async(Dispatchers.IO) {
-                                try {
-                                    val sHtml = htmlHttpClient.getHtml(sUrl, pageUrl)
-                                    if (sHtml == null) {
-                                        AppLogger.w("UAFLIX", "Failed to fetch season page S$sNum")
+                                if (idx > 0) delay(Constants.SERIES_FETCH_STAGGER_MS * idx)
+                                withTimeoutOrNull(Constants.PER_SEASON_FETCH_TIMEOUT_MS) {
+                                    try {
+                                        val sHtml = htmlHttpClient.getHtml(sUrl, pageUrl, skipRateLimitRetry = true)
+                                        if (sHtml == null) {
+                                            AppLogger.w("UAFLIX", "Failed to fetch season page S$sNum")
+                                            null
+                                        } else {
+                                            val sDoc = Jsoup.parse(sHtml, sUrl)
+                                            sNum to parseEpisodeLinks(sDoc)[sNum]
+                                        }
+                                    } catch (e: CancellationException) {
+                                        throw e
+                                    } catch (e: Exception) {
+                                        AppLogger.w("UAFLIX", "Failed to fetch season page S$sNum: ${e.message}")
                                         null
-                                    } else {
-                                        val sDoc = Jsoup.parse(sHtml, sUrl)
-                                        sNum to parseEpisodeLinks(sDoc)[sNum]
                                     }
-                                } catch (e: Exception) {
-                                    AppLogger.w("UAFLIX", "Failed to fetch season page S$sNum: ${e.message}")
-                                    null
                                 }
                             }
                         }

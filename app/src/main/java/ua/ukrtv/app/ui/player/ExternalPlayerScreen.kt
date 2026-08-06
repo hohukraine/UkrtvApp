@@ -151,7 +151,7 @@ fun ExternalPlayerScreen(
 
     val isLoadingVisible = !resultHandled && (
         currentStatus is PlayerStatus.Loading ||
-        (currentStatus is PlayerStatus.Ready && playerLaunched)
+        currentStatus is PlayerStatus.Ready
     )
 
     BackHandler(enabled = isLoadingVisible || showAdvanceCountdown) {

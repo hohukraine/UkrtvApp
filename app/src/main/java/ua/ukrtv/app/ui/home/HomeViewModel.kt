@@ -12,6 +12,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
@@ -150,7 +151,32 @@ class HomeViewModel @Inject constructor(
         return result
     }
 
-    private val homeTrending: Flow<List<Movie>> = grid
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val homeTrending: Flow<List<Movie>> = combine(
+        providerManager.activeProvider,
+        _retryTrigger
+    ) { provider, trigger -> provider to trigger }
+        .flatMapLatest { (provider, trigger) ->
+            flow {
+                var hasData = false
+                try {
+                    val cached = mediaRepository.getTmdbTrendsCached(provider)
+                    if (cached.isNotEmpty()) {
+                        hasData = true
+                        emit(cached)
+                    }
+                    val fresh = mediaRepository.getTmdbTrends(provider, forceRefresh = trigger > 0)
+                    if (fresh.isNotEmpty()) {
+                        hasData = true
+                        emit(fresh)
+                    }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    AppLogger.w("HomeVM", "TMDB trends failed: ${e.message}")
+                }
+                if (!hasData) emit(emptyList())
+            }.flowOn(Dispatchers.IO)
+        }
         .map { list -> stabilizeTrending(list) }
         .distinctUntilChanged()
 
@@ -172,15 +198,7 @@ class HomeViewModel @Inject constructor(
         if (cw.isNotEmpty()) cw.take(5) else grid.take(5)
     }
 
-    private val trendingLabel: Flow<String> = providerConfig
-        .map { (_, providerName) ->
-            val period = when (providerName) {
-                "UAFLIX" -> "за весь час"
-                "Uakino" -> "2026"
-                else -> ""
-            }
-            if (period.isNotEmpty()) "Тренди · $providerName · $period" else "Тренди"
-        }
+    private val trendingLabel: Flow<String> = flowOf("Тренди")
 
     // 3.2 Combined categories request — parallel fetching with cache (Stale-while-revalidate)
     @OptIn(ExperimentalCoroutinesApi::class)

@@ -1,0 +1,1165 @@
+{
+    "generatedAt": 1785913295528,
+    "providers": [
+        {
+            "provider": "Uakino",
+            "items": [
+                {
+                    "tmdbId": 1368337,
+                    "url": "https://uakino.best/filmy/genre_adventure/5969-odsseya-odssey.html",
+                    "title": "Одіссея",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/4a/b6132ebcf277dd0a2f4c94457af95d.webp",
+                    "provider": "Uakino",
+                    "rating": "7.1",
+                    "quality": "BD-Rip",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1081003,
+                    "url": "https://uakino.best/filmy/genre-action/33757-supergorl.html",
+                    "title": "Суперґьорл",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/69/a133ad46cd41c21e8c08413a68101e.webp",
+                    "provider": "Uakino",
+                    "rating": "5.9",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1481343,
+                    "url": "https://uakino.best/filmy/genre_thriller/35369-pashcha-dyiavola.html",
+                    "title": "Паща диявола",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/d1/54c70595c4946c78fccf186287abb9.webp",
+                    "provider": "Uakino",
+                    "rating": "4.8",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 94997,
+                    "url": "https://uakino.best/seriesss/drama_series/34610-dim-drakona-3-sezon.html",
+                    "title": "Дім дракона",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/dc/65a0e1d08b0f6137c4491ba7e22529.webp",
+                    "provider": "Uakino",
+                    "rating": "8.3",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1212763,
+                    "url": "https://uakino.best/filmy/genre_thriller/35441-zlovisni-merci-u-vogni.html",
+                    "title": "Зловісні мерці у вогні",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/a4/b8a008ebac643e1925f40fa61ffd4c.webp",
+                    "provider": "Uakino",
+                    "rating": "6.6",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1275779,
+                    "url": "https://uakino.best/filmy/genre_science_fictions/33762-den-istini.html",
+                    "title": "День істини",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/94/417d70b7bd6a70c486067eb744019a.webp",
+                    "provider": "Uakino",
+                    "rating": "6.7",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 125988,
+                    "url": "https://uakino.best/seriesss/drama_series/34827-taiemnycia-bunkera-bunker-3-sezon.html",
+                    "title": "Таємниця бункера",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/e9/613119e35d6d5d7182e9b599e3e6c9.webp",
+                    "provider": "Uakino",
+                    "rating": "8.1",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 97546,
+                    "url": "https://uakino.best/seriesss/drama_series/13109-ted-lasso-3-sezon.html",
+                    "title": "Тед Лассо",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/95/02a818818389f5a322ed4537f8ccab.webp",
+                    "provider": "Uakino",
+                    "rating": "8.7",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 615,
+                    "url": "https://uakino.best/cartoon/cartoonseries/35425-futurama-11-sezon.html",
+                    "title": "Футурама",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/08/5c06f58f8cfb41c076af2399fd0117.webp",
+                    "provider": "Uakino",
+                    "rating": "8.5",
+                    "quality": "1080p",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 1083381,
+                    "url": "https://uakino.best/filmy/genre_horror/34764-backrooms-zalashtunki.html",
+                    "title": "Backrooms Залаштунки",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/80/5f0eb5cd919fe1a2b0bbd0dba28331.webp",
+                    "provider": "Uakino",
+                    "rating": "7.0",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1314481,
+                    "url": "https://uakino.best/filmy/genre_drama/34689-dijavol-nosit-prada-2.html",
+                    "title": "Диявол носить Прада 2",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/a4/8e998fcb3bb60406099f8c361c241b.webp",
+                    "provider": "Uakino",
+                    "rating": "6.6",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 30984,
+                    "url": "https://uakino.best/filmy/genre-action/13286-blch.html",
+                    "title": "Бліч",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/12/409f3798cc5885cc41705966b21a6e.webp",
+                    "provider": "Uakino",
+                    "rating": "6.3",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 454639,
+                    "url": "https://uakino.best/filmy/genre-action/34331-volodari-vsesvitu.html",
+                    "title": "Володарі Всесвіту",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/41/fa8b00e1c131b7f38bff2e6bf616a7.webp",
+                    "provider": "Uakino",
+                    "rating": "6.8",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1228710,
+                    "url": "https://uakino.best/filmy/genre-action/33716-mandalorec-i-grogu.html",
+                    "title": "Мандалорець і Ґроґу",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/84/30c49c294741164b6a4611c4a7cab6.webp",
+                    "provider": "Uakino",
+                    "rating": "6.9",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 296756,
+                    "url": "https://uakino.best/cartoon/cartoonseries/35306-prezydent-kertis-1-sezon.html",
+                    "title": "Президент Кертіс",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/b7/4f24c9a58574bf872a49fd195083d1.webp",
+                    "provider": "Uakino",
+                    "quality": "1080p",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 278624,
+                    "url": "https://uakino.best/seriesss/drama_series/35049-laki-1-sezon.html",
+                    "title": "Лакі",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/4c/c25e544310f09e405fc2fb53408399.webp",
+                    "provider": "Uakino",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 687163,
+                    "url": "https://uakino.best/filmy/genre_adventure/33587-proiekt-ave-mariia.html",
+                    "title": "Проєкт Аве Марія",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/7c/4d569ddcc03f6ee1231bf20949ca9c.webp",
+                    "provider": "Uakino",
+                    "rating": "8.2",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 60625,
+                    "url": "https://uakino.best/cartoon/cartoonseries/34181-rik-ta-morti-9-sezon.html",
+                    "title": "Рік та Морті",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/df/acea23367142d9231035c1bf654cb4.webp",
+                    "provider": "Uakino",
+                    "rating": "9.0",
+                    "quality": "1080p",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 1375646,
+                    "url": "https://uakino.best/filmy/genre-action/35435-koloniia.html",
+                    "title": "Колонія",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/b4/07274989db10cc4cd8aa186fb9b4f8.webp",
+                    "provider": "Uakino",
+                    "rating": "6.5",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 277439,
+                    "url": "https://uakino.best/filmy/genre_crime/1075-mis-strahu.html",
+                    "title": "Мис страху",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/09/7a6c1ebc9091d6f2698d5c1a99dd52.webp",
+                    "provider": "Uakino",
+                    "rating": "7.3",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 296206,
+                    "url": "https://uakino.best/seriesss/drama_series/34708-agent-kim-reaktyvaciia-menedzher-kim-1-sezon.html",
+                    "title": "Агент Кім реактивація",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/7d/8677e35462d522e7c09dd28ecf2d75.webp",
+                    "provider": "Uakino",
+                    "rating": "7.7",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1273221,
+                    "url": "https://uakino.best/filmy/genre_comedy/34554-duzhe-strashne-kino.html",
+                    "title": "Дуже страшне кіно",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/b6/49abd8eee9c9eaf475988f025e870e.webp",
+                    "provider": "Uakino",
+                    "rating": "4.9",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1084244,
+                    "url": "https://uakino.best/cartoon/features/33761-istorija-igrashok-5.html",
+                    "title": "Історія іграшок 5",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/d7/f5cec83a97f71b9bdffeb9ba1fb262.webp",
+                    "provider": "Uakino",
+                    "rating": "7.6",
+                    "quality": "1080p",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 1311031,
+                    "url": "https://uakino.best/animeukr/anime-solo/32160-vbyvcia-demoniv-zamok-neskinchennosti.html",
+                    "title": "Вбивця Демонів Замок Нескінченності",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/9b/3412018c1eda1d85b94e5d641adadf.webp",
+                    "provider": "Uakino",
+                    "rating": "8.4",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1284465,
+                    "url": "https://uakino.best/filmy/genre-action/34740-smert-robina-guda.html",
+                    "title": "Смерть Робіна Гуда",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/f4/479cd3734cb3b92a7323dcdb8387f8.webp",
+                    "provider": "Uakino",
+                    "rating": "6.1",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 125909,
+                    "url": "https://uakino.best/cartoon/cartoonseries/22691-betmen-khrestonosec-u-plashchi-1-sezon.html",
+                    "title": "Бетмен Хрестоносець у плащі",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/6c/66d8c5f67e9334a2fc9f381003489e.webp",
+                    "provider": "Uakino",
+                    "rating": "7.2",
+                    "quality": "1080p",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 1361774,
+                    "url": "https://uakino.best/filmy/genre_comedy/35264-dink.html",
+                    "title": "Дінк",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/59/f1c4b70010be531fe5c5eea7743259.webp",
+                    "provider": "Uakino",
+                    "rating": "6.3",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 287620,
+                    "url": "https://uakino.best/seriesss/comedy_series/35262-stuart-ne-zmig-vriatuvaty-vsesvit-1-sezon.html",
+                    "title": "Стюарт не зміг врятувати Всесвіт",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/65/fd894c00994ebc3e3df509a06d8651.webp",
+                    "provider": "Uakino",
+                    "rating": "7.4",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1108427,
+                    "url": "https://uakino.best/cartoon/features/933-vayana-moana.html",
+                    "title": "Ваяна",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/40/d8aaa3ff778539c874b985851ad2b6.webp",
+                    "provider": "Uakino",
+                    "rating": "7.6",
+                    "quality": "1080p",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 634649,
+                    "url": "https://uakino.best/filmy/genre-action/12519-lyudina-pavuk-dodomu-shlyahu-nema.html",
+                    "title": "Людина павук Додому шляху нема",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/0a/d36dddcceef5afcd82de902a493d3b.webp",
+                    "provider": "Uakino",
+                    "rating": "8.1",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 557,
+                    "url": "https://uakino.best/filmy/genre-action/92-lyudina-pavuk.html",
+                    "title": "Людина павук",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/27/6a9b5a0dbb101c60cc055846295f5e.webp",
+                    "provider": "Uakino",
+                    "rating": "7.4",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 315635,
+                    "url": "https://uakino.best/filmy/genre-action/942-lyudina-pavuk-povernennya-dodomu.html",
+                    "title": "Людина павук Повернення додому",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/fd/e046ca2327389e6448e69074c3c7be.webp",
+                    "provider": "Uakino",
+                    "rating": "7.4",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1110034,
+                    "url": "https://uakino.best/filmy/genre-action/35089-kraken.html",
+                    "title": "Кракен",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/34/be4ead55be48dfd5b006f9fc630f2e.webp",
+                    "provider": "Uakino",
+                    "rating": "5.1",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 429617,
+                    "url": "https://uakino.best/filmy/genre-action/9871-lyudina-pavuk-daleko-vd-domu.html",
+                    "title": "Людина павук Далеко від дому",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/00/b520dae72e301323570406cd2bfdb8.webp",
+                    "provider": "Uakino",
+                    "rating": "7.3",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1668364,
+                    "url": "https://uakino.best/filmy/genre_drama/35368-zhadannia.html",
+                    "title": "Жадання",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/fd/7a8abbdbaa97e3888210777a3a7fc8.webp",
+                    "provider": "Uakino",
+                    "rating": "4.3",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1127384,
+                    "url": "https://uakino.best/filmy/genre-action/8994-hizh-vodi.html",
+                    "title": "Хижі води",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/98/f98789a277d972d5acdf4dad177a92.webp",
+                    "provider": "Uakino",
+                    "rating": "5.8",
+                    "quality": "HD 720p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 936075,
+                    "url": "https://uakino.best/filmy/biography/34333-majkl.html",
+                    "title": "Майкл",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/13/6e306446db39f49b6940ee33df2400.webp",
+                    "provider": "Uakino",
+                    "rating": "7.4",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1280738,
+                    "url": "https://uakino.best/filmy/genre-action/34986-vin-shalenyi.html",
+                    "title": "Він шалений",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/bd/15ac6ab680f5d6c37f1c471d46607d.webp",
+                    "provider": "Uakino",
+                    "rating": "7.8",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 949838,
+                    "url": "https://uakino.best/filmy/genre_comedy/35247-72-godyny.html",
+                    "title": "72 години",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/24/0af3c809cd2c18ac8259e8777e437e.webp",
+                    "provider": "Uakino",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 931285,
+                    "url": "https://uakino.best/filmy/genre-action/34040-mortal-kombat-ii.html",
+                    "title": "Мортал Комбат ІІ",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/53/b589ef98791564294022e8616bf7d5.webp",
+                    "provider": "Uakino",
+                    "rating": "6.4",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 5920,
+                    "url": "https://uakino.best/seriesss/detective_series/13648-mentalst-6-sezon.html",
+                    "title": "Менталіст",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/3e/70ae718348b00e2bcaad0911b0ceea.webp",
+                    "provider": "Uakino",
+                    "rating": "8.2",
+                    "quality": "BD-Rip",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 2734,
+                    "url": "https://uakino.best/seriesss/detective_series/7848-zakon-poryadok-specalniy-korpus.html",
+                    "title": "Закон і порядок Спеціальний корпус",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/fe/241c8ad0d9c26a11b3a987a561bae7.webp",
+                    "provider": "Uakino",
+                    "rating": "8.1",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 79744,
+                    "url": "https://uakino.best/seriesss/drama_series/32227-novobranec-8-sezon.html",
+                    "title": "Новобранець",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/d4/7a9d0211b2939ccba330f041a42151.webp",
+                    "provider": "Uakino",
+                    "rating": "8.0",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1416,
+                    "url": "https://uakino.best/seriesss/love_story_series/24483-anatomiia-grei-21-sezon.html",
+                    "title": "Анатомія Грей",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/44/c51581a6fb3afbca495e59cfaa4ea8.webp",
+                    "provider": "Uakino",
+                    "rating": "7.6",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 65334,
+                    "url": "https://uakino.best/cartoon/cartoonseries/26405-ledi-bag-ta-super-kit-6-sezon.html",
+                    "title": "Леді Баг та Супер Кіт",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/08/499f87989cb0efd75cc342f31e4c39.webp",
+                    "provider": "Uakino",
+                    "rating": "7.5",
+                    "quality": "1080p",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 124364,
+                    "url": "https://uakino.best/seriesss/fantastic_series/33511-zzovni-4-sezon.html",
+                    "title": "Ззовні",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/28/eecbb151d6b7451f9176d7dfe3f3a1.webp",
+                    "provider": "Uakino",
+                    "rating": "7.8",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 549,
+                    "url": "https://uakino.best/seriesss/detective_series/12672-zakon-poryadok-organzovana-zlochinnst.html",
+                    "title": "Закон і порядок Організована",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/e0/6dc88bdd574de4ba7e3e0ca68266a6.webp",
+                    "provider": "Uakino",
+                    "rating": "7.7",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1622,
+                    "url": "https://uakino.best/filmy/genre-action/12160-nadprirodne.html",
+                    "title": "Надприродне",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/b2/7bf646f3cc130a31a82d1d9153ebf9.webp",
+                    "provider": "Uakino",
+                    "rating": "4.8",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1434,
+                    "url": "https://uakino.best/filmy/genre_comedy/7679-smyanin.html",
+                    "title": "Сім'янин",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/e9/258fee0add0601de6c1299f0485d60.webp",
+                    "provider": "Uakino",
+                    "rating": "6.9",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 4057,
+                    "url": "https://uakino.best/seriesss/detective_series/7871-misliti-yak-zlochinec-6-sezon.html",
+                    "title": "Мислити як злочинець",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/15/22d36bc8a263b6adc32a82c79d9122.webp",
+                    "provider": "Uakino",
+                    "rating": "8.1",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1399,
+                    "url": "https://uakino.best/seriesss/drama_series/5578-gra-prestolv-7-sezon.html",
+                    "title": "Гра Престолів",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/53/7082c8cd6f360c185c5a98ee52681e.webp",
+                    "provider": "Uakino",
+                    "rating": "9.2",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 456,
+                    "url": "https://uakino.best/cartoon/cartoonseries/5690-smpsoni.html",
+                    "title": "Сімпсони",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/74/524a4d2a8944c97487cdea43c61560.webp",
+                    "provider": "Uakino",
+                    "rating": "8.6",
+                    "quality": "1080p",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 108978,
+                    "url": "https://uakino.best/filmy/genre-action/447-dzhek-rcher.html",
+                    "title": "Джек Річер",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/f6/f856d3948f020132f5a7bf77573ea2.webp",
+                    "provider": "Uakino",
+                    "rating": "7.0",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 34307,
+                    "url": "https://uakino.best/seriesss/drama_series/24635-bezsoromni-11-sezon.html",
+                    "title": "Безсоромні",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/12/aa225993d28b5ea0e1870379c52e74.webp",
+                    "provider": "Uakino",
+                    "rating": "8.5",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1408,
+                    "url": "https://uakino.best/seriesss/detective_series/6959-doktor-haus.html",
+                    "title": "Доктор Хаус",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/d3/36ddcbb037dca188671e0258ce36c5.webp",
+                    "provider": "Uakino",
+                    "rating": "8.7",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1396,
+                    "url": "https://uakino.best/filmy/10468-el-kamno-pustitisya-berega.html",
+                    "title": "Ель Каміно Пуститися берега",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/b0/28386c504da291c11f8bcd5341eef5.webp",
+                    "provider": "Uakino",
+                    "rating": "7.3",
+                    "quality": "1080p",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 70998,
+                    "url": "https://uakino.best/animeukr/anime-series/27635-palka-nich-iz-monakhom-1-sezon.html",
+                    "title": "Палка ніч із монахом",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/aa/b12f14cd503cf9e23a0b1d63ab0cd7.webp",
+                    "provider": "Uakino",
+                    "rating": "4.9",
+                    "quality": "HD 720p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1405,
+                    "url": "https://uakino.best/seriesss/detective_series/5620-dekster-8-sezon.html",
+                    "title": "Декстер",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/d2/958a9c717cabe9c08eb9d26099f27e.webp",
+                    "provider": "Uakino",
+                    "rating": "8.6",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1431,
+                    "url": "https://uakino.best/seriesss/detective_series/6156-csi-msce-zlochinu-mayam.html",
+                    "title": "CSI Місце Злочину Маямі",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/05/10d70ef63a13fa3a6a28cf02614a7d.webp",
+                    "provider": "Uakino",
+                    "rating": "6.5",
+                    "quality": "BD-Rip",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 764,
+                    "url": "https://uakino.best/seriesss/detective_series/15358-suto-angliiski-vbyvstva-7-sezon.html",
+                    "title": "Суто англійські вбивства",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/98/29681574fbb80d35f51dd6c7bed443.webp",
+                    "provider": "Uakino",
+                    "rating": "7.9",
+                    "quality": "1080p",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 66732,
+                    "url": "https://uakino.best/seriesss/detective_series/31323-dyvni-dyva-5-sezon.html",
+                    "title": "Дивні дива",
+                    "poster": "https://uakino.best/uploads/mini/mainpics/c3/39f0ddf1c2d4cf005e8a0b1e4ce97c.webp",
+                    "provider": "Uakino",
+                    "rating": "8.6",
+                    "quality": "1080p",
+                    "contentType": "series"
+                }
+            ]
+        },
+        {
+            "provider": "UAFLIX",
+            "items": [
+                {
+                    "tmdbId": 969681,
+                    "url": "https://uafix.net/films/ljudina-pavuk-4/",
+                    "title": "Людина павук Абсолютно новий день",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1784728540_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1368337,
+                    "url": "https://uafix.net/films/lodyssee/",
+                    "title": "Одіссея",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1784852547_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "12+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1081003,
+                    "url": "https://uafix.net/films/cypdivchina-g1/",
+                    "title": "Супергьорл",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1782575467_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1339713,
+                    "url": "https://uafix.net/films/nvobseciyaiq/",
+                    "title": "Обсесія",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1780675212_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1481343,
+                    "url": "https://uafix.net/films/pascha-dujavola/",
+                    "title": "Паща диявола",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1785350020_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 94997,
+                    "url": "https://uafix.net/serials/gt-diim-v-drakona/",
+                    "title": "Дім дракона",
+                    "poster": "https://uafix.net/uploads/posts/2024-04/1713720047_dim-drakona.png",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1212763,
+                    "url": "https://uafix.net/films/zlovisni-merci-u-vogni/",
+                    "title": "Зловісні мерці у вогні",
+                    "poster": "https://uafix.net/uploads/posts/2026-05/1778531913_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1275779,
+                    "url": "https://uafix.net/films/jctna-dunj-v1/",
+                    "title": "День істини",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1781521362_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 97546,
+                    "url": "https://uafix.net/serials/ted-lasso/",
+                    "title": "Тед Лассо",
+                    "poster": "https://uafix.net/uploads/posts/2024-08/1722950892_ted-lasso.png",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 615,
+                    "url": "https://uafix.net/serials/futurama/",
+                    "title": "Футурама",
+                    "poster": "https://uafix.net/uploads/posts/2024-08/1722706199_futurama.png",
+                    "provider": "UAFLIX",
+                    "rating": "12+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1083381,
+                    "url": "https://uafix.net/films/backrooms-zalashtynku/",
+                    "title": "Backrooms Залаштунки",
+                    "poster": "https://uafix.net/uploads/posts/2026-05/1779205941_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1314481,
+                    "url": "https://uafix.net/films/flmpadnocduyaw/",
+                    "title": "Диявол носить Прада 2",
+                    "poster": "https://uafix.net/uploads/posts/2026-04/1777578761_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 30984,
+                    "url": "https://uafix.net/films/blich/",
+                    "title": "Бліч",
+                    "poster": "https://uafix.net/uploads/posts/2025-09/1757467569_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "14+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 454639,
+                    "url": "https://uafix.net/films/wolubap-wcecwjt/",
+                    "title": "Володарі всесвіту",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1780618238_d1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1228710,
+                    "url": "https://uafix.net/films/mindic1-i-grogu/",
+                    "title": "Мандалорець і Грогу",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1784600298_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 278624,
+                    "url": "https://uafix.net/serials/laki/",
+                    "title": "Лакі",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1784232736_b6aa050c916c8d34a47e898fd42e6ae3.jpeg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 687163,
+                    "url": "https://uafix.net/films/prjawmar-nc2/",
+                    "title": "Проєкт Аве Марія",
+                    "poster": "https://uafix.net/uploads/posts/2026-03/1774970725_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 60625,
+                    "url": "https://uafix.net/serials/rik-ta-morti/",
+                    "title": "Рік та Морті",
+                    "poster": "https://uafix.net/uploads/posts/2026-05/1779688578_451c1a8648154109556b4864edbb8a05.jpeg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1375646,
+                    "url": "https://uafix.net/films/colony/",
+                    "title": "Колонія",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1784920433_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 287238,
+                    "url": "https://uafix.net/serials/nesamovita/",
+                    "title": "Несамовита",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1785224553_ba902f1f10e85f37ac6e7c551ca98ff7.jpeg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 277439,
+                    "url": "https://uafix.net/films/mus-strahu/",
+                    "title": "Мис страху",
+                    "poster": "https://uafix.net/uploads/posts/2025-09/1757111048_2.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 296206,
+                    "url": "https://uafix.net/serials/agent-kim-reaktivacija/",
+                    "title": "Агент Кім Реактивація",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1782681220_6bbae2af8ffa0ca00a5289f86d880e45.jpeg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1273221,
+                    "url": "https://uafix.net/films/kinostrax6/",
+                    "title": "Дуже страшне кіно 6",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1780529488_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1084244,
+                    "url": "https://uafix.net/cartoons/istorija-igrashok-5/",
+                    "title": "Історія іграшок 5",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1782315412_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "6+",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 1284465,
+                    "url": "https://uafix.net/films/smert-robin-guda/",
+                    "title": "Смерть Робіна Гуда",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1782576153_1-1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 125909,
+                    "url": "https://uafix.net/serials/betmen-hrestonosec-u-plaschi-batman-caped-crusader/",
+                    "title": "Бетмен Хрестоносець у плащі",
+                    "poster": "https://uafix.net/uploads/posts/2024-08/1722616320_betmen-jua.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "8+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1396749,
+                    "url": "https://uafix.net/films/dukuu-spiv/",
+                    "title": "Дикий спів",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1784138288_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1361774,
+                    "url": "https://uafix.net/films/dink/",
+                    "title": "Дінк",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1782250842_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1101383,
+                    "url": "https://uafix.net/films/kinecj-ouk-strit/",
+                    "title": "Кінець Оук Стріт",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1780435518_ryhd1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1108427,
+                    "url": "https://uafix.net/films/vaymoana/",
+                    "title": "Ваяна",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1783783401_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "8+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 634649,
+                    "url": "https://uafix.net/films/ljudina-pavuk-3-dodomu-shljahu-nema/",
+                    "title": "Людина павук 3 Додому шляху нема",
+                    "poster": "https://uafix.net/uploads/posts/2025-06/1749307160_3.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "12+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1315772,
+                    "url": "https://uafix.net/cartoons/posipaku-i-monstriaku/",
+                    "title": "Посіпаки і Монстряки",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1782821426_g1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "4+",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 557,
+                    "url": "https://uafix.net/films/ljudina-pavuk-2/",
+                    "title": "Людина павук 2",
+                    "poster": "https://uafix.net/uploads/posts/2024-07/1721254592_l2.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "12+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 315635,
+                    "url": "https://uafix.net/films/ljudina-pavuk-1-povernennja-dodomu/",
+                    "title": "Людина павук 1 Повернення додому",
+                    "poster": "https://uafix.net/uploads/posts/2025-06/1749306855_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "12+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1110034,
+                    "url": "https://uafix.net/films/kraken/",
+                    "title": "Кракен",
+                    "poster": "https://uafix.net/uploads/posts/2026-02/1772202652_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 429617,
+                    "url": "https://uafix.net/films/ljudina-pavuk-2-daleko-vid-domu/",
+                    "title": "Людина павук 2 Далеко від дому",
+                    "poster": "https://uafix.net/uploads/posts/2025-06/1749306986_2.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "12+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1668364,
+                    "url": "https://uafix.net/films/zhadannja/",
+                    "title": "Жадання",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1781834530_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1127384,
+                    "url": "https://uafix.net/films/gluboky-wodu/",
+                    "title": "Хижі води",
+                    "poster": "https://uafix.net/uploads/posts/2026-08/1785861583_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 936075,
+                    "url": "https://uafix.net/films/michael/",
+                    "title": "Майкл",
+                    "poster": "https://uafix.net/uploads/posts/2026-04/1776879955_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "13+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1280738,
+                    "url": "https://uafix.net/films/shalenuu/",
+                    "title": "Він шалений",
+                    "poster": "https://uafix.net/uploads/posts/2026-05/1780089571_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 949838,
+                    "url": "https://uafix.net/films/72-hodunu/",
+                    "title": "72 години",
+                    "poster": "https://uafix.net/uploads/posts/2026-07/1784906673_1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 5920,
+                    "url": "https://uafix.net/serials/mentalist/",
+                    "title": "Менталіст",
+                    "poster": "https://uafix.net/uploads/posts/2024-11/1732652182_mentalist.png",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 2734,
+                    "url": "https://uafix.net/serials/zakon-i-porjadok-specialnij-korpus/",
+                    "title": "Закон і порядок Спеціальний корпус",
+                    "poster": "https://uafix.net/uploads/posts/2026-06/1781088273_1099089e497720bf3fe179c9d4dcfde2.jpeg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 79744,
+                    "url": "https://uafix.net/serials/novobranec/",
+                    "title": "Новобранець",
+                    "poster": "https://uafix.net/uploads/posts/2024-12/1733303663_novobranec.png",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1416,
+                    "url": "https://uafix.net/serials/anatomija-grej/",
+                    "title": "Анатомія Грей",
+                    "poster": "https://uafix.net/uploads/posts/2024-11/1730479108_anatomija-grej.png",
+                    "provider": "UAFLIX",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 65334,
+                    "url": "https://uafix.net/cartoons/ledi-bag-ta-super-kit-london-na-kraju-chasu/",
+                    "title": "Леді Баг та Супер Кіт Лондон",
+                    "poster": "https://uafix.net/uploads/posts/2024-10/1728310794_ledi-bag.png",
+                    "provider": "UAFLIX",
+                    "rating": "6+",
+                    "contentType": "cartoon"
+                },
+                {
+                    "tmdbId": 124364,
+                    "url": "https://uafix.net/serials/szovni/",
+                    "title": "Ззовні",
+                    "poster": "https://uafix.net/uploads/posts/2024-04/1713719928_zzovni.png",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 549,
+                    "url": "https://uafix.net/serials/zakon-i-porjadok-zlochinni-namiri/",
+                    "title": "Закон і порядок злочинні наміри",
+                    "poster": "https://uafix.net/uploads/posts/2024-11/1732790197_zakon-i-porjadok.png",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1622,
+                    "url": "https://uafix.net/serials/nadprirodne/",
+                    "title": "Надприродне",
+                    "poster": "https://uafix.net/uploads/posts/2025-11/1763573103_bb9dce7a7805bfd6ea6ec1a884619c3c.jpeg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1434,
+                    "url": "https://uafix.net/films/simjanin/",
+                    "title": "Сім'янин",
+                    "poster": "https://uafix.net/uploads/posts/2024-12/1733610906_smja1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "12+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 4057,
+                    "url": "https://uafix.net/serials/misliti-jak-zlochinec/",
+                    "title": "Мислити як злочинець",
+                    "poster": "https://uafix.net/uploads/posts/2024-11/1732360168_misliti-jak-zlochinec.png",
+                    "provider": "UAFLIX",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1399,
+                    "url": "https://uafix.net/serials/rpa-prestoliv/",
+                    "title": "Гра Престолів",
+                    "poster": "https://uafix.net/uploads/posts/2024-08/1725089567_gra-prestoliv.png",
+                    "provider": "UAFLIX",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 456,
+                    "url": "https://uafix.net/serials/bart-simpson/",
+                    "title": "Сімпсони",
+                    "poster": "https://uafix.net/uploads/posts/2024-07/1720886842_simpsoni.png",
+                    "provider": "UAFLIX",
+                    "rating": "6+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 108978,
+                    "url": "https://uafix.net/films/dzhek-richer-1/",
+                    "title": "Джек Річер 1",
+                    "poster": "https://uafix.net/uploads/posts/2024-12/1734295674_dzh1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 34307,
+                    "url": "https://uafix.net/serials/bezsoromni/",
+                    "title": "Безсоромні",
+                    "poster": "https://uafix.net/uploads/posts/2025-12/1765878265_ba45a76ae6447a0d8ce6b89189e84361.jpeg",
+                    "provider": "UAFLIX",
+                    "rating": "18+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1408,
+                    "url": "https://uafix.net/serials/doktor-haus/",
+                    "title": "Доктор Хаус",
+                    "poster": "https://uafix.net/uploads/posts/2024-09/1725204602_doktor-haus.png",
+                    "provider": "UAFLIX",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1396,
+                    "url": "https://uafix.net/films/el-kamino-pustitisja-berega/",
+                    "title": "Ель Каміно Пуститися берега",
+                    "poster": "https://uafix.net/uploads/posts/2024-02/1708978553_e1.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "movie"
+                },
+                {
+                    "tmdbId": 1405,
+                    "url": "https://uafix.net/serials/dekster/",
+                    "title": "Декстер",
+                    "poster": "https://uafix.net/uploads/posts/2024-09/1725721957_dekster.png",
+                    "provider": "UAFLIX",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 1431,
+                    "url": "https://uafix.net/serials/csi-misce-zlochinu-majami/",
+                    "title": "CSI Місце Злочину Маямі",
+                    "poster": "https://uafix.net/uploads/posts/2024-12/1733303733_csi-misce-zlochinu-majami.png",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 764,
+                    "url": "https://uafix.net/serials/suto-anglijski-vbivstva/",
+                    "title": "Суто англійські вбивства",
+                    "poster": "https://uafix.net/uploads/posts/2025-02/1739354423_suto-anglijski-vbivstva.png",
+                    "provider": "UAFLIX",
+                    "contentType": "series"
+                },
+                {
+                    "tmdbId": 66732,
+                    "url": "https://uafix.net/serials/divni-diva/",
+                    "title": "Дивні дива",
+                    "poster": "https://uafix.net/uploads/posts/2024-03/1711296332_diva.jpg",
+                    "provider": "UAFLIX",
+                    "rating": "16+",
+                    "contentType": "series"
+                }
+            ]
+        }
+    ]
+}

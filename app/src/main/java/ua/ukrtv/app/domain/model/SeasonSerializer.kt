@@ -1,10 +1,7 @@
-package ua.ukrtv.app.ui.player
+package ua.ukrtv.app.domain.model
 
 import org.json.JSONArray
 import org.json.JSONObject
-import ua.ukrtv.app.domain.model.Episode
-import ua.ukrtv.app.domain.model.Season
-import ua.ukrtv.app.domain.model.Voiceover
 
 fun serializeSeasons(seasons: List<Season>): String {
     val arr = JSONArray()

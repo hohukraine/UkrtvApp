@@ -1,5 +1,6 @@
 package ua.ukrtv.app.data.providers
 
+import kotlinx.coroutines.CancellationException
 import ua.ukrtv.app.util.AppLogger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -36,6 +37,8 @@ open class StreamManager @Inject constructor(
                     AppLogger.d("StreamManager", "Stream resolved by provider: ${provider.name} (deep=$isDeep)")
                     return result
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 lastError = e
                 AppLogger.w("StreamManager", "Provider ${provider.name} failed: ${e.message}")

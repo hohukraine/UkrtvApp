@@ -12,6 +12,7 @@
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/database-generator" />
             <option value="$PROJECT_DIR$/macrobenchmark" />
+            <option value="$PROJECT_DIR$/matching" />
           </set>
         </option>
       </GradleProjectSettings>

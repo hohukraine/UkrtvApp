@@ -24,28 +24,27 @@ internal class HomeGridSource(
         if (!stale) return@flow
 
         // Fetch fresh data only when the cache is stale (or explicitly forced)
-        try {
-            val freshItems = provider.getHomeSections()
+        val freshItems = try {
+            provider.getHomeSections()
                 .flatMap { it.items }
                 .map { it.copy(provider = it.provider ?: provider.name) }
                 .distinctBy { it.pageUrl }
                 .take(50)
-            
-            if (freshItems.isNotEmpty()) {
-                val mappedItems = freshItems.map { it.withCachedColor() }
-                emit(mappedItems)
-                homeCacheRepository.saveHomeCache(
-                    provider.name,
-                    listOf(HomeSection("Main", freshItems))
-                )
-            } else if (cached.isNullOrEmpty()) {
-                emit(emptyList())
-            }
         } catch (e: Exception) {
-            if (e !is kotlinx.coroutines.CancellationException) {
-                AppLogger.e("HomeGridSource", "Network fetch failed", e)
-            }
-            if (cached.isNullOrEmpty()) emit(emptyList())
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            AppLogger.e("HomeGridSource", "Network fetch failed", e)
+            null
+        }
+
+        if (freshItems != null && freshItems.isNotEmpty()) {
+            val mappedItems = freshItems.map { it.withCachedColor() }
+            emit(mappedItems)
+            homeCacheRepository.saveHomeCache(
+                provider.name,
+                listOf(HomeSection("Main", freshItems))
+            )
+        } else if (freshItems != null || cached.isNullOrEmpty()) {
+            emit(emptyList())
         }
     }.flowOn(Dispatchers.IO)
 

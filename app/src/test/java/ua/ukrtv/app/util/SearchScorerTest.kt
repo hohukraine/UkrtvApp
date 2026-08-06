@@ -6,6 +6,7 @@ import ua.ukrtv.app.domain.model.Episode
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.Season
 import ua.ukrtv.app.domain.model.Voiceover
+import ua.ukrtv.app.matching.SearchScorer
 
 class SearchScorerTest {
 
@@ -13,6 +14,32 @@ class SearchScorerTest {
     fun `stripAccents removes combining marks`() {
         val result = SearchScorer.stripAccents("Caf\u00e9")
         assertEquals("Cafe", result)
+    }
+
+    @Test
+    fun `stripAccents preserves Ukrainian й`() {
+        assertEquals("йЙ", SearchScorer.stripAccents("йЙ"))
+    }
+
+    @Test
+    fun `stripAccents preserves Ukrainian ї`() {
+        assertEquals("їЇ", SearchScorer.stripAccents("їЇ"))
+    }
+
+    @Test
+    fun `normalizeTitle preserves Ukrainian й and ї`() {
+        assertEquals("збройний барон", SearchScorer.normalizeTitle("Збройний барон"))
+        assertEquals("злодії", SearchScorer.normalizeTitle("Злодії"))
+    }
+
+    @Test
+    fun `transliterate maps й to i`() {
+        assertEquals("zbroinyi", SearchScorer.transliterate("збройний"))
+    }
+
+    @Test
+    fun `transliterate maps ї to i`() {
+        assertEquals("zlodii", SearchScorer.transliterate("Злодії"))
     }
 
     @Test
@@ -33,6 +60,38 @@ class SearchScorerTest {
     @Test
     fun `normalizeTitle collapses whitespace`() {
         assertEquals("the godfather", SearchScorer.normalizeTitle("  The   Godfather  "))
+    }
+
+    @Test
+    fun `normalizeTitle canonicalizes g and gha to same spelling`() {
+        assertEquals("супергьорл", SearchScorer.normalizeTitle("Суперґьорл"))
+        assertEquals("супергьорл", SearchScorer.normalizeTitle("Супергьорл"))
+    }
+
+    @Test
+    fun `gVariants generates both g spellings`() {
+        assertEquals(setOf("супергьорл", "суперґьорл"), SearchScorer.gVariants("супергьорл").toSet())
+    }
+
+    @Test
+    fun `gVariants text without g is unchanged`() {
+        assertEquals(listOf("людина павук"), SearchScorer.gVariants("людина павук"))
+    }
+
+    @Test
+    fun `similarity of g and gha spellings is exact`() {
+        assertEquals(1.0f, SearchScorer.tokenSetSimilarity("Суперґьорл", "Супергьорл"), 0.01f)
+        assertTrue(SearchScorer.bigramSimilarity("Суперґьорл", "Супергьорл") > 0.9f)
+    }
+
+    @Test
+    fun `pickBestMatch finds catalog title with different g spelling`() {
+        val movies = listOf(
+            makeMovie("Супергьорл", "https://uafix.net/films/cypdivchina-g1/")
+        )
+        val result = SearchScorer.pickBestMatch(movies, listOf("Суперґьорл"))
+        assertNotNull(result)
+        assertEquals("Супергьорл", result!!.title)
     }
 
     @Test

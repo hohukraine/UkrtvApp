@@ -11,7 +11,7 @@ import ua.ukrtv.app.data.providers.DleProviderProfile
 import ua.ukrtv.app.data.providers.UakinoProfile
 import ua.ukrtv.app.data.repository.Top200Repository
 import ua.ukrtv.app.domain.model.Movie
-import ua.ukrtv.app.util.SearchScorer
+import ua.ukrtv.app.matching.SearchScorer
 import java.util.concurrent.TimeUnit
 
 class Top200AuditTest {

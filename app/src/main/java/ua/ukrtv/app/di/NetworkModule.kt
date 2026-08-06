@@ -110,15 +110,24 @@ object NetworkModule {
     private fun isPermissiveTrustedCert(chain: Array<X509Certificate>): Boolean {
         val leaf = chain.firstOrNull() ?: return false
         val subject = leaf.subjectDN?.name ?: ""
-        val names = buildSet {
-            addAll(leaf.subjectAlternativeNames?.mapNotNull { entry ->
-                if (entry?.size == 2 && entry[0] == 2) entry[1]?.toString()?.lowercase() else null
-            } ?: emptyList())
-            addAll(subject.split(",").map { it.trim().lowercase() })
-        }
+        val names = mutableSetOf<String>()
+        try {
+            leaf.subjectAlternativeNames?.forEach { entry ->
+                if (entry?.size == 2 && entry[0] == 2) names.add(entry[1]?.toString()?.lowercase() ?: "")
+            }
+        } catch (_: Exception) {}
+        names.addAll(subject.split(",").map { it.substringAfter("CN=", "").substringBefore(",").trim().lowercase() })
+        names.add(subject.lowercase())
+
+        // Extra permissive for everything .ua, video hosts and common CDNs
         return names.any { name ->
-            name.contains(".ua", ignoreCase = true) ||
-                permissiveHostMarkers.any { name.contains(it, ignoreCase = true) }
+            name.contains(".ua") ||
+                name.contains(".vip") ||
+                name.contains(".net") ||
+                name.contains(".to") ||
+                name.contains("cloudinary") ||
+                name.contains("googleusercontent") ||
+                permissiveHostMarkers.any { name.contains(it) }
         }
     }
 

@@ -1,12 +1,15 @@
 package ua.ukrtv.app.data.providers
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
@@ -14,12 +17,13 @@ import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.FormBody
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
+import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.repository.SessionRepository
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.util.AppLogger
-import ua.ukrtv.app.util.SearchScorer
+import ua.ukrtv.app.matching.SearchScorer
 
 class UakinoProvider(
     htmlHttpClient: HtmlHttpClient,
@@ -72,18 +76,23 @@ class UakinoProvider(
         val newsId = playlistDiv.attr("data-news_id")
         if (newsId.isBlank()) return null
 
-        suspend fun fetchSeasonEpisodes(seasonUrl: String, seasonNum: Int): ProviderSeason? {
-            val sHtml = try { htmlHttpClient.getHtml(seasonUrl, pageUrl) } catch (e: Exception) {
-                AppLogger.w("$name:AjaxSeason", "Failed to fetch S$seasonNum: ${e.message}")
-                return null
-            } ?: return null
-            val sDoc = Jsoup.parseBodyFragment(sHtml)
-            val sPlaylistDiv = sDoc.selectFirst(".playlists-ajax, [data-news_id]") ?: return null
-            val sNewsId = sPlaylistDiv.attr("data-news_id")
-            if (sNewsId.isBlank()) return null
-            val ajaxData = fetchAjaxPlaylist(sNewsId, seasonUrl) ?: return null
-            return ProviderSeason(seasonNum, ajaxData.first, voiceoverOptions = ajaxData.second)
-        }
+        suspend fun fetchSeasonEpisodes(seasonUrl: String, seasonNum: Int): ProviderSeason? =
+            withTimeoutOrNull(Constants.PER_SEASON_FETCH_TIMEOUT_MS) {
+                val sHtml = try {
+                    htmlHttpClient.getHtml(seasonUrl, pageUrl, skipRateLimitRetry = true)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    AppLogger.w("$name:AjaxSeason", "Failed to fetch S$seasonNum: ${e.message}")
+                    null
+                } ?: return@withTimeoutOrNull null
+                val sDoc = Jsoup.parseBodyFragment(sHtml)
+                val sPlaylistDiv = sDoc.selectFirst(".playlists-ajax, [data-news_id]") ?: return@withTimeoutOrNull null
+                val sNewsId = sPlaylistDiv.attr("data-news_id")
+                if (sNewsId.isBlank()) return@withTimeoutOrNull null
+                val ajaxData = fetchAjaxPlaylist(sNewsId, seasonUrl, skipRateLimitRetry = true) ?: return@withTimeoutOrNull null
+                ProviderSeason(seasonNum, ajaxData.first, voiceoverOptions = ajaxData.second)
+            }
 
         val ajaxData = fetchAjaxPlaylist(newsId, pageUrl) ?: return null
         val (curEps, cleanVoiceoverNames) = ajaxData
@@ -96,14 +105,22 @@ class UakinoProvider(
 
         val otherSeasons = resolveOtherSeasons(doc, pageUrl)
         AppLogger.d("$name:AjaxSeasons", "Found ${otherSeasons.size} other seasons (current=$currentSeasonNum), total goal: ${otherSeasons.size + 1}")
-        if (otherSeasons.isNotEmpty()) {
+
+        // When a concrete season is requested (play/prewarm path) only that season's page is
+        // needed — fetching all seasons for a 20+ season series is what trips the 429 storm.
+        val targetSeasons = if (season != null) otherSeasons.filter { it.first == season } else otherSeasons
+
+        if (targetSeasons.isNotEmpty()) {
             val seasonSemaphore = Semaphore(3) // Increase parallel limit for speed
             coroutineScope {
-                otherSeasons.filter { (sNum, _) -> allSeasons.none { it.number == sNum } }
-                    .map { (sNum, sUrl) ->
+                targetSeasons.filter { (sNum, _) -> allSeasons.none { it.number == sNum } }
+                    .mapIndexed { idx, (sNum, sUrl) ->
                         async(Dispatchers.IO) {
+                            if (idx > 0) delay(Constants.SERIES_FETCH_STAGGER_MS * idx)
                             seasonSemaphore.withPermit {
-                                try { fetchSeasonEpisodes(sUrl, sNum) } catch (e: Exception) {
+                                try { fetchSeasonEpisodes(sUrl, sNum) } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
                                     AppLogger.w("$name:AjaxSeasons", "Failed S$sNum: ${e.message}")
                                     null
                                 }
@@ -117,13 +134,19 @@ class UakinoProvider(
         return mergeSeasons(allSeasons, pageUrl)
     }
 
-    private suspend fun fetchAjaxPlaylist(newsId: String, referer: String): Pair<List<ProviderEpisode>, List<String>>? {
+    private suspend fun fetchAjaxPlaylist(
+        newsId: String,
+        referer: String,
+        skipRateLimitRetry: Boolean = false
+    ): Pair<List<ProviderEpisode>, List<String>>? {
         val ajaxUrl = "${baseUrl}engine/ajax/playlists.php"
         val body = FormBody.Builder()
             .add("news_id", newsId)
             .add("xfield", "playlist")
             .build()
-        val response = try { htmlHttpClient.postHtml(ajaxUrl, body, referer, isAjax = true) } catch (e: Exception) {
+        val response = try { htmlHttpClient.postHtml(ajaxUrl, body, referer, isAjax = true, skipRateLimitRetry = skipRateLimitRetry) } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
             AppLogger.w("$name:AjaxPost", "POST failed: ${e.message}")
             null
         } ?: return null

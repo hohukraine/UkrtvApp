@@ -50,12 +50,13 @@ class StreamResolver @Inject constructor(
         episode: Int? = null,
         voiceover: String? = null,
         isDeep: Boolean = true,
-        prefetchedHtml: String? = null
+        prefetchedHtml: String? = null,
+        timeoutMs: Long = ua.ukrtv.app.Constants.STREAM_RESOLUTION_TIMEOUT_MS
     ): StreamResolutionResult? {
         val sectionName = "StreamResolver.resolve${if (isDeep) " (deep)" else if (season != null) " S${season}E${episode}" else ""}"
         PerformanceMonitor.begin(sectionName)
         try {
-            return withTimeout(ua.ukrtv.app.Constants.STREAM_RESOLUTION_TIMEOUT_MS) {
+            return withTimeout(timeoutMs) {
                 withContext(Dispatchers.IO) {
                     val cacheKey = "resolve|$url|$referer|$season|$episode|$voiceover|$isDeep"
 

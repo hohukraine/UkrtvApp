@@ -3,18 +3,19 @@ package ua.ukrtv.app.domain.model
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
 import kotlinx.serialization.Serializable
+import ua.ukrtv.app.matching.MatchCandidate
 
 @Stable
 @Immutable
 @Serializable
 data class Movie(
     val id: String,
-    val title: String,
+    override val title: String,
     val poster: String,
-    val pageUrl: String,
+    override val pageUrl: String,
     val watchProgress: Int? = null,
     val rating: String? = null,
-    val year: Int? = null,
+    override val year: Int? = null,
     val quality: String? = null,
     val contentType: String? = null,
     val season: Int? = null,
@@ -25,7 +26,7 @@ data class Movie(
     val duration: String? = null,
     val genres: List<String> = emptyList(),
     val description: String? = null
-)
+) : MatchCandidate
 
 @Stable
 @Immutable

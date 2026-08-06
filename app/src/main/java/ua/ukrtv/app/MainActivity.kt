@@ -24,7 +24,8 @@ import javax.inject.Inject
 import ua.ukrtv.app.ui.detail.DetailScreen
 import ua.ukrtv.app.ui.home.HomeScreen
 import ua.ukrtv.app.ui.search.SearchScreen
-import ua.ukrtv.app.ui.player.PlayerScreen
+import ua.ukrtv.app.ui.player.ExternalPlayerScreen
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import ua.ukrtv.app.ui.settings.SettingsScreen
 import ua.ukrtv.app.ui.top200.Top200Screen
 import ua.ukrtv.app.ui.trends.FullTrendsGridScreen
@@ -34,9 +35,9 @@ import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.UkrtvTheme
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.PerformancePreferences
-import ua.ukrtv.app.ui.theme.BrandBlue
 import ua.ukrtv.app.navigation.Screen
 import ua.ukrtv.app.ui.splash.SplashScreen
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.toRoute
 import kotlinx.coroutines.delay
 
@@ -48,9 +49,29 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var performancePreferences: PerformancePreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splashScreen = installSplashScreen()
         window.decorView.keepScreenOn = true
         super.onCreate(savedInstanceState)
+
+        var isReady by mutableStateOf(false)
+        splashScreen.setKeepOnScreenCondition { !isReady }
+
+        splashScreen.setOnExitAnimationListener { splashProvider ->
+            val iconView = splashProvider.iconView
+            // Scaled to exactly match 48.sp text size during transition
+            iconView.animate()
+                .scaleX(3.0f)
+                .scaleY(3.0f)
+                .alpha(0f)
+                .setDuration(450)
+                .withEndAction { splashProvider.remove() }
+                .start()
+
+            splashProvider.view.animate()
+                .alpha(0f)
+                .setDuration(450)
+                .start()
+        }
 
         val providerColor = try {
             val prefs = getSharedPreferences("home_prefs", MODE_PRIVATE)
@@ -81,6 +102,7 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     withFrameNanos { }
                     showApp = true
+                    isReady = true
                 }
                 LaunchedEffect(Unit) {
                     delay(MIN_SPLASH_MS)
@@ -171,10 +193,34 @@ fun UkrtvTVApp(formFactor: FormFactor, onHomeContentReady: () -> Unit = {}) {
             NavHost(
                 navController = navController,
                 startDestination = Screen.Home,
-                enterTransition = { slideInHorizontally(tween(navEnterDur)) { it } },
-                exitTransition = { slideOutHorizontally(tween(navExitDur)) { -it / 3 } },
-                popEnterTransition = { slideInHorizontally(tween(navEnterDur)) { -it / 3 } },
-                popExitTransition = { slideOutHorizontally(tween(navExitDur)) { it } }
+                enterTransition = {
+                    if (targetState.destination.hasRoute<Screen.Settings>()) {
+                        fadeIn(tween(navEnterDur))
+                    } else {
+                        slideInHorizontally(tween(navEnterDur)) { it }
+                    }
+                },
+                exitTransition = {
+                    if (targetState.destination.hasRoute<Screen.Settings>() || initialState.destination.hasRoute<Screen.Settings>()) {
+                        fadeOut(tween(navExitDur))
+                    } else {
+                        slideOutHorizontally(tween(navExitDur)) { -it / 3 }
+                    }
+                },
+                popEnterTransition = {
+                    if (initialState.destination.hasRoute<Screen.Settings>()) {
+                        fadeIn(tween(navEnterDur))
+                    } else {
+                        slideInHorizontally(tween(navEnterDur)) { -it / 3 }
+                    }
+                },
+                popExitTransition = {
+                    if (initialState.destination.hasRoute<Screen.Settings>()) {
+                        fadeOut(tween(navExitDur))
+                    } else {
+                        slideOutHorizontally(tween(navExitDur)) { it }
+                    }
+                }
             ) {
                 composable<Screen.Home> {
                     HomeScreen(
@@ -253,20 +299,16 @@ fun UkrtvTVApp(formFactor: FormFactor, onHomeContentReady: () -> Unit = {}) {
                 }
                 composable<Screen.Player> { backStackEntry ->
                     val player: Screen.Player = backStackEntry.toRoute()
-                    val brandColor = remember(player.brandColor) {
-                        if (player.brandColor.isNullOrBlank()) BrandBlue
-                        else try { Color(android.graphics.Color.parseColor(player.brandColor)) } catch (_: Exception) { BrandBlue }
-                    }
 
-                    PlayerScreen(
+                    ExternalPlayerScreen(
                         url = player.url,
                         contentId = player.id,
                         title = player.title,
                         poster = player.poster,
                         season = player.season,
                         episode = player.episode,
-                        brandColor = brandColor,
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        viewModel = hiltViewModel()
                     )
                 }
             }

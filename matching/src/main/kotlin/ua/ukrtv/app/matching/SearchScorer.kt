@@ -1,6 +1,5 @@
-package ua.ukrtv.app.util
+package ua.ukrtv.app.matching
 
-import ua.ukrtv.app.domain.model.Movie
 import java.text.Normalizer
 
 object SearchScorer {
@@ -17,16 +16,48 @@ object SearchScorer {
     )
 
     fun stripAccents(text: String): String {
-        return Normalizer.normalize(text, Normalizer.Form.NFKD)
+        val protected = text
+            .replace('й', '\uE000')
+            .replace('ї', '\uE001')
+            .replace('Й', '\uE002')
+            .replace('Ї', '\uE003')
+        return Normalizer.normalize(protected, Normalizer.Form.NFKD)
             .replace(Regex("\\p{M}"), "")
+            .replace('\uE000', 'й')
+            .replace('\uE001', 'ї')
+            .replace('\uE002', 'Й')
+            .replace('\uE003', 'Ї')
     }
 
     fun normalizeTitle(text: String): String {
         return stripAccents(text).lowercase()
+            .replace('ґ', 'г')
             .replace(Regex("\\(.*?\\)"), " ")
             .replace(Regex("[^a-zа-яіїєґ0-9\\s]"), " ")
             .replace(Regex("\\s+"), " ")
             .trim()
+    }
+
+    /**
+     * All г↔ґ spelling variants of a query. Ukrainian sites (and the catalog) are
+     * inconsistent between «г» and «ґ» (e.g. Супергьорл vs Суперґьорл), so SQL
+     * LIKE must be tried for every combination. Combos are capped to keep the
+     * expansion small.
+     */
+    fun gVariants(text: String): List<String> {
+        val positions = text.indices.filter { text[it] == 'г' || text[it] == 'ґ' }
+        if (positions.isEmpty()) return listOf(text)
+        val limited = if (positions.size > 3) positions.take(3) else positions
+        val result = mutableListOf<String>()
+        val combos = 1 shl limited.size
+        for (mask in 0 until combos) {
+            val chars = text.toCharArray()
+            limited.forEachIndexed { i, p ->
+                chars[p] = if ((mask shr i) and 1 == 1) 'г' else 'ґ'
+            }
+            result.add(String(chars))
+        }
+        return result
     }
 
     fun transliterate(text: String): String {
@@ -86,9 +117,9 @@ object SearchScorer {
 
     /**
      * How well a result's own title agrees with the movie slug embedded in its page URL.
-     * Loose list scans (e.g. [ua.ukrtv.app.data.providers.DleParser.parseListFastRegex]) can
-     * pair a title with a neighbour card's URL; such entries score ~0 here and must not be
-     * used for cross-provider playback.
+     * Loose list scans (e.g. [DleParser.parseListFastRegex]) can pair a title with a
+     * neighbour card's URL; such entries score ~0 here and must not be used for
+     * cross-provider playback.
      */
     fun titleSlugConsistency(title: String, url: String): Float {
         val slug = slugOf(url)
@@ -136,14 +167,14 @@ object SearchScorer {
     }
 
     fun pickBestMatch(
-        results: List<Movie>,
+        results: List<MatchCandidate>,
         queries: List<String>,
         expectedYear: Int? = null
-    ): Movie? {
+    ): MatchCandidate? {
         val queryVariants = buildQueryVariants(queries)
         if (queryVariants.isEmpty() || results.isEmpty()) return null
 
-        var bestMovie: Movie? = null
+        var bestMovie: MatchCandidate? = null
         var bestScore = Float.NEGATIVE_INFINITY
         var bestConfidence = 0f
 

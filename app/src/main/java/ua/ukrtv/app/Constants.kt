@@ -8,6 +8,13 @@ object Constants {
     const val MAX_RETRIES = 3
     const val RETRY_DELAY_MS = 3000L
     const val STREAM_RESOLUTION_TIMEOUT_MS = 25000L
+    const val STREAM_ENRICH_TIMEOUT_MS = 45000L
+    const val PER_SEASON_FETCH_TIMEOUT_MS = 5000L
+    const val SERIES_FETCH_STAGGER_MS = 200L
+
+    const val SERIES_STRUCTURE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000L
+    const val SERIES_STRUCTURE_CACHE_STALE_TTL_MS = 14 * 24 * 60 * 60 * 1000L
+    const val SERIES_STRUCTURE_CACHE_CLEANUP_MS = 30L * 24 * 60 * 60 * 1000
 
     const val HTML_CACHE_TTL_MS = 7 * 60 * 1000L
     const val HTML_CACHE_STALE_TTL_MS = 30 * 60 * 1000L  // 30 хвилин (stale-while-revalidate)

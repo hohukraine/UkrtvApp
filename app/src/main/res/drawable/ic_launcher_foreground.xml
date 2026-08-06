@@ -5,47 +5,31 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- UKRTV Logo Centered -->
-    <!-- Width: UKR(50) + Space(4) + TV(34) = 88 -->
-    <!-- Centering: (108 - 88) / 2 = 10 -->
-    <!-- Height: 24 -->
-    <!-- Centering: (108 - 24) / 2 = 42 -->
     <group
-        android:translateX="10"
-        android:translateY="42">
+        android:translateX="23"
+        android:translateY="45">
 
-        <!-- TV Glow Shadow behind TV letters -->
-        <path
-            android:fillColor="#4D6E85B7"
-            android:pathData="M54,-4 h18 l8,22 h-4 l-6,-16 l-6,16 h-4 z M54,-4 v24 c4,0 8,-2 8,-6 v-12 c0,-4 -4,-6 -8,-6 z M54,8 h-5 l4.5,10 h5 z" />
-
-        <!-- UKR (White, brighter) -->
-        <!-- U -->
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M0,0 v18 c0,4 3,6 6,6 s6,-2 6,-6 v-18 h-4 v18 c0,2 -1,3 -2,3 s-2,-1 -2,-3 v-18 z" />
-
-        <!-- K -->
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M16,0 h4 v24 h-4 z M20,12 l8,-12 h5 l-9,12 l9,12 h-5 z" />
-
-        <!-- R -->
-        <path
-            android:fillColor="#FFFFFF"
-            android:pathData="M36,0 h8 c5,0 7,2 7,6 s-2,6 -7,6 h-3 v12 h-4 z M40,4 v4 h4 c2,0 3,-1 3,-2 s-1,-2 -3,-2 z M44,11 l7,13 h-5 l-6,-13 z" />
-
-        <!-- TV (Gradient: light blue → brand blue) -->
-        <group android:translateX="54">
-            <!-- T -->
+        <!-- UKR (White) -->
+        <group>
             <path
-                android:fillColor="#FF8EA4D0"
-                android:pathData="M0,0 h16 v4 h-6 v20 h-4 v-20 h-6 z" />
-            <!-- V -->
+                android:fillColor="#FFFFFF"
+                android:pathData="M0,0 v13 c0,5 3,6 6,6 s6,-1 6,-6 v-13 h-4.5 v13 c0,2 -0.5,2.5 -1.5,2.5 s-1.5,-0.5 -1.5,-2.5 v-13 z" />
             <path
-                android:fillColor="#FF6E85B7"
-                android:pathData="M17,0 h4 l7,18 l7,-18 h4 l-9,24 h-4 z" />
+                android:fillColor="#FFFFFF"
+                android:pathData="M14,0 h4.5 v18 h-4.5 z M18.5,8.5 l6.5,-8.5 h5 l-7.5,8.5 l7.5,9.5 h-5 z" />
+            <path
+                android:fillColor="#FFFFFF"
+                android:pathData="M31,0 h8 c5,0 7,2 7,6 s-2,6 -7,6 h-3.5 v6 h-4.5 z M35.5,4 v3.5 h3 c2,0 2.5,-1 2.5,-2 s-0.5,-1.5 -2.5,-1.5 z M41,12 l5,6 h-5 l-4,-6 z" />
+        </group>
+
+        <!-- TV (Brand Blue) -->
+        <group android:translateX="48">
+            <path
+                android:fillColor="#6E85B7"
+                android:pathData="M0,0 h16 v4.5 h-5.5 v13.5 h-5 v-13.5 h-5.5 z" />
+            <path
+                android:fillColor="#6E85B7"
+                android:pathData="M17,0 h5 l4,13 l4,-13 h5 l-7,18 h-4 z" />
         </group>
     </group>
-
 </vector>

@@ -4,8 +4,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withTimeout
 import ua.ukrtv.app.Constants
-import ua.ukrtv.app.data.TtlLruCache
-import ua.ukrtv.app.domain.model.HomeSection
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.MovieDetail
 import ua.ukrtv.app.domain.model.StreamResolutionResult
@@ -15,6 +13,7 @@ import ua.ukrtv.app.data.providers.ContentCategory
 import ua.ukrtv.app.data.providers.ContentUtils
 import ua.ukrtv.app.data.providers.MediaProvider
 import ua.ukrtv.app.data.streaming.StreamResolver
+import ua.ukrtv.app.data.tmdb.TmdbTrendsRepository
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.PerformanceMonitor
 import javax.inject.Inject
@@ -26,14 +25,15 @@ class ContentRepository @Inject constructor(
     private val watchProgressRepository: WatchProgressRepository,
     private val streamResolver: StreamResolver,
     private val htmlCacheDao: ua.ukrtv.app.data.local.dao.HtmlCacheDao,
+    private val seriesStructureDao: ua.ukrtv.app.data.local.dao.SeriesStructureDao,
     private val homeCacheRepository: HomeCacheRepository,
     private val catalogRepository: CatalogRepository,
-    private val catalogDao: CatalogIndexDao
+    private val catalogDao: CatalogIndexDao,
+    private val tmdbTrendsRepository: TmdbTrendsRepository
 ) {
     private val homeSource = HomeGridSource(homeCacheRepository)
     private val searchSource = SearchSource(providerManager, catalogRepository, catalogDao)
-    private val detailSource = DetailSource(providerManager, streamResolver)
-    private val trendsCache = TtlLruCache<String, List<Movie>>(maxSize = 5, ttlMs = 15 * 60 * 1000L)
+    private val detailSource = DetailSource(providerManager, streamResolver, seriesStructureDao)
 
     private var cleanupJob: kotlinx.coroutines.Job? = null
 
@@ -47,6 +47,7 @@ class ContentRepository @Inject constructor(
             try {
                 val now = System.currentTimeMillis()
                 htmlCacheDao.deleteOldCache(now - (24 * 60 * 60 * 1000L))
+                seriesStructureDao.deleteOlderThan(now - Constants.SERIES_STRUCTURE_CACHE_CLEANUP_MS)
             } catch (e: Exception) {
                 if (e !is kotlinx.coroutines.CancellationException) {
                     AppLogger.e("ContentRepository", "Cache cleanup failed", e)
@@ -66,7 +67,7 @@ class ContentRepository @Inject constructor(
     }
 
     fun clearTrendsCache() {
-        trendsCache.clear()
+        tmdbTrendsRepository.clearCache()
     }
 
     suspend fun getCategoryCache(providerName: String): Map<String, List<Movie>>? =
@@ -81,32 +82,11 @@ class ContentRepository @Inject constructor(
     fun getHomeGrid(provider: MediaProvider, forceRefresh: Boolean = false): Flow<List<Movie>> =
         homeSource.getHomeGrid(provider, forceRefresh)
 
-    suspend fun getTrendsForGrid(): List<Movie> {
-        val provider = providerManager.activeProvider.value
-        val cacheKey = provider.name
+    suspend fun getTmdbTrends(provider: MediaProvider, forceRefresh: Boolean = false): List<Movie> =
+        tmdbTrendsRepository.getTrends(provider, forceRefresh)
 
-        trendsCache.get(cacheKey)?.let { return it }
-
-        val cachedSections = homeCacheRepository.getHomeCache(provider.name)
-        val cachedItems = cachedSections?.firstOrNull()?.items?.map { it.copy(provider = it.provider ?: provider.name) }.orEmpty()
-
-        val newItems = coroutineScope {
-            (1..4).map { page ->
-                async(Dispatchers.IO) {
-                    provider.getMoviesByCategory(ContentCategory.TRENDS, page).map { it.copy(provider = it.provider ?: provider.name) }
-                }
-            }.awaitAll().flatten()
-        }
-
-        val merged = (newItems + cachedItems)
-            .distinctBy { it.pageUrl }
-            .shuffled()
-            .take(100)
-
-        homeCacheRepository.saveHomeCache(provider.name, listOf(HomeSection("Main", merged)))
-        trendsCache.put(cacheKey, merged)
-        return merged
-    }
+    suspend fun getTmdbTrendsCached(provider: MediaProvider): List<Movie> =
+        tmdbTrendsRepository.getCachedTrends(provider)
 
     private val parseSeasonEpisodeRegex = Regex("""(?:s|season)[^\d]*(\d+)[^\d]*(?:e|ep|episode)[^\d]*(\d+)""", RegexOption.IGNORE_CASE)
 
@@ -120,7 +100,15 @@ class ContentRepository @Inject constructor(
     fun getContinueWatching(): Flow<List<Movie>> = watchProgressRepository.getAllProgress()
         .mapLatest { allProgress ->
             allProgress
-                .filter { it.progressPercentage in 1..94 }
+                .filter { 
+                    // Keep if:
+                    // 1. Progress is between 1% and 95%
+                    // 2. OR it's a series episode (even at 0%, to show "Next episode")
+                    // 3. OR user watched at least 30 seconds (even if percentage is 0)
+                    val isSeries = it.episodeId != null
+                    val isMeaningfulProgress = it.positionMs > 30_000L
+                    it.progressPercentage < 96 && (it.progressPercentage > 0 || isSeries || isMeaningfulProgress)
+                }
                 .distinctBy { ContentUtils.cleanTitle(it.title) }
                 .mapNotNull { progress ->
                     val pUrl = progress.pageUrl

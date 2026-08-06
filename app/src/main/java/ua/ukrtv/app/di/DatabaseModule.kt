@@ -24,7 +24,7 @@ object DatabaseModule {
         return Room.databaseBuilder(context, AppDatabase::class.java, "ukrtv_db")
             .setQueryExecutor(Dispatchers.IO.asExecutor())
             .setTransactionExecutor(Dispatchers.IO.asExecutor())
-            .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+            .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
             .build()
     }
 
@@ -45,6 +45,31 @@ object DatabaseModule {
 
     @Provides @Singleton
     fun provideHomeCacheDao(database: AppDatabase): HomeCacheDao = database.homeCacheDao()
+
+    @Provides @Singleton
+    fun provideTmdbTrendsCacheDao(database: AppDatabase): TmdbTrendsCacheDao = database.tmdbTrendsCacheDao()
+
+    @Provides @Singleton
+    fun provideSeriesStructureDao(database: AppDatabase): SeriesStructureDao = database.seriesStructureDao()
+}
+
+private val MIGRATION_19_20 = object : Migration(19, 20) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `series_structure` (`url` TEXT NOT NULL, `seasonsJson` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, `provider` TEXT NOT NULL, PRIMARY KEY(`url`))")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_series_structure_provider` ON `series_structure` (`provider`)")
+    }
+}
+
+private val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tmdb_trends_cache` ADD COLUMN `itemIdsJson` TEXT NOT NULL DEFAULT '[]'")
+    }
+}
+
+private val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `tmdb_trends_cache` (`provider` TEXT NOT NULL, `moviesJson` TEXT NOT NULL, `cachedAt` INTEGER NOT NULL, PRIMARY KEY(`provider`))")
+    }
 }
 
 private val MIGRATION_16_17 = object : Migration(16, 17) {

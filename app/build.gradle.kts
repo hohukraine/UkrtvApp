@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.ksp)
@@ -6,6 +8,14 @@ plugins {
     alias(libs.plugins.kotlin.parcelize)
     alias(libs.plugins.kotlin.serialization)
 }
+
+val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val tmdbApiKey: String = localProps.getProperty("TMDB_API_KEY", "")
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
 
 android {
     namespace = "ua.ukrtv.app"
@@ -18,6 +28,7 @@ android {
         versionCode = 6
         versionName = "1.2.2"
         buildConfigField("String", "UPDATE_URL", "\"https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/update.json\"")
+        buildConfigField("String", "TMDB_API_KEY", "\"$tmdbApiKey\"")
     }
 
     buildFeatures {
@@ -87,6 +98,17 @@ tasks.register<JavaExec>("generateCatalogDb") {
     args = listOf(layout.projectDirectory.file("src/main/assets/catalog_index.json").asFile.absolutePath)
 }
 
+tasks.register<JavaExec>("generateTrendsDb") {
+    description = "Generates trends_index.json from TMDB + catalog_index.json (run manually)"
+    classpath = genJar
+    mainClass = "ua.ukrtv.app.generator.TrendsGeneratorKt"
+    args = listOf(
+        tmdbApiKey,
+        layout.projectDirectory.file("src/main/assets/catalog_index.json").asFile.absolutePath,
+        layout.projectDirectory.file("src/main/assets/trends_index.json").asFile.absolutePath
+    )
+}
+
     configurations.all {
         resolutionStrategy {
             // Removed force 1.8.1 to fix limitedParallelism compatibility with Coil 3
@@ -98,6 +120,7 @@ tasks.register<JavaExec>("generateCatalogDb") {
     }
 
 dependencies {
+    implementation(project(":matching"))
     implementation(platform(libs.compose.bom))
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)

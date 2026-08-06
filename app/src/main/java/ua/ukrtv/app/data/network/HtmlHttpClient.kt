@@ -105,6 +105,7 @@ class HtmlHttpClient(
     private suspend fun <T> runWithRetries(
         tag: String,
         host: String? = null,
+        skipRateLimitRetry: Boolean = false,
         block: suspend (attempt: Int) -> T,
         onRetryDelay: suspend (delayTimeMs: Long, attempt: Int) -> Unit = { d, _ -> delay(d) }
     ): T? {
@@ -126,6 +127,13 @@ class HtmlHttpClient(
 
                 if (isSslError(e)) {
                     AppLogger.w(tag, "SSL error is permanent, skipping retries: host=$host ${e.message}")
+                    return null
+                }
+
+                if (skipRateLimitRetry && e.message?.contains("429") == true) {
+                    // In bulk series-fetch paths a 5s/10s backoff per blocked season blows
+                    // the whole resolution budget, so treat 429 as "skip now" instead.
+                    AppLogger.w(tag, "HTTP 429 skipped (rate-limit retry disabled): $host")
                     return null
                 }
 
@@ -151,7 +159,8 @@ class HtmlHttpClient(
     suspend fun getHtml(
         url: String,
         referer: String? = null,
-        isAjax: Boolean = false
+        isAjax: Boolean = false,
+        skipRateLimitRetry: Boolean = false
     ): String? = withContext(Dispatchers.IO) {
         val cacheKey = url
         if (!isAjax) {
@@ -199,14 +208,15 @@ class HtmlHttpClient(
             }
         }
 
-        fetchAndCacheHtml(url, referer, isAjax, cacheKey)
+        fetchAndCacheHtml(url, referer, isAjax, cacheKey, skipRateLimitRetry)
     }
 
     private suspend fun fetchAndCacheHtml(
         url: String,
         referer: String?,
         isAjax: Boolean,
-        cacheKey: String
+        cacheKey: String,
+        skipRateLimitRetry: Boolean = false
     ): String? {
         val host = try { java.net.URI(url).host } catch (e: Exception) {
             AppLogger.w("HtmlHttpClient", "Failed to parse URL host: ${e.message}")
@@ -216,7 +226,7 @@ class HtmlHttpClient(
         semaphore?.acquire()
         try {
             return withTimeoutOrNull(20_000L) {
-                runWithRetries(tag, host = host, block = { attempt ->
+                runWithRetries(tag, host = host, skipRateLimitRetry = skipRateLimitRetry, block = { attempt ->
                     val builder = Request.Builder().url(url)
                     applyHeaders(builder, referer, isAjax)
                     val request = builder.build()
@@ -255,10 +265,11 @@ class HtmlHttpClient(
         url: String,
         body: RequestBody,
         referer: String? = null,
-        isAjax: Boolean = false
+        isAjax: Boolean = false,
+        skipRateLimitRetry: Boolean = false
     ): String? = withContext(Dispatchers.IO) {
         withTimeoutOrNull(20_000L) {
-            runWithRetries(tag, host = runCatching { java.net.URI(url).host }.getOrNull(), block = { attempt ->
+            runWithRetries(tag, host = runCatching { java.net.URI(url).host }.getOrNull(), skipRateLimitRetry = skipRateLimitRetry, block = { attempt ->
                 val builder = Request.Builder().url(url)
                 applyHeaders(builder, referer, isAjax)
                 val request = builder.post(body).build()

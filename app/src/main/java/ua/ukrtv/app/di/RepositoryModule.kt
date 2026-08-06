@@ -13,6 +13,8 @@ import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.repository.CatalogIndexBuilder
 import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.repository.UpdateRepository
+import ua.ukrtv.app.data.tmdb.TmdbClient
+import ua.ukrtv.app.data.tmdb.TmdbTrendsRepository
 import javax.inject.Singleton
 
 @Module
@@ -38,6 +40,21 @@ object RepositoryModule {
         okHttpClient: OkHttpClient,
         json: Json
     ): UpdateRepository = UpdateRepository(context, okHttpClient, json)
+
+    @Provides @Singleton
+    fun provideTmdbTrendsRepository(
+        @ApplicationContext context: Context,
+        okHttpClient: OkHttpClient,
+        json: Json,
+        catalogRepository: CatalogRepository,
+        tmdbTrendsCacheDao: ua.ukrtv.app.data.local.dao.TmdbTrendsCacheDao
+    ): TmdbTrendsRepository = TmdbTrendsRepository(
+        context = context,
+        tmdbClient = TmdbClient(okHttpClient, json),
+        catalogRepository = catalogRepository,
+        tmdbTrendsCacheDao = tmdbTrendsCacheDao,
+        json = json
+    )
     @Provides @Singleton
     fun provideStreamResolvingInteractor(
         streamResolver: ua.ukrtv.app.data.streaming.StreamResolver,

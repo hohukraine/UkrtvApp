@@ -218,7 +218,9 @@ class CatalogIndexBuilder @Inject constructor(
                 if (deck.isNotBlank() && deck.any { it == '.' }) deck else ""
             }
             "UAFLIX" -> {
-                el.select(".age").firstOrNull()?.text() ?: ""
+                // UAFLIX doesn't have IMDB on category cards, .age is for maturity rating.
+                // We leave it empty here and let the sync script fill it from detail page.
+                ""
             }
             else -> ""
         }
@@ -234,7 +236,23 @@ class CatalogIndexBuilder @Inject constructor(
     }
 
     private fun extractYearAndEnTitle(el: org.jsoup.nodes.Element, profile: DleProviderProfile): Pair<String, String> {
-        return "" to ""
+        val fullText = el.text()
+        val year = YEAR_PATTERN.find(fullText)?.value ?: ""
+
+        var titleEn = ""
+        val linkEl = el.selectFirst(profile.selectors.cardLink)
+        val titleAttr = linkEl?.attr("title") ?: ""
+
+        if (titleAttr.contains(" / ")) {
+            val parts = titleAttr.split(" / ")
+            if (parts.size >= 2) {
+                titleEn = parts.last().trim()
+                    .replace(Regex("(?i) дивитись онлайн"), "")
+                    .replace(Regex("(?i) смотреть онлайн"), "")
+            }
+        }
+
+        return year to titleEn
     }
 
     companion object {

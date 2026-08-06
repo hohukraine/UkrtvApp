@@ -1,5 +1,6 @@
 plugins {
     kotlin("jvm")
+    alias(libs.plugins.kotlin.serialization)
     application
 }
 
@@ -10,6 +11,8 @@ application {
 dependencies {
     implementation("org.jsoup:jsoup:1.22.2")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+    implementation(project(":matching"))
 }
 
 tasks.jar {

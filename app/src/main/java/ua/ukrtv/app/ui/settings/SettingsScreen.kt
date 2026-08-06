@@ -452,72 +452,62 @@ private fun TvSettingsScreen(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
         }
-            item {
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    text = "ЗОВНІШНІЙ ПЛЕЄР",
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 14.sp,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-            }
 
-            if (uiState.installedPlayers.isEmpty()) {
-                item {
-                    Box(
+        if (uiState.installedPlayers.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1A1A1A), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 20.dp, vertical = 14.dp)
+                ) {
+                    Text(
+                        text = "Не знайдено зовнішніх плеєрів. Встановіть VLC або Just Player.",
+                        fontSize = 14.sp,
+                        color = Color(0xFFE1E1E1)
+                    )
+                }
+            }
+        } else {
+            items(uiState.installedPlayers.size) { index ->
+                val player = uiState.installedPlayers[index]
+                val isSelected = player.packageName == uiState.externalPlayerPackage
+                Surface(
+                    onClick = { viewModel.setExternalPlayerPackage(player.packageName) },
+                    shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+                    colors = ClickableSurfaceDefaults.colors(
+                        containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
+                        focusedContainerColor = Color(0xFF3B82F6),
+                        contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
+                        focusedContentColor = Color.White
+                    ),
+                    scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
+                ) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF1A1A1A), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 20.dp, vertical = 14.dp)
+                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "Не знайдено зовнішніх плеєрів. Встановіть VLC або Just Player.",
-                            fontSize = 14.sp,
-                            color = Color(0xFFE1E1E1)
-                        )
-                    }
-                }
-            } else {
-                items(uiState.installedPlayers.size) { index ->
-                    val player = uiState.installedPlayers[index]
-                    val isSelected = player.packageName == uiState.externalPlayerPackage
-                    Surface(
-                        onClick = { viewModel.setExternalPlayerPackage(player.packageName) },
-                        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
-                        colors = ClickableSurfaceDefaults.colors(
-                            containerColor = if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1A),
-                            focusedContainerColor = Color(0xFF3B82F6),
-                            contentColor = if (isSelected) Color(0xFF8AB4F8) else Color(0xFFE1E1E1),
-                            focusedContentColor = Color.White
-                        ),
-                        scale = ClickableSurfaceDefaults.scale(focusedScale = 1.05f),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(text = player.label, fontSize = 16.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                val features = mutableListOf<String>()
-                                if (player.supportsHeaders) features.add("headers")
-                                if (player.supportsSubtitles) features.add("субтитли")
-                                if (player.supportsResult) features.add("прогрес")
-                                if (features.isNotEmpty()) {
-                                    Text(text = features.joinToString(" · "), fontSize = 11.sp, color = Color.White.copy(alpha = 0.4f))
-                                }
+                        Column {
+                            Text(text = player.label, fontSize = 16.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                            val features = mutableListOf<String>()
+                            if (player.supportsHeaders) features.add("headers")
+                            if (player.supportsSubtitles) features.add("субтитли")
+                            if (player.supportsResult) features.add("прогрес")
+                            if (features.isNotEmpty()) {
+                                Text(text = features.joinToString(" · "), fontSize = 11.sp, color = Color.White.copy(alpha = 0.4f))
                             }
-                            if (isSelected) {
-                                Text("✓", color = Color(0xFF8AB4F8), fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            }
+                        }
+                        if (isSelected) {
+                            Text("✓", color = Color(0xFF8AB4F8), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
+        }
         item { Spacer(modifier = Modifier.height(32.dp)) }
     }
 }
@@ -742,45 +732,45 @@ private fun PhoneSettingsScreen(
 
             Text("ЗОВНІШНІЙ ПЛЕЄР", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
 
-                if (uiState.installedPlayers.isEmpty()) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF1A1A1D), RoundedCornerShape(10.dp))
-                            .padding(12.dp)
-                    ) {
-                        Text(
-                            text = "Не знайдено зовнішніх плеєрів. Встановіть VLC або Just Player.",
-                            fontSize = 13.sp,
-                            color = Color.White.copy(alpha = 0.5f)
-                        )
-                    }
-                } else {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        uiState.installedPlayers.forEach { player ->
-                            val isSelected = player.packageName == uiState.externalPlayerPackage
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { viewModel.setExternalPlayerPackage(player.packageName) }
-                                    .background(if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1D), RoundedCornerShape(10.dp))
-                                    .padding(12.dp)
-                            ) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Column {
-                                        Text(player.label, color = Color.White, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
-                                        val features = mutableListOf<String>()
-                                        if (player.supportsHeaders) features.add("headers")
-                                        if (player.supportsSubtitles) features.add("субтитли")
-                                        if (player.supportsResult) features.add("прогрес")
-                                        if (features.isNotEmpty()) {
-                                            Text(features.joinToString(" · "), color = Color.White.copy(alpha = 0.4f), fontSize = 10.sp)
-                                        }
+            if (uiState.installedPlayers.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1A1A1D), RoundedCornerShape(10.dp))
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        text = "Не знайдено зовнішніх плеєрів. Встановіть VLC або Just Player.",
+                        fontSize = 13.sp,
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                }
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    uiState.installedPlayers.forEach { player ->
+                        val isSelected = player.packageName == uiState.externalPlayerPackage
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.setExternalPlayerPackage(player.packageName) }
+                                .background(if (isSelected) Color(0xFF1E3A5F) else Color(0xFF1A1A1D), RoundedCornerShape(10.dp))
+                                .padding(12.dp)
+                        ) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column {
+                                    Text(player.label, color = Color.White, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal)
+                                    val features = mutableListOf<String>()
+                                    if (player.supportsHeaders) features.add("headers")
+                                    if (player.supportsSubtitles) features.add("субтитли")
+                                    if (player.supportsResult) features.add("прогрес")
+                                    if (features.isNotEmpty()) {
+                                        Text(features.joinToString(" · "), color = Color.White.copy(alpha = 0.4f), fontSize = 10.sp)
                                     }
-                                    if (isSelected) Text("✓", color = Color(0xFF8AB4F8), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 }
+                                if (isSelected) Text("✓", color = Color(0xFF8AB4F8), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             }
                         }
+                    }
                 }
             }
 

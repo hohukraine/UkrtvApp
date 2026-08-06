@@ -53,13 +53,14 @@ class FullTrendsGridViewModel @Inject constructor(
         loadTrends()
     }
 
-    private fun loadTrends() {
+    private fun loadTrends(forceRefresh: Boolean = false) {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
+                val provider = providerManager.activeProvider.value
                 val result = withContext(Dispatchers.IO) {
-                    contentRepository.getTrendsForGrid()
+                    contentRepository.getTmdbTrends(provider, forceRefresh = forceRefresh)
                 }
                 _items.value = result
             } catch (e: Exception) {
@@ -70,5 +71,5 @@ class FullTrendsGridViewModel @Inject constructor(
         }
     }
 
-    fun retry() = loadTrends()
+    fun retry() = loadTrends(forceRefresh = true)
 }

@@ -6,23 +6,29 @@ import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.TtlLruCache
+import ua.ukrtv.app.data.local.dao.SeriesStructureDao
+import ua.ukrtv.app.data.local.entity.SeriesStructureEntity
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.MovieDetail
-import ua.ukrtv.app.domain.model.StreamResolutionResult
+import ua.ukrtv.app.domain.model.Season
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.data.streaming.StreamResolver
+import ua.ukrtv.app.domain.model.deserializeSeasons
+import ua.ukrtv.app.domain.model.serializeSeasons
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.PerformanceMonitor
-import ua.ukrtv.app.util.SearchScorer
+import ua.ukrtv.app.matching.SearchScorer
 
 internal class DetailSource(
     private val providerManager: ProviderManager,
-    private val streamResolver: StreamResolver
+    private val streamResolver: StreamResolver,
+    private val seriesStructureDao: SeriesStructureDao
 ) {
     private val metadataCache = TtlLruCache<String, MovieDetail>(maxSize = 200, ttlMs = Constants.METADATA_CACHE_TTL_MS)
     private val navigationCache = TtlLruCache<String, MovieDetail>(maxSize = 100, ttlMs = 60 * 60 * 1000L)
     private val detailFetchScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val pendingDetailFetches = ConcurrentHashMap<String, Deferred<MovieDetail>>()
+    private val structureRefreshes = ConcurrentHashMap<String, Boolean>()
 
     fun getDetails(id: String, url: String, alternateUrl: String? = null): Flow<Result<MovieDetail>> = flow<Result<MovieDetail>> {
         val getT = System.currentTimeMillis()
@@ -93,19 +99,42 @@ internal class DetailSource(
     suspend fun enrichSeasons(url: String, detail: MovieDetail): MovieDetail {
         val providerName = providerManager.getProviderForUrl(url)?.name ?: providerManager.activeProvider.value.name
         val cacheKey = "details_pure|$providerName|$url"
-        try {
-            val resolution = withTimeout(Constants.STREAM_RESOLUTION_TIMEOUT_MS) {
-                streamResolver.resolve(url)
+
+        val cached = readStructureCache(url)
+        val cachedSeasons = cached?.let { deserializeSeasons(it.seasonsJson).takeIf { s -> s.isNotEmpty() } }
+        val cacheAge = cached?.let { System.currentTimeMillis() - it.updatedAt }
+
+        if (cachedSeasons != null && cacheAge != null && cacheAge < Constants.SERIES_STRUCTURE_CACHE_TTL_MS) {
+            AppLogger.d("ContentRepository", "Series structure cache HIT (fresh) for $url (${cachedSeasons.size} seasons)")
+            return cacheEnriched(detail, cacheKey, cachedSeasons)
+        }
+
+        if (cachedSeasons != null && cacheAge != null && cacheAge < Constants.SERIES_STRUCTURE_CACHE_STALE_TTL_MS) {
+            AppLogger.d("ContentRepository", "Series structure cache HIT (stale) for $url, refreshing in background")
+            refreshStructureInBackground(url)
+            return cacheEnriched(detail, cacheKey, cachedSeasons)
+        }
+
+        val resolution = try {
+            withTimeout(Constants.STREAM_ENRICH_TIMEOUT_MS) {
+                streamResolver.resolve(url, isDeep = true, timeoutMs = Constants.STREAM_ENRICH_TIMEOUT_MS)
             }
-            if (resolution?.seasons != null && resolution.seasons.isNotEmpty()) {
-                val enriched = detail.copy(seasons = resolution.seasons)
-                metadataCache.put(cacheKey, enriched)
-                navigationCache.put(cacheKey, enriched)
-                return enriched
-            }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            if (e is CancellationException) throw e
             AppLogger.w("ContentRepository", "Failed to enrich seasons: ${e.message}")
+            null
+        }
+
+        if (resolution?.seasons != null && resolution.seasons.isNotEmpty()) {
+            writeStructureCache(url, providerName, resolution.seasons)
+            return cacheEnriched(detail, cacheKey, resolution.seasons)
+        }
+
+        // Resolution failed — fall back to whatever stale structure we have (better than nothing).
+        if (cachedSeasons != null) {
+            AppLogger.d("ContentRepository", "Structure resolve failed, falling back to stale cache for $url")
+            return cacheEnriched(detail, cacheKey, cachedSeasons)
         }
 
         try {
@@ -136,25 +165,74 @@ internal class DetailSource(
                 val match = SearchScorer.pickBestMatch(candidates, listOf(query), detail.year)
                 if (match != null) {
                     AppLogger.d("ContentRepository", "Cross-provider season match: '${match.title}' @ ${match.pageUrl}")
-                    val oppResolution = withTimeout(Constants.STREAM_RESOLUTION_TIMEOUT_MS) {
-                        streamResolver.resolve(match.pageUrl, isDeep = true)
+                    val oppResolution = withTimeout(Constants.STREAM_ENRICH_TIMEOUT_MS) {
+                        streamResolver.resolve(match.pageUrl, isDeep = true, timeoutMs = Constants.STREAM_ENRICH_TIMEOUT_MS)
                     }
                     if (oppResolution?.seasons != null && oppResolution.seasons.isNotEmpty()) {
-                        val enriched = detail.copy(seasons = oppResolution.seasons)
-                        metadataCache.put(cacheKey, enriched)
-                        navigationCache.put(cacheKey, enriched)
-                        return enriched
+                        writeStructureCache(url, providerName, oppResolution.seasons)
+                        return cacheEnriched(detail, cacheKey, oppResolution.seasons)
                     }
                 } else {
                     AppLogger.w("ContentRepository", "No confident season match for '${detail.title}' on ${opposite.name}")
                 }
             }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            if (e is CancellationException) throw e
             AppLogger.w("ContentRepository", "Cross-provider season enrichment failed: ${e.message}")
         }
 
         return detail
+    }
+
+    private fun cacheEnriched(detail: MovieDetail, cacheKey: String, seasons: List<Season>): MovieDetail {
+        val enriched = detail.copy(seasons = seasons)
+        metadataCache.put(cacheKey, enriched)
+        navigationCache.put(cacheKey, enriched)
+        return enriched
+    }
+
+    private fun refreshStructureInBackground(url: String) {
+        if (structureRefreshes.putIfAbsent(url, true) != null) return
+        detailFetchScope.launch {
+            try {
+                val resolution = withTimeout(Constants.STREAM_ENRICH_TIMEOUT_MS) {
+                    streamResolver.resolve(url, isDeep = true, timeoutMs = Constants.STREAM_ENRICH_TIMEOUT_MS)
+                }
+                if (resolution?.seasons != null && resolution.seasons.isNotEmpty()) {
+                    val providerName = providerManager.getProviderForUrl(url)?.name ?: ""
+                    writeStructureCache(url, providerName, resolution.seasons)
+                    AppLogger.d("ContentRepository", "Background structure refresh updated $url")
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLogger.w("ContentRepository", "Background structure refresh failed: ${e.message}")
+            } finally {
+                structureRefreshes.remove(url)
+            }
+        }
+    }
+
+    private suspend fun writeStructureCache(url: String, providerName: String, seasons: List<Season>) = withContext(Dispatchers.IO) {
+        try {
+            seriesStructureDao.upsert(
+                SeriesStructureEntity(
+                    url = url,
+                    seasonsJson = serializeSeasons(seasons),
+                    provider = providerName,
+                    updatedAt = System.currentTimeMillis()
+                )
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.w("ContentRepository", "Failed to write series structure cache: ${e.message}")
+        }
+    }
+
+    private suspend fun readStructureCache(url: String): SeriesStructureEntity? = withContext(Dispatchers.IO) {
+        try { seriesStructureDao.get(url) } catch (_: Exception) { null }
     }
 
     companion object {

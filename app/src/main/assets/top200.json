@@ -37,6 +37,7 @@
     "accentColor": "#2d1f15",
     "onAccentColor": "#ffffff",
     "searchQueries": [
+      "Повернення короля",
       "Володар перснів Повернення короля"
     ]
   },
@@ -79,6 +80,7 @@
     "accentColor": "#a1582b",
     "onAccentColor": "#ffffff",
     "searchQueries": [
+      "Марсіанин",
       "Марсіянин"
     ]
   },
@@ -162,6 +164,7 @@
     "accentColor": "#2e1929",
     "onAccentColor": "#ffffff",
     "searchQueries": [
+      "Війна нескінченності",
       "Месники Війна нескінченності"
     ]
   },
@@ -286,7 +289,7 @@
     "accentColor": "#17181b",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "Три білборди під Еббінґом Міссурі"
+      "Три білборди"
     ]
   },
   {
@@ -389,7 +392,7 @@
     "accentColor": "#552a14",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "Лоґан: Росомаха"
+      "Лоґан Росомаха"
     ]
   },
   {
@@ -472,7 +475,8 @@
     "accentColor": "#b79344",
     "onAccentColor": "#000000",
     "searchQueries": [
-      "Вовк з Волл Стріт"
+      "Вовк з Волл Стріт",
+      "Вовк з Уолл Стріт"
     ]
   },
   {
@@ -598,7 +602,7 @@
     "accentColor": "#1a272c",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "Хижак: Дикі землі"
+      "Дикі землі"
     ]
   },
   {
@@ -722,6 +726,7 @@
     "accentColor": "#858486",
     "onAccentColor": "#000000",
     "searchQueries": [
+      "Мононоке",
       "Принцеса Мононоке"
     ]
   },
@@ -929,6 +934,7 @@
     "accentColor": "#937f7c",
     "onAccentColor": "#000000",
     "searchQueries": [
+      "Ейс Вентура",
       "Ейс Вентура Детектив з розшуку домашніх тварин"
     ]
   },
@@ -1035,6 +1041,7 @@
     "accentColor": "#213042",
     "onAccentColor": "#ffffff",
     "searchQueries": [
+      "Ера Альтрона",
       "Месники Ера Альтрона"
     ]
   },
@@ -1135,7 +1142,7 @@
     "accentColor": "#908d71",
     "onAccentColor": "#000000",
     "searchQueries": [
-      "Борат Культурні дослідження Америки на користь"
+      "Борат"
     ]
   },
   {
@@ -1323,7 +1330,7 @@
     "accentColor": "#818a84",
     "onAccentColor": "#000000",
     "searchQueries": [
-      "13 годин: Таємні воїни Бенгазі"
+      "Годин таємні солдати бенгазі"
     ]
   },
   {
@@ -1344,6 +1351,7 @@
     "accentColor": "#24142e",
     "onAccentColor": "#ffffff",
     "searchQueries": [
+      "Завершення",
       "Месники Завершення"
     ]
   },
@@ -1365,7 +1373,7 @@
     "accentColor": "#927f7d",
     "onAccentColor": "#000000",
     "searchQueries": [
-      "Кров'ю і потом: Анаболіки"
+      "Кров'ю і потом Анаболіки"
     ]
   },
   {
@@ -1466,6 +1474,7 @@
     "accentColor": "#3a4250",
     "onAccentColor": "#ffffff",
     "searchQueries": [
+      "Друге життя Уве",
       "Людина на ім'я Уве"
     ]
   },
@@ -1631,7 +1640,7 @@
     "accentColor": "#9d846d",
     "onAccentColor": "#000000",
     "searchQueries": [
-      "Брюс Всемогутнiй"
+      "Брюс Всемогутній"
     ]
   },
   {
@@ -1652,7 +1661,8 @@
     "accentColor": "#36516b",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "Подвійний форсаж"
+      "Подвійний форсаж",
+      "Форсаж 2"
     ]
   },
   {
@@ -1674,6 +1684,7 @@
     "accentColor": "#ae7e63",
     "onAccentColor": "#000000",
     "searchQueries": [
+      "Напад на 13",
       "Напад на 13 ту дільницю"
     ]
   },
@@ -1782,7 +1793,8 @@
     "accentColor": "#211a1a",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "Потрійний форсаж: Токійський дрифт"
+      "Форсаж 3",
+      "Потрійний форсаж"
     ]
   },
   {
@@ -1845,6 +1857,7 @@
     "accentColor": "#251814",
     "onAccentColor": "#ffffff",
     "searchQueries": [
+      "Бенджаміна Баттона",
       "Загадкова справа Бенджаміна Баттона"
     ]
   },
@@ -2113,6 +2126,7 @@
     "accentColor": "#aa8362",
     "onAccentColor": "#000000",
     "searchQueries": [
+      "Додому шляху нема",
       "Людина павук Додому шляху нема"
     ]
   },
@@ -2198,7 +2212,7 @@
     "accentColor": "#8e827f",
     "onAccentColor": "#000000",
     "searchQueries": [
-      "Місія неможлива Протокол Фантом"
+      "Протокол Фантом"
     ]
   },
   {
@@ -2442,6 +2456,7 @@
     "accentColor": "#202428",
     "onAccentColor": "#ffffff",
     "searchQueries": [
+      "Залягти на дно",
       "Залягти на дно в Брюге"
     ]
   },
@@ -2505,7 +2520,9 @@
     "accentColor": "#8f827d",
     "onAccentColor": "#000000",
     "searchQueries": [
-      "Місія неможлива Розплата Частина перша"
+      "Розплата",
+      "Місія неможлива Розплата",
+      "Місія нездійсненна Розплата"
     ]
   },
   {
@@ -2796,7 +2813,8 @@
     "accentColor": "#7e4822",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "Кухар"
+      "Кухар",
+      "Шеф кухар"
     ]
   },
   {
@@ -2816,7 +2834,8 @@
     "accentColor": "#383d3a",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "F1: Фільм"
+      "Ф1 Фільм",
+      "F1 Фільм"
     ]
   },
   {
@@ -2898,6 +2917,7 @@
     "accentColor": "#848585",
     "onAccentColor": "#000000",
     "searchQueries": [
+      "Хижа в лісі",
       "Хижа у лісі"
     ]
   },
@@ -3148,7 +3168,8 @@
     "accentColor": "#ea2620",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "28 днів потому"
+      "днів по тому",
+      "днів потому"
     ]
   },
   {
@@ -3170,7 +3191,7 @@
     "accentColor": "#a2a24b",
     "onAccentColor": "#000000",
     "searchQueries": [
-      "Мадагаскар 2: Втеча до Африки"
+      "Мадагаскар 2"
     ]
   },
   {
@@ -3211,7 +3232,7 @@
     "accentColor": "#1b1414",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "Шалений Макс Дорога гнiву"
+      "Шалений Макс"
     ]
   },
   {
@@ -3253,7 +3274,7 @@
     "accentColor": "#272c21",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "13 життів"
+      "Тринадцять життів"
     ]
   },
   {
@@ -3337,6 +3358,7 @@
     "accentColor": "#838884",
     "onAccentColor": "#000000",
     "searchQueries": [
+      "Великий Пивний Забіг",
       "Пиво зі смаком дружби"
     ]
   },
@@ -3398,7 +3420,8 @@
     "accentColor": "#be8d44",
     "onAccentColor": "#000000",
     "searchQueries": [
-      "Пірати Карибського Моря Прокляття Чорної перлини"
+      "Пірати Карибського моря",
+      "Прокляття Чорної перлини"
     ]
   },
   {
@@ -3750,6 +3773,7 @@
     "accentColor": "#948773",
     "onAccentColor": "#000000",
     "searchQueries": [
+      "Ямакасі",
       "Ямакасі Нові самураї"
     ]
   },
@@ -3956,6 +3980,7 @@
     "accentColor": "#a98461",
     "onAccentColor": "#000000",
     "searchQueries": [
+      "Трансформери",
       "Трансформери Генерація 1"
     ]
   },
@@ -3973,7 +3998,7 @@
     "accentColor": "#5e5e73",
     "onAccentColor": "#ffffff",
     "searchQueries": [
-      "Антарктида (Птушкін)"
+      "Антарктида"
     ]
   },
   {

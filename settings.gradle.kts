@@ -18,6 +18,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "UkrtvApp"
 include(":app")
+include(":matching")
 include(":database-generator")
 include(":macrobenchmark")
 

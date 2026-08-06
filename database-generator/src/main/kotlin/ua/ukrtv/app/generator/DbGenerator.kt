@@ -33,6 +33,8 @@ data class ProviderConfig(
 private val USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 private val MAX_PAGES = 9999
 private val TIMEOUT_MS = 15_000
+private val MAX_PAGE_RETRIES = 3
+private val MAX_CONSECUTIVE_EMPTY = 5
 
 private val httpClient = OkHttpClient.Builder()
     .connectTimeout(15, TimeUnit.SECONDS)
@@ -45,7 +47,6 @@ private val TECH_REGEX = Regex("""\b(FHD|HD|SD|720p|1080p|2160p|4K|HDR|BD-Rip|BD
 private val YEAR_BRACKET_REGEX = Regex("""\(\d{4}\)""")
 private val TECHNICAL_SUFFIX_REGEX = Regex("""(?:\s+\d+[-\s]*\d*)?\s*(?:сезон|серія|серії|серій|season|episode|sezon|seria|seriya|IMDB|голосів|рейтинг|rating|votes|переглядів|дивитися|онлайн).*$""", RegexOption.IGNORE_CASE)
 private val START_SERIES_PREFIX_REGEX = Regex("""^\d*[-\s]*\d*\s*(?:сезон|серія|серії|серій|season|episode|sezon|seria|seriya)\s*""", RegexOption.IGNORE_CASE)
-private val START_NUMERIC_PREFIX_REGEX = Regex("""^\d{1,8}\s+""")
 private val PARASITES_REGEX = Regex("""\b(?:дивитися\s+онлайн|онлайн\s+в\s+HD|дивись\s+наживо|онлайн\s+в|наживо\s+в|дивитися|дивись|онлайн|українською)\b""", RegexOption.IGNORE_CASE)
 private val NON_ALPHANUM_REGEX = Regex("""[^\p{L}\d\s']""")
 private val WHITESPACE_REGEX = Regex("""\s+""")
@@ -57,7 +58,6 @@ private fun cleanTitle(title: String): String {
     var clean = if (title.contains(" / ")) title.substringBefore(" / ").trim() else title
     clean = clean.replace(TECHNICAL_SUFFIX_REGEX, "")
     clean = clean.replace(START_SERIES_PREFIX_REGEX, "")
-    clean = clean.replace(START_NUMERIC_PREFIX_REGEX, "")
     clean = org.jsoup.parser.Parser.unescapeEntities(clean, false)
         .replace(HTML_TAGS_REGEX, "").replace("+", " ").replace("_", " ")
     clean = clean.replace(PARASITES_REGEX, "")
@@ -78,7 +78,9 @@ private fun cleanTitle(title: String): String {
     else deduplicated.joinToString(" ")
 }
 
-private fun fetchPage(url: String): String? {
+private data class FetchResult(val html: String?, val permanent: Boolean)
+
+private fun fetchPage(url: String): FetchResult {
     return try {
         val request = Request.Builder().url(url)
             .header("User-Agent", USER_AGENT)
@@ -95,16 +97,31 @@ private fun fetchPage(url: String): String? {
             .build()
 
         httpClient.newCall(request).execute().use { response ->
-            if (response.isSuccessful) response.body?.string()
-            else {
-                System.err.println("HTTP ${response.code} for $url")
-                null
+            if (response.isSuccessful) {
+                FetchResult(response.body?.string(), permanent = false)
+            } else {
+                val permanent = response.code in 400..499
+                System.err.println("HTTP ${response.code} for $url" + if (permanent) " (permanent)" else "")
+                FetchResult(null, permanent)
             }
         }
     } catch (e: Exception) {
         System.err.println("Failed to fetch $url: ${e.message}")
-        null
+        FetchResult(null, permanent = false)
     }
+}
+
+private fun fetchPageWithRetry(url: String): FetchResult {
+    var result = fetchPage(url)
+    var attempt = 1
+    while (result.html == null && !result.permanent && attempt < MAX_PAGE_RETRIES) {
+        val delay = 2000L * attempt
+        System.err.println("[$url] transient failure, retrying in ${delay}ms ($attempt/$MAX_PAGE_RETRIES)")
+        Thread.sleep(delay)
+        result = fetchPage(url)
+        attempt++
+    }
+    return result
 }
 
 private fun buildPageUrl(baseUrl: String, path: String, page: Int): String {
@@ -194,19 +211,29 @@ private fun scrapeProvider(
             Thread.sleep(5000)
         }
         var page = 1
-        var hasMore = true
+        var emptyPagesInRow = 0
 
-        while (hasMore && page <= MAX_PAGES) {
+        while (emptyPagesInRow < MAX_CONSECUTIVE_EMPTY && page <= MAX_PAGES) {
             val pageUrl = buildPageUrl(baseUrl, path, page)
-            val html = fetchPage(pageUrl) ?: break
-            if (html.isBlank()) break
+            val fetch = fetchPageWithRetry(pageUrl)
+            if (fetch.permanent) {
+                System.err.println("[$name] $path: permanent HTTP error at page $page (end of category)")
+                break
+            }
+            val html = fetch.html
+            if (html.isNullOrBlank()) {
+                emptyPagesInRow++
+                page++
+                continue
+            }
 
             val doc = Jsoup.parse(html, baseUrl)
             val items = doc.select(cardSelector)
 
             if (items.isEmpty()) {
-                System.err.println("[$name] Page $page: 0 items matched selector (stopping)")
-                break
+                emptyPagesInRow++
+                page++
+                continue
             }
 
             var pageCount = 0
@@ -222,9 +249,12 @@ private fun scrapeProvider(
             }
 
             if (pageCount == 0) {
-                System.err.println("[$name] Page $page: 0 items after parsing (stopping)")
-                break
+                emptyPagesInRow++
+                page++
+                continue
             }
+
+            emptyPagesInRow = 0
 
             if (page <= 3 || page % 10 == 0) {
                 System.err.println("[$name] Page $page: +$pageCount items (total ${results.size})")
@@ -242,21 +272,44 @@ private fun scrapeProvider(
 private fun itemsToJson(items: List<CatalogItem>): String {
     val sb = StringBuilder()
     sb.append("[")
-    for ((i, item) in items.withIndex()) {
-        if (i > 0) sb.append(",\n")
-        sb.append("""
-  { "url": ${jsonEscape(item.url)},
-    "title": ${jsonEscape(item.title)},
-    "titleEn": ${jsonEscape(item.titleEn)},
-    "poster": ${jsonEscape(item.poster)},
-    "provider": ${jsonEscape(item.provider)},
-    "year": ${jsonEscape(item.year)},
-    "rating": ${jsonEscape(item.rating)},
-    "quality": ${jsonEscape(item.quality)},
-    "contentType": ${jsonEscape(item.contentType)},
-    "updatedAt": ${item.updatedAt} }""".trimIndent())
+    var first = true
+    for (item in items) {
+        val inferredType = if (item.provider == "Uakino") {
+            when {
+                item.url.contains("/filmy/") -> "movie"
+                item.url.contains("/seriesss/") -> "series"
+                item.url.contains("/cartoon/") -> "cartoon"
+                item.url.contains("/animeukr/") -> "series"
+                item.url.contains("/news/") || item.url.contains("/anonsi/") || item.url.contains("/spilno-prodakshn/") -> null
+                else -> item.contentType.takeIf { it != "unknown" } ?: "movie"
+            }
+        } else if (item.provider == "UAFLIX") {
+            val slug = item.url.trimEnd('/').substringAfterLast("/")
+            val isCategory = slug.contains("_") || 
+                listOf("multseial", "documental", "pro_love", "school", "detective").any { slug.contains(it) }
+            
+            if (isCategory) null
+            else when {
+                item.url.contains("/film/") || item.url.contains("/films/") -> "movie"
+                item.url.contains("/serials/") || item.url.contains("/anime/") || item.url.contains("/dorama/") -> "series"
+                item.url.contains("/cartoons/") -> "cartoon"
+                else -> item.contentType
+            }
+        } else item.contentType
+
+        if (inferredType == null) continue
+
+        if (!first) sb.append(",")
+        first = false
+        
+        sb.append("""{"url":${jsonEscape(item.url)},"title":${jsonEscape(item.title)},"poster":${jsonEscape(item.poster)},"provider":${jsonEscape(item.provider)},"contentType":${jsonEscape(inferredType)},"updatedAt":${item.updatedAt}""")
+        if (item.titleEn.isNotEmpty()) sb.append(""","titleEn":${jsonEscape(item.titleEn)}""")
+        if (item.year.isNotEmpty()) sb.append(""","year":${jsonEscape(item.year)}""")
+        if (item.rating.isNotEmpty()) sb.append(""","rating":${jsonEscape(item.rating)}""")
+        if (item.quality.isNotEmpty()) sb.append(""","quality":${jsonEscape(item.quality)}""")
+        sb.append("}")
     }
-    sb.append("\n]")
+    sb.append("]")
     return sb.toString()
 }
 

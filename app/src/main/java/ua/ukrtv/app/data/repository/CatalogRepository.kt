@@ -12,11 +12,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import androidx.sqlite.db.SimpleSQLiteQuery
+import androidx.sqlite.db.SupportSQLiteQuery
 import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.local.entity.CatalogIndexEntity
 import ua.ukrtv.app.data.providers.UaflixProfile
 import ua.ukrtv.app.data.providers.UakinoProfile
 import ua.ukrtv.app.util.AppLogger
+import ua.ukrtv.app.matching.SearchScorer
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -65,10 +68,6 @@ class CatalogRepository @Inject constructor(
     }
 
     private suspend fun importFromAssetIfEmpty() {
-        // Phase 3: Delay catalog import to avoid competition with Home content loading
-        delay(8000)
-
-        try { catalogDao.deleteByProviderNotIn(listOf("Uakino", "UAFLIX")) } catch (_: Exception) { }
         val uCount = try { catalogDao.countByProvider("Uakino") } catch (_: Exception) { 0 }
         val uaCount = try { catalogDao.countByProvider("UAFLIX") } catch (_: Exception) { 0 }
         if (uCount > 1000 && uaCount > 1000) {
@@ -78,7 +77,14 @@ class CatalogRepository @Inject constructor(
             return
         }
 
+        // Mark building BEFORE the delay so awaitReady()/ensureBuilt() block on the real
+        // import instead of returning early against an empty catalog (first-launch race).
         _state.update { it.copy(isBuilding = true, progress = "Importing catalog index...") }
+
+        // Phase 3: Delay catalog import to avoid competition with Home content loading
+        delay(8000)
+
+        try { catalogDao.deleteByProviderNotIn(listOf("Uakino", "UAFLIX")) } catch (_: Exception) { }
 
         try {
             context.assets.open("catalog_index.json").use { stream ->
@@ -102,8 +108,8 @@ class CatalogRepository @Inject constructor(
                     while (reader.hasNext()) {
                         when (reader.nextName()) {
                             "url" -> url = reader.nextString()
-                            "title" -> title = reader.nextString().lowercase()
-                            "titleEn" -> titleEn = reader.nextString()
+                            "title" -> title = reader.nextString().lowercase(java.util.Locale.ROOT)
+                            "titleEn" -> titleEn = reader.nextString().lowercase(java.util.Locale.ROOT)
                             "poster" -> poster = reader.nextString()
                             "provider" -> provider = reader.nextString()
                             "year" -> year = reader.nextString()
@@ -192,12 +198,99 @@ class CatalogRepository @Inject constructor(
     }
 
     suspend fun search(query: String, limit: Int = 30): List<CatalogIndexEntity> {
-        return catalogDao.search(query, limit)
+        return catalogDao.search(query.trim().lowercase(), limit)
     }
 
     suspend fun searchByProvider(provider: String, query: String, limit: Int = 30): List<CatalogIndexEntity> {
-        if (query.length < 2) return emptyList()
-        return catalogDao.searchByProvider(provider, query, limit)
+        val q = query.trim().lowercase()
+        if (q.length < 2) return emptyList()
+        val variants = SearchScorer.gVariants(q).take(4)
+        if (variants.size == 1) return catalogDao.searchByProvider(provider, variants[0], limit)
+        val results = mutableListOf<CatalogIndexEntity>()
+        val seen = mutableSetOf<String>()
+        for (v in variants) {
+            for (e in catalogDao.searchByProvider(provider, v, limit)) {
+                if (seen.add(e.url)) results.add(e)
+            }
+        }
+        return results.take(limit)
+    }
+
+    /**
+     * Word-based per-provider search with a sliding recall chain: for each word position
+     * in the query it tries a 3-word, 2-word and single-word window, so leading words that
+     * the catalog dropped (numbers like "13" in "13 годин", ordinal prefixes, etc.) don't
+     * block retrieval. г/ґ spelling variants of the query are all tried, since the catalog
+     * keeps each site's raw spelling.
+     */
+    suspend fun searchByProviderWords(provider: String, query: String, limit: Int = 30): List<CatalogIndexEntity> {
+        val canonical = query.trim().lowercase().replace('ґ', 'г')
+        val variants = SearchScorer.gVariants(canonical).take(4)
+        if (variants.all { it.isBlank() }) return emptyList()
+
+        val results = mutableListOf<CatalogIndexEntity>()
+        val seen = mutableSetOf<String>()
+        fun add(entities: List<CatalogIndexEntity>) {
+            for (e in entities) if (seen.add(e.url)) results.add(e)
+        }
+
+        for (v in variants) {
+            val words = v.split("\\s+".toRegex()).filter { it.length >= 2 }
+            if (words.isEmpty()) continue
+            val before = results.size
+            for (i in words.indices) {
+                val w1 = words[i]
+                val w2 = words.getOrNull(i + 1)
+                val w3 = words.getOrNull(i + 2)
+                if (w2 != null) {
+                    if (w3 != null) {
+                        add(catalogDao.searchByProviderThreeWords(provider, w1, w2, w3, limit))
+                    }
+                    add(catalogDao.searchByProviderTwoWords(provider, w1, w2, limit))
+                }
+            }
+            if (results.size == before) {
+                for (w in words) add(catalogDao.searchByProvider(provider, w, limit))
+            }
+        }
+        return results.take(limit)
+    }
+
+    /**
+     * Single-SQL word search: every word of the query must appear (in any order) in
+     * title or titleEn. Built dynamically so punctuation/order inside the title never
+     * blocks the match, while staying one query per variant instead of the multi-query
+     * sliding-window chain used by [searchByProviderWords].
+     */
+    suspend fun searchByProviderWordsExact(provider: String, query: String, limit: Int = 20): List<CatalogIndexEntity> {
+        val canonical = query.trim().lowercase().replace('ґ', 'г')
+        val variants = SearchScorer.gVariants(canonical).take(4)
+        if (variants.all { it.isBlank() }) return emptyList()
+
+        val results = mutableListOf<CatalogIndexEntity>()
+        val seen = mutableSetOf<String>()
+        for (v in variants) {
+            val words = v.split("\\s+".toRegex()).filter { it.length >= 2 }
+            if (words.isEmpty()) continue
+            for (e in catalogDao.searchByProviderWordsRaw(buildWordAndQuery(provider, words, limit))) {
+                if (seen.add(e.url)) results.add(e)
+            }
+            if (results.size >= limit) break
+        }
+        return results.take(limit)
+    }
+
+    private fun buildWordAndQuery(provider: String, words: List<String>, limit: Int): SupportSQLiteQuery {
+        val sb = StringBuilder("SELECT * FROM catalog_index WHERE provider = ?")
+        val args = mutableListOf<Any>(provider)
+        for (w in words) {
+            sb.append(" AND (title LIKE '%' || ? || '%' OR titleEn LIKE '%' || ? || '%')")
+            args.add(w)
+            args.add(w)
+        }
+        sb.append(" LIMIT ?")
+        args.add(limit)
+        return SimpleSQLiteQuery(sb.toString(), args.toTypedArray())
     }
 
     fun isProviderReady(providerName: String): Boolean {

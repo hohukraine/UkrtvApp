@@ -55,8 +55,7 @@ sealed class PlayerStatus {
         val positionMs: Long,
         val durationMs: Long,
         val referer: String,
-        val streamType: StreamType,
-        val loadTrigger: Long = System.currentTimeMillis()
+        val streamType: StreamType
     ) : PlayerStatus()
     data class Error(val message: String, val isRetryable: Boolean = true) : PlayerStatus()
 }

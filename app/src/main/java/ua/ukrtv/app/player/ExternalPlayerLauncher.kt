@@ -104,6 +104,10 @@ class ExternalPlayerLauncher(private val context: Context) {
 
             // Headers support
             val options = mutableListOf<String>()
+            // Bypass VLC's certificate dialog for hosts with untrusted/self-signed certificates.
+            // Note: boolean options must be passed WITHOUT "=value" - VLC parses bool values via
+            // atoi() and atoi("true")==0, so ":opt=true" would actually DISABLE the option.
+            options.add(":http-ignore-cert-errors")
             if (config.userAgent.isNotBlank()) {
                 options.add(":http-user-agent=${config.userAgent}")
             }

@@ -7,7 +7,7 @@ import ua.ukrtv.app.data.streaming.StreamResolver
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.StreamResolutionResult
 import ua.ukrtv.app.util.AppLogger
-import ua.ukrtv.app.util.SearchScorer
+import ua.ukrtv.app.matching.SearchScorer
 
 sealed class StreamResolutionException(message: String) : Exception(message) {
     class Network(message: String) : StreamResolutionException(message)

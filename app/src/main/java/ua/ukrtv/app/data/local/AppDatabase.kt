@@ -5,16 +5,20 @@ import androidx.room.RoomDatabase
 import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.local.dao.HtmlCacheDao
 import ua.ukrtv.app.data.local.dao.SearchHistoryDao
+import ua.ukrtv.app.data.local.dao.SeriesStructureDao
 import ua.ukrtv.app.data.local.dao.WatchProgressDao
 import ua.ukrtv.app.data.local.dao.WatchlistDao
 import ua.ukrtv.app.data.local.entity.CatalogIndexEntity
 import ua.ukrtv.app.data.local.entity.HtmlCacheEntity
 import ua.ukrtv.app.data.local.entity.SearchHistoryEntity
+import ua.ukrtv.app.data.local.entity.SeriesStructureEntity
 import ua.ukrtv.app.data.local.entity.WatchProgressEntity
 import ua.ukrtv.app.data.local.entity.WatchlistEntity
 
 import ua.ukrtv.app.data.local.dao.HomeCacheDao
 import ua.ukrtv.app.data.local.entity.HomeCacheEntity
+import ua.ukrtv.app.data.local.dao.TmdbTrendsCacheDao
+import ua.ukrtv.app.data.local.entity.TmdbTrendsCacheEntity
 
 @Database(entities = [
     SearchHistoryEntity::class,
@@ -22,8 +26,10 @@ import ua.ukrtv.app.data.local.entity.HomeCacheEntity
     WatchlistEntity::class,
     WatchProgressEntity::class,
     CatalogIndexEntity::class,
-    HomeCacheEntity::class
-], version = 17, exportSchema = true)
+    HomeCacheEntity::class,
+    TmdbTrendsCacheEntity::class,
+    SeriesStructureEntity::class
+], version = 20, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun htmlCacheDao(): HtmlCacheDao
@@ -31,4 +37,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun watchProgressDao(): WatchProgressDao
     abstract fun catalogIndexDao(): CatalogIndexDao
     abstract fun homeCacheDao(): HomeCacheDao
+    abstract fun tmdbTrendsCacheDao(): TmdbTrendsCacheDao
+    abstract fun seriesStructureDao(): SeriesStructureDao
 }

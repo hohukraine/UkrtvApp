@@ -127,21 +127,21 @@ class UaflixProviderTest {
 
     @Test
     fun `missing target episode completes season list from sezon page`() = runTest {
-        coEvery { htmlClient.getHtml(season1Url, serialUrl) } returns seasonPageHtml(1, 10)
+        coEvery { htmlClient.getHtml(season1Url, serialUrl, skipRateLimitRetry = true) } returns seasonPageHtml(1, 10)
 
         val source = resolve(season = 1, episode = 2)
 
         val s1 = source.seasons.first { it.number == 1 }
         assertEquals((1..10).toList(), s1.episodes.map { it.number })
 
-        coVerify(exactly = 1) { htmlClient.getHtml(season1Url, serialUrl) }
+        coVerify(exactly = 1) { htmlClient.getHtml(season1Url, serialUrl, skipRateLimitRetry = true) }
     }
 
     @Test
     fun `deep resolution completes every season from its sezon page`() = runTest {
-        coEvery { htmlClient.getHtml(season1Url, serialUrl) } returns seasonPageHtml(1, 10)
-        coEvery { htmlClient.getHtml(season2Url, serialUrl) } returns seasonPageHtml(2, 8)
-        coEvery { htmlClient.getHtml(season3Url, serialUrl) } returns seasonPageHtml(3, 7)
+        coEvery { htmlClient.getHtml(season1Url, serialUrl, skipRateLimitRetry = true) } returns seasonPageHtml(1, 10)
+        coEvery { htmlClient.getHtml(season2Url, serialUrl, skipRateLimitRetry = true) } returns seasonPageHtml(2, 8)
+        coEvery { htmlClient.getHtml(season3Url, serialUrl, skipRateLimitRetry = true) } returns seasonPageHtml(3, 7)
 
         val source = resolve(isDeep = true)
 
@@ -150,14 +150,14 @@ class UaflixProviderTest {
         assertEquals((1..8).toList(), source.seasons.first { it.number == 2 }.episodes.map { it.number })
         assertEquals((1..7).toList(), source.seasons.first { it.number == 3 }.episodes.map { it.number })
 
-        coVerify(exactly = 1) { htmlClient.getHtml(season1Url, serialUrl) }
-        coVerify(exactly = 1) { htmlClient.getHtml(season2Url, serialUrl) }
-        coVerify(exactly = 1) { htmlClient.getHtml(season3Url, serialUrl) }
+        coVerify(exactly = 1) { htmlClient.getHtml(season1Url, serialUrl, skipRateLimitRetry = true) }
+        coVerify(exactly = 1) { htmlClient.getHtml(season2Url, serialUrl, skipRateLimitRetry = true) }
+        coVerify(exactly = 1) { htmlClient.getHtml(season3Url, serialUrl, skipRateLimitRetry = true) }
     }
 
     @Test
     fun `season pages without episode links are skipped safely`() = runTest {
-        coEvery { htmlClient.getHtml(season1Url, serialUrl) } returns "<html><body>no links</body></html>"
+        coEvery { htmlClient.getHtml(season1Url, serialUrl, skipRateLimitRetry = true) } returns "<html><body>no links</body></html>"
 
         val source = resolve(season = 1, episode = 2)
 

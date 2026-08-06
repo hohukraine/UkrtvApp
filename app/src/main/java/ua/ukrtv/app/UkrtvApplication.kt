@@ -180,7 +180,7 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
                 val provider = providerManager.get().activeProvider.value
                 if (repo.isHomeCacheStale(provider.name)) {
                     AppLogger.d("Prewarm", "Home cache stale, refreshing for ${provider.name}")
-                    repo.getTrendsForGrid()
+                    repo.getTmdbTrends(provider)
                 }
             } catch (_: Exception) { }
         }
