@@ -478,4 +478,95 @@ class PlayerViewModelTest {
         assertEquals(6000L, getField(vm, "lastSavedPosition"))
         kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
+
+    @Test
+    fun `result with position but unknown duration is saved without duration`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "seasons", listOf(season(1, ep(1), ep(2))))
+        setField(vm, "season", 1)
+        setField(vm, "episode", 1)
+        setField(vm, "episodeId", "s1e1")
+        setField(vm, "pageUrl", "https://test/series")
+        setField(vm, "title", "Series")
+        setField(vm, "contentId", "content123")
+
+        val mockLauncher = mockk<ExternalPlayerLauncher>(relaxed = true)
+        every { mockLauncher.extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(600_000L, 0L, false)
+        setField(vm, "externalPlayerLauncher", mockLauncher)
+
+        val result = vm.handleExternalPlayerResult(Activity.RESULT_OK, mockk<Intent>())
+
+        kotlinx.coroutines.runBlocking {
+            vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.join() }
+        }
+
+        assertEquals(ExternalPlayerReturnResult.NotFinished(600_000L, 0L), result)
+        coVerify {
+            watchProgressRepository.saveProgress(
+                "content123", "s1e1", 600_000L, 0L, any(), any(), any(), any(), any(), any(), any(), any()
+            )
+        }
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
+    }
+
+    @Test
+    fun `position is never persisted as duration`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "seasons", listOf(season(1, ep(1), ep(2))))
+        setField(vm, "season", 1)
+        setField(vm, "episode", 1)
+        setField(vm, "episodeId", "s1e1")
+        setField(vm, "pageUrl", "https://test/series")
+        setField(vm, "title", "Series")
+        setField(vm, "contentId", "content123")
+
+        // Just Player reports a position but a TIME_UNSET duration for HLS/DASH.
+        val mockLauncher = mockk<ExternalPlayerLauncher>(relaxed = true)
+        every { mockLauncher.extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(1_000_000L, 0L, false)
+        setField(vm, "externalPlayerLauncher", mockLauncher)
+
+        vm.handleExternalPlayerResult(Activity.RESULT_OK, mockk<Intent>())
+
+        kotlinx.coroutines.runBlocking {
+            vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.join() }
+        }
+
+        coVerify(exactly = 1) {
+            watchProgressRepository.saveProgress(
+                "content123", "s1e1", 1_000_000L, 0L, any(), any(), any(), any(), any(), any(), any(), any()
+            )
+        }
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
+    }
+
+    @Test
+    fun `empty result with natural completion and no duration does not fabricate a full entry`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "seasons", listOf(season(1, ep(1), ep(2))))
+        setField(vm, "season", 1)
+        setField(vm, "episode", 1)
+        setField(vm, "episodeId", "s1e1")
+        setField(vm, "pageUrl", "https://test/series")
+        setField(vm, "title", "Series")
+        setField(vm, "contentId", "content123")
+
+        val mockLauncher = mockk<ExternalPlayerLauncher>(relaxed = true)
+        every { mockLauncher.extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(0L, 0L, false)
+        setField(vm, "externalPlayerLauncher", mockLauncher)
+        setField(vm, "externalPlayerLaunchTimeMs", System.currentTimeMillis() - 120_000L)
+
+        val result = vm.handleExternalPlayerResult(Activity.RESULT_OK, mockk<Intent>())
+
+        kotlinx.coroutines.runBlocking {
+            vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.join() }
+        }
+
+        // savedDur is 0 and there is no persisted duration, so nothing may be persisted as a
+        // fake 100% entry; the series just advances to the next episode.
+        assertEquals(ExternalPlayerReturnResult.Advanced, result)
+        coVerify(exactly = 0) {
+            watchProgressRepository.saveProgress("content123", "s1e1", any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
+    }
 }

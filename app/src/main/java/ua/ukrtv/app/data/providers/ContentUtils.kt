@@ -25,7 +25,16 @@ object ContentUtils {
 
     private val STOP_MARKERS = listOf("Жанр:", "Актори:", "Рік виходу:", "Короткий опис:", "0 IMDB:", " IMDB:")
 
-    fun cleanTitle(title: String): String {
+    fun cleanTitle(title: String): String = cleanTitleInternal(title, truncate = true)
+
+    /**
+     * Same cleanup chain as [cleanTitle] but WITHOUT the 6-word truncation, so two distinct
+     * films that happen to share a long prefix are never merged. Used to build the dedupe key
+     * for "Продовжити перегляд".
+     */
+    fun cleanTitleForDedupe(title: String): String = cleanTitleInternal(title, truncate = false)
+
+    private fun cleanTitleInternal(title: String, truncate: Boolean): String {
         if (title.isBlank()) return ""
         titleCache.get(title)?.let { return it }
 
@@ -61,8 +70,8 @@ object ContentUtils {
         }
 
         val result = deduplicated.joinToString(" ")
-        val final = if (deduplicated.size > 8) deduplicated.take(6).joinToString(" ") else result
-        titleCache.put(title, final)
+        val final = if (truncate && deduplicated.size > 8) deduplicated.take(6).joinToString(" ") else result
+        if (truncate) titleCache.put(title, final)
         return final
     }
 }

@@ -79,4 +79,81 @@ class HlsPlaylistDurationTest {
             durationResolver.resolveRelativeUrl("https://cdn/video/index.m3u8", "https://other.com/playlist.m3u8")
         )
     }
+
+    @Test
+    fun `parseMpdDuration reads mediaPresentationDuration`() {
+        val content = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <MPD mediaPresentationDuration="PT1H23M45.5S" type="static">
+              <Period id="0" start="PT0S">
+                <AdaptationSet mimeType="video/mp4">
+                  <Representation id="1" bandwidth="3000000" width="1920" height="1080"/>
+                </AdaptationSet>
+              </Period>
+            </MPD>
+        """.trimIndent()
+        assertEquals(5_025_500L, durationResolver.parseMpdDuration(content))
+    }
+
+    @Test
+    fun `parseMpdDuration sums segment timeline when no presentation duration`() {
+        val content = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <MPD type="static">
+              <Period>
+                <AdaptationSet mimeType="video/mp4">
+                  <SegmentTemplate timescale="1000" duration="2000">
+                    <SegmentTimeline>
+                      <S t="0" d="2000" r="2"/>
+                      <S t="6000" d="2000"/>
+                      <S t="8000" d="1500"/>
+                    </SegmentTimeline>
+                  </SegmentTemplate>
+                  <Representation id="1" bandwidth="3000000" width="1920" height="1080"/>
+                </AdaptationSet>
+                <AdaptationSet mimeType="audio/mp4">
+                  <SegmentTemplate timescale="48000" duration="96000">
+                    <SegmentTimeline>
+                      <S t="0" d="96000" r="2"/>
+                      <S t="288000" d="96000"/>
+                    </SegmentTimeline>
+                  </SegmentTemplate>
+                  <Representation id="2" bandwidth="128000"/>
+                </AdaptationSet>
+              </Period>
+            </MPD>
+        """.trimIndent()
+        // Video timeline: (2000*3) + 2000 + 1500 = 9500 ms at timescale 1000
+        assertEquals(9_500L, durationResolver.parseMpdDuration(content))
+    }
+
+    @Test
+    fun `parseIso8601Duration parses hours minutes seconds`() {
+        assertEquals(5_025_500L, durationResolver.parseIso8601Duration("PT1H23M45.5S"))
+        assertEquals(120_000L, durationResolver.parseIso8601Duration("PT2M"))
+        assertEquals(45_000L, durationResolver.parseIso8601Duration("PT45S"))
+        assertEquals(3_600_000L, durationResolver.parseIso8601Duration("PT1H"))
+    }
+
+    @Test
+    fun `parseIso8601Duration rejects malformed values`() {
+        assertEquals(null, durationResolver.parseIso8601Duration("P1D"))
+        assertEquals(null, durationResolver.parseIso8601Duration(""))
+        assertEquals(null, durationResolver.parseIso8601Duration("PT0S"))
+    }
+
+    @Test
+    fun `sumMpdSegments returns null when no segments present`() {
+        val content = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <MPD type="static">
+              <Period>
+                <AdaptationSet mimeType="video/mp4">
+                  <Representation id="1" bandwidth="3000000"/>
+                </AdaptationSet>
+              </Period>
+            </MPD>
+        """.trimIndent()
+        assertEquals(null, durationResolver.sumMpdSegments(content))
+    }
 }

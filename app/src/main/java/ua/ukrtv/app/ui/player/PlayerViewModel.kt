@@ -476,38 +476,45 @@ class PlayerViewModel @Inject constructor(
 
         AppLogger.d("ExternalPlayer", "handleResult: result=$result, savedDur=$savedDur, elapsed=${elapsedInPlayerMs}ms")
 
-        // Fallback: VLC sometimes returns 0/0 with no end_by even after natural completion.
-        // If the player reported RESULT_OK and the user spent a meaningful time in it, treat it as finished.
+        // Fallback: players (VLC especially) sometimes return 0/0 with no end_by even after
+        // natural completion. If the player reported RESULT_OK and the user spent a meaningful
+        // time in it, treat the playback as completed.
         val looksLikeNaturalCompletion = resultCode == Activity.RESULT_OK &&
                 elapsedInPlayerMs >= MIN_EXTERNAL_PLAYBACK_MS_FOR_COMPLETION
 
-        // Fallback: VLC sometimes returns 0/0 when service released after playback
+        // Player returned nothing usable (activity destroyed without a result, VLC released its
+        // service before reporting, etc.). We have no position to persist — never fabricate one.
+        // Only the elapsed-time heuristic may mark the content as finished and, for series,
+        // advance to the next episode.
         if (result == null || (result.positionMs == 0L && result.durationMs == 0L && !result.isFinished)) {
             val effectiveDur = if (savedDur > 0) savedDur else {
                 withContext(Dispatchers.IO) { watchProgressRepository.getProgress(contentId, episodeId)?.durationMs ?: 0L }
             }
-            
+
             AppLogger.d("ExternalPlayer", "Result is empty, effectiveDur=$effectiveDur, looksLikeNaturalCompletion=$looksLikeNaturalCompletion")
 
-            if (effectiveDur > 0) {
-                saveProgressSynchronously(effectiveDur, effectiveDur)
+            if (looksLikeNaturalCompletion) {
+                // RESULT_OK + meaningful playback time: mark as finished so a completed
+                // episode/movie leaves "Продовжити перегляд" instead of lingering.
+                if (effectiveDur > 0) {
+                    saveProgressSynchronously(effectiveDur, effectiveDur)
+                }
                 if (hasNextEpisode()) {
-                    AppLogger.d("ExternalPlayer", "Advancing from fallback")
+                    AppLogger.d("ExternalPlayer", "Advancing from empty result + natural completion")
                     advanceToNextEpisodeFromExternalPlayer()
                     return ExternalPlayerReturnResult.Advanced
                 }
-            } else if (looksLikeNaturalCompletion && hasNextEpisode()) {
-                AppLogger.d("ExternalPlayer", "Empty result + RESULT_OK + ${elapsedInPlayerMs}ms -> advancing without duration")
-                advanceToNextEpisodeFromExternalPlayer()
-                return ExternalPlayerReturnResult.Advanced
             }
             return ExternalPlayerReturnResult.NoData
         }
 
         var durationMs = if (result.durationMs > 0) result.durationMs else savedDur
 
-        // VLC often omits duration for HLS streams (extra_duration=0), so a completion ratio can't be computed.
-        // Try to resolve it from the playlist first; if that fails, fall back to the elapsed-time heuristic.
+        // ExoPlayer-based players (Just Player) often omit duration for HLS/DASH streams
+        // (player.getDuration() == TIME_UNSET), so a completion ratio can't be computed.
+        // Try to resolve it from the manifest; if it stays unknown, keep durationMs == 0 and
+        // save the raw position — "Продовжити перегляд" shows entries with meaningful progress
+        // even when the duration is unknown.
         if (durationMs <= 0L && !result.isFinished && result.positionMs > 0L) {
             val readyStatus = _state.value.status as? PlayerStatus.Ready
             val resolved = readyStatus?.let { hlsPlaylistDuration.resolveDurationMs(it.url, it.referer) }
@@ -515,23 +522,23 @@ class PlayerViewModel @Inject constructor(
                 durationMs = resolved
                 savedStateHandle.set<Long>(KEY_EXTERNAL_DURATION, resolved)
                 AppLogger.d("ExternalPlayer", "Resolved duration at return: $resolved ms")
-            } else if (looksLikeNaturalCompletion) {
-                AppLogger.d("ExternalPlayer", "No duration available, RESULT_OK + ${elapsedInPlayerMs}ms -> treating as finished")
-                saveProgressSynchronously(result.positionMs, result.positionMs)
-                if (hasNextEpisode()) {
-                    AppLogger.d("ExternalPlayer", "Advancing to next episode (no-duration completion)")
-                    advanceToNextEpisodeFromExternalPlayer()
-                    return ExternalPlayerReturnResult.Advanced
-                }
+            } else if (looksLikeNaturalCompletion && hasNextEpisode()) {
+                // Series: no duration but the user spent a meaningful time in the player.
+                // Save the raw position with unknown duration (keeps the current episode in
+                // "Продовжити перегляд") and advance to the next episode.
+                AppLogger.d("ExternalPlayer", "No duration, RESULT_OK + ${elapsedInPlayerMs}ms -> advancing (series)")
+                saveProgressSynchronously(result.positionMs, 0L)
+                advanceToNextEpisodeFromExternalPlayer()
+                return ExternalPlayerReturnResult.Advanced
             }
         }
 
-        val isFinished = result.isFinished || (
-                durationMs > 0 && result.positionMs > 0 &&
-                        result.positionMs.toFloat() / durationMs >= 0.90f
-                )
+        val ratio = if (durationMs > 0 && result.positionMs > 0) result.positionMs.toFloat() / durationMs else 0f
+        val isFinished = result.isFinished ||
+                (durationMs > 0 && result.positionMs > 0 && ratio >= 0.90f) ||
+                (result.positionMs <= 0L && durationMs > 0 && looksLikeNaturalCompletion)
 
-        AppLogger.d("ExternalPlayer", "isFinished=$isFinished, pos=${result.positionMs}, dur=$durationMs, ratio=${if (durationMs > 0) result.positionMs.toFloat()/durationMs else 0}")
+        AppLogger.d("ExternalPlayer", "isFinished=$isFinished, pos=${result.positionMs}, dur=$durationMs, ratio=$ratio")
 
         val posToSave = when {
             isFinished && durationMs > 0 -> durationMs
@@ -540,7 +547,10 @@ class PlayerViewModel @Inject constructor(
         }
 
         if (posToSave > 0 || isFinished) {
-            saveProgressSynchronously(posToSave, if (durationMs > 0) durationMs else posToSave)
+            // Never substitute the position for an unknown duration: that would create a 100%
+            // entry which is hidden from "Продовжити перегляд". durationMs is stored as-is
+            // (0 means the duration is still unknown).
+            saveProgressSynchronously(posToSave, durationMs)
         }
 
         if (isFinished && hasNextEpisode()) {

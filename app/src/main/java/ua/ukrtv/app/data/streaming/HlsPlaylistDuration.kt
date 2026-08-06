@@ -37,11 +37,55 @@ class HlsPlaylistDuration @Inject constructor(
     private suspend fun parsePlaylist(url: String, referer: String?, depth: Int): Long? {
         if (depth > MAX_DEPTH) return null
         val content = fetch(url, referer) ?: return null
+        if (isMpd(content)) return parseMpdDuration(content)
         if (content.contains("#EXT-X-STREAM-INF")) {
             val variant = pickBestVariant(content) ?: return null
             return parsePlaylist(resolveRelativeUrl(url, variant.url), referer, depth + 1)
         }
         return sumExtinf(content)
+    }
+
+    private fun isMpd(content: String): Boolean {
+        val trimmed = content.trimStart()
+        return trimmed.startsWith("<?xml") || content.contains("<MPD") || content.contains("mediaPresentationDuration")
+    }
+
+    /**
+     * DASH/MPD duration. Prefers the explicit `mediaPresentationDuration` attribute; otherwise
+     * falls back to summing the segment timelines (`<S d=.. r=..>`) of the longest variant.
+     */
+    internal fun parseMpdDuration(content: String): Long? {
+        mediaPresentationDurationRegex.find(content)?.let { match ->
+            parseIso8601Duration(match.groupValues[1])?.let { return it }
+        }
+        return sumMpdSegments(content)
+    }
+
+    internal fun parseIso8601Duration(value: String): Long? {
+        val match = ISO8601_DURATION.find(value) ?: return null
+        val hours = match.groupValues[1].toDoubleOrNull() ?: 0.0
+        val minutes = match.groupValues[2].toDoubleOrNull() ?: 0.0
+        val seconds = match.groupValues[3].toDoubleOrNull() ?: 0.0
+        if (hours == 0.0 && minutes == 0.0 && seconds == 0.0) return null
+        return Math.round((hours * 3600 + minutes * 60 + seconds) * 1000.0)
+    }
+
+    internal fun sumMpdSegments(content: String): Long? {
+        var best: Long? = null
+        for (block in SEGMENT_BLOCK.findAll(content)) {
+            val timescale = Regex("""timescale="(\d+)"""")
+                .find(block.groupValues[2])?.groupValues?.get(1)?.toDoubleOrNull() ?: 1.0
+            var total = 0.0
+            for (s in SEGMENT.findAll(block.groupValues[3])) {
+                val d = Regex("""\bd="([0-9.]+)"""").find(s.value)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+                val r = Regex("""\br="(\d+)"""").find(s.value)?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+                total += d * (r + 1)
+            }
+            if (total <= 0.0) continue
+            val ms = Math.round(total / timescale * 1000.0)
+            if (best == null || ms > best) best = ms
+        }
+        return best
     }
 
     internal fun pickBestVariant(content: String): Variant? {
@@ -109,5 +153,9 @@ class HlsPlaylistDuration @Inject constructor(
         private const val MAX_DEPTH = 2
         private val EXTINF = Regex("""(?m)^#EXTINF:\s*([0-9]+(?:\.[0-9]+)?)""")
         private val STREAM_INF = Regex("""(?m)^#EXT-X-STREAM-INF:([^\n]*)\n\s*([^\n]+)""")
+        private val mediaPresentationDurationRegex = Regex("""mediaPresentationDuration="([^"]+)"""")
+        private val ISO8601_DURATION = Regex("""^PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$""")
+        private val SEGMENT_BLOCK = Regex("""<(SegmentTemplate|SegmentList)([^>]*)>(.*?)</\1>""", RegexOption.DOT_MATCHES_ALL)
+        private val SEGMENT = Regex("""<S\b[^>]*?>""")
     }
 }

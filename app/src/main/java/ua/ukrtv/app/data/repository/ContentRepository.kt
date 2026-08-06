@@ -96,25 +96,78 @@ class ContentRepository @Inject constructor(
         return match.groupValues[1].toIntOrNull() to match.groupValues[2].toIntOrNull()
     }
 
+    /**
+     * Grouping key for "Продовжити перегляд". The same film can be stored under different
+     * contentIds (Uakino vs UAFLIX, cross-provider playback fallback) with slightly different
+     * title spellings, so a plain title string is not enough. We clean + normalize +
+     * transliterate (same technique as the search/matching layer). Deliberately YEAR-FREE:
+     * «Форсаж 10 (2023)» and «Форсаж 10» are the same film and must land in one group. Blank
+     * titles fall back to the contentId so unrelated blank-title rows are never merged.
+     */
+    internal fun continueWatchingTitleKey(progress: ua.ukrtv.app.domain.model.WatchProgress): String {
+        val cleaned = ua.ukrtv.app.matching.SearchScorer.transliterate(
+            ua.ukrtv.app.matching.SearchScorer.normalizeTitle(
+                ContentUtils.cleanTitleForDedupe(progress.title)
+            )
+        )
+        return if (cleaned.isEmpty()) "id:${progress.contentId}" else cleaned
+    }
+
+    /**
+     * Year extracted from the title itself (never from the page URL — those often contain
+     * unrelated ids). Used to keep same-title films from different years as separate cards.
+     */
+    private fun continueWatchingYearKey(progress: ua.ukrtv.app.domain.model.WatchProgress): String =
+        ua.ukrtv.app.matching.SearchScorer.extractYear(progress.title)?.toString() ?: ""
+
     @OptIn(ExperimentalCoroutinesApi::class)
     fun getContinueWatching(): Flow<List<Movie>> = watchProgressRepository.getAllProgress()
         .mapLatest { allProgress ->
             allProgress
-                .filter { 
+                .filter {
+                    // Pre-resolved "next episode" stream-cache entries carry no title, poster,
+                    // position, or duration. They exist only so the next episode starts instantly;
+                    // they must never surface as a "Продовжити перегляд" card.
+                    val isPreResolvePlaceholder = it.title.isEmpty() && it.poster.isEmpty() &&
+                            it.positionMs <= 0L && it.durationMs <= 0L
+
                     // Keep if:
                     // 1. Progress is between 1% and 95%
                     // 2. OR it's a series episode (even at 0%, to show "Next episode")
-                    // 3. OR user watched at least 30 seconds (even if percentage is 0)
+                    // 3. OR the user actually started watching (positionMs > 0) — even a short
+                    //    session must survive, because series opened without a parsed episode
+                    //    structure are stored movie-level (episodeId == null) and would otherwise
+                    //    vanish when the duration is unknown (progressPercentage == 0)
                     val isSeries = it.episodeId != null
-                    val isMeaningfulProgress = it.positionMs > 30_000L
-                    it.progressPercentage < 96 && (it.progressPercentage > 0 || isSeries || isMeaningfulProgress)
+                    val hasProgress = it.positionMs > 0L
+                    !isPreResolvePlaceholder &&
+                            it.progressPercentage < 96 && (it.progressPercentage > 0 || isSeries || hasProgress)
                 }
-                .distinctBy { ContentUtils.cleanTitle(it.title) }
+                .fold(linkedMapOf<String, MutableMap<String, ua.ukrtv.app.domain.model.WatchProgress>>()) { groups, progress ->
+                    val yearGroups = groups.getOrPut(continueWatchingTitleKey(progress)) { linkedMapOf() }
+                    val yearKey = continueWatchingYearKey(progress)
+                    val existing = yearGroups[yearKey]
+                    if (existing == null || progressIsPreferred(progress, existing)) {
+                        yearGroups[yearKey] = progress
+                    }
+                    groups
+                }
+                .flatMap { (_, yearGroups) ->
+                    // All year keys known and distinct -> separate cards (King Kong 2005 vs 2017).
+                    // Any unknown year in the group -> the same film, collapse to a single card.
+                    if (yearGroups.keys.all { it.isNotEmpty() }) {
+                        yearGroups.values
+                    } else {
+                        listOf(yearGroups.values.reduce { acc, progress ->
+                            if (progressIsPreferred(progress, acc)) progress else acc
+                        })
+                    }
+                }
                 .mapNotNull { progress ->
                     val pUrl = progress.pageUrl
                     if (pUrl.isEmpty()) return@mapNotNull null
                     val (season, episode) = parseSeasonEpisode(progress.episodeId)
-                    
+
                     val providerName = when {
                         pUrl.contains("uaflix") || pUrl.contains("uafix") -> "UAFLIX"
                         else -> "Uakino"
@@ -133,6 +186,21 @@ class ContentRepository @Inject constructor(
                     )
                 }
         }.distinctUntilChanged().flowOn(Dispatchers.IO)
+
+    /**
+     * When the same film appears under multiple entries, prefer the one the user actually has
+     * in progress (has a poster and the most recent timestamp), never the stale pre-resolved
+     * "next episode" placeholder.
+     */
+    private fun progressIsPreferred(
+        candidate: ua.ukrtv.app.domain.model.WatchProgress,
+        existing: ua.ukrtv.app.domain.model.WatchProgress
+    ): Boolean {
+        val candidateHasPoster = candidate.poster.isNotEmpty()
+        val existingHasPoster = existing.poster.isNotEmpty()
+        if (candidateHasPoster != existingHasPoster) return candidateHasPoster
+        return candidate.timestamp > existing.timestamp
+    }
 
     suspend fun removeFromContinueWatching(movie: Movie) {
         watchProgressRepository.deleteProgress(movie.id)
