@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -68,6 +69,7 @@ import ua.ukrtv.app.ui.theme.ProviderSizes
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
+import ua.ukrtv.app.ui.theme.LocalPerformanceRevision
 import ua.ukrtv.app.ui.theme.PhoneCardDefaults
 import ua.ukrtv.app.ui.theme.PhoneGridDefaults
 import ua.ukrtv.app.ui.theme.FormFactor
@@ -115,10 +117,15 @@ private fun PhoneContentRow(
     animatedContentScope: AnimatedContentScope? = null,
     providerHint: String? = null
 ) {
+    val entranceEpoch = LocalPerformanceRevision.current
+    var entranceDone by rememberSaveable(entranceEpoch) { mutableStateOf(false) }
     val rowEntrance = remember { Animatable(0f) }
     LaunchedEffect(items) {
-        if (items.isNotEmpty()) {
+        if (!entranceDone && items.isNotEmpty()) {
+            entranceDone = true
             rowEntrance.animateTo(1f, tween(250))
+        } else {
+            rowEntrance.snapTo(1f)
         }
     }
 
@@ -242,14 +249,21 @@ private fun TvContentRow(
         if (targetIndex < 0) return@LaunchedEffect
         onRestoreHandled()
         lazyListState.scrollToItem(targetIndex)
-        withFrameNanos { }
-        runCatching { targetFocus.requestFocus() }
+        var granted = false
+        for (attempt in 0 until 3) {
+            if (granted) break
+            withFrameNanos { }
+            granted = runCatching { targetFocus.requestFocus() }.getOrDefault(false)
+        }
     }
 
     val animateEntrance = deviceClass == DeviceClass.HIGH && !isMediatek
+    val entranceEpoch = LocalPerformanceRevision.current
+    var entranceDone by rememberSaveable(entranceEpoch) { mutableStateOf(false) }
     val rowEntrance = remember { Animatable(0f) }
     LaunchedEffect(items) {
-        if (animateEntrance && items.isNotEmpty()) {
+        if (animateEntrance && !entranceDone && items.isNotEmpty()) {
+            entranceDone = true
             rowEntrance.animateTo(1f, tween(300))
         } else {
             rowEntrance.snapTo(1f)

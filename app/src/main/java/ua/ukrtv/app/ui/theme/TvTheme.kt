@@ -174,13 +174,15 @@ fun UkrtvTheme(
 ) {
     val context = LocalContext.current
     val profile by performancePreferences.profile.collectAsStateWithLifecycle()
+    val revision by performancePreferences.revision.collectAsStateWithLifecycle()
     val deviceClass = remember(context, profile) { resolveDeviceClass(context, profile) }
     val isMediatek = remember { hasMediatekChipset() }
 
     CompositionLocalProvider(
         LocalDeviceClass provides deviceClass,
         LocalIsMediatek provides isMediatek,
-        LocalFormFactor provides formFactor
+        LocalFormFactor provides formFactor,
+        LocalPerformanceRevision provides revision
     ) {
         when (formFactor) {
             FormFactor.TV -> {

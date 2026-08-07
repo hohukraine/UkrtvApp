@@ -17,6 +17,9 @@ class PerformancePreferences @Inject constructor(
     private val _profile = MutableStateFlow(readProfile())
     val profile: StateFlow<PerformanceProfile> = _profile.asStateFlow()
 
+    private val _revision = MutableStateFlow(0L)
+    val revision: StateFlow<Long> = _revision.asStateFlow()
+
     private fun readProfile(): PerformanceProfile {
         val name = prefs.getString(KEY_PROFILE, PerformanceProfile.AUTO.name)
             ?: PerformanceProfile.AUTO.name
@@ -30,8 +33,10 @@ class PerformancePreferences @Inject constructor(
     fun getProfile(): PerformanceProfile = _profile.value
 
     fun setProfile(profile: PerformanceProfile) {
+        if (_profile.value == profile) return
         prefs.edit().putString(KEY_PROFILE, profile.name).apply()
         _profile.value = profile
+        _revision.value += 1
     }
 
     companion object {

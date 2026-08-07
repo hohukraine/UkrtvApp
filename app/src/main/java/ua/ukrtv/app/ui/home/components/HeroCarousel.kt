@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,9 +121,11 @@ fun HeroCarousel(
         animated
     }
 
-    LaunchedEffect(currentAccentColor, isFocused) {
-        if (isFocused) {
-            onActiveColorChange(currentAccentColor)
+    var lastSentPage by rememberSaveable { mutableStateOf(-1) }
+    LaunchedEffect(actualPage, isFocused) {
+        if (isFocused && actualPage != lastSentPage) {
+            lastSentPage = actualPage
+            onActiveColorChange(rawAccent)
         }
     }
 
