@@ -1,6 +1,6 @@
 {
-  "versionCode": 7,
-  "versionName": "1.3.0",
-  "changelog": "Нові тренди (TMDB), структура серіалів та покращений матчинг по провайдерах. Перехід Eneyida→UAFLIX, виправлення SSL. Швидший старт дому, оптимізація пам'яті та завантаження постерів. Виправлення Continue Watching (дедуплікація, короткі перегляди, приховування заготовок). Відновлення сплеш-анімації та фокусу на TV.",
-  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.3.0.apk"
+  "versionCode": 8,
+  "versionName": "1.3.1",
+  "changelog": "Виправлено анімацію входу та фокус на головній: ряди більше не «стрибають» і не повторно анімуються після повернення з деталей/налаштувань, усунено глюк фону при перемиканні пресета продуктивності. Відновлення фокуса на TV стало надійнішим.",
+  "apkUrl": "https://raw.githubusercontent.com/hohukraine/UkrtvApp/main/releases/app-release-v1.3.1.apk"
 }
