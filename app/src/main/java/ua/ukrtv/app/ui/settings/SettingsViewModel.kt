@@ -23,6 +23,7 @@ import ua.ukrtv.app.util.PerformanceProfile
 import ua.ukrtv.app.util.PlayerPreferences
 import ua.ukrtv.app.util.HomePreferences
 import ua.ukrtv.app.util.HomeLayout
+import ua.ukrtv.app.data.providers.ProviderManager
 import javax.inject.Inject
 
 sealed class UpdateState {
@@ -51,6 +52,7 @@ class SettingsViewModel @Inject constructor(
     private val performancePreferences: PerformancePreferences,
     private val playerPreferences: PlayerPreferences,
     private val homePreferences: HomePreferences,
+    private val providerManager: ProviderManager,
     private val updateRepository: UpdateRepository
 ) : ViewModel() {
 
@@ -123,6 +125,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setDefaultProvider(providerId: String) {
         homePreferences.setDefaultProvider(providerId)
+        providerManager.setActiveProvider(providerId)
     }
 
     fun checkForUpdates() {

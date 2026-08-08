@@ -64,7 +64,10 @@ class SearchViewModel @Inject constructor(
     init {
         loadHistory()
         viewModelScope.launch {
-            _query
+            combine(
+                _query,
+                providerManager.activeProvider.map { it.name }.distinctUntilChanged()
+            ) { query, _ -> query }
                 .debounce(300)
                 .distinctUntilChanged()
                 .collectLatest { query ->

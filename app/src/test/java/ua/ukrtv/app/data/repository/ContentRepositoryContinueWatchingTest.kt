@@ -44,7 +44,6 @@ class ContentRepositoryContinueWatchingTest {
             seriesStructureDao = mockk(relaxed = true),
             homeCacheRepository = mockk(relaxed = true),
             catalogRepository = mockk(relaxed = true),
-            catalogDao = mockk(relaxed = true),
             tmdbTrendsRepository = mockk(relaxed = true)
         )
     }

@@ -51,7 +51,6 @@ Lua/ukrtv/app/ui/home/ContinueWatchingCard
 Lua/ukrtv/app/ui/home/components/MovieInfoHeader
 Lua/ukrtv/app/ui/home/components/BottomNavBar
 Lua/ukrtv/app/ui/home/components/SectionHeader
-Lua/ukrtv/app/ui/home/components/PhoneProviderSwitcher
 Lua/ukrtv/app/ui/home/components/DynamicBackground
 Lua/ukrtv/app/ui/home/components/HomeBackground
 

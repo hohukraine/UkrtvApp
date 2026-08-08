@@ -7,7 +7,6 @@ import ua.ukrtv.app.Constants
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.domain.model.MovieDetail
 import ua.ukrtv.app.domain.model.StreamResolutionResult
-import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.data.providers.ContentCategory
 import ua.ukrtv.app.data.providers.ContentUtils
@@ -28,11 +27,10 @@ class ContentRepository @Inject constructor(
     private val seriesStructureDao: ua.ukrtv.app.data.local.dao.SeriesStructureDao,
     private val homeCacheRepository: HomeCacheRepository,
     private val catalogRepository: CatalogRepository,
-    private val catalogDao: CatalogIndexDao,
     private val tmdbTrendsRepository: TmdbTrendsRepository
 ) {
     private val homeSource = HomeGridSource(homeCacheRepository)
-    private val searchSource = SearchSource(providerManager, catalogRepository, catalogDao)
+    private val searchSource = SearchSource(providerManager, catalogRepository)
     private val detailSource = DetailSource(providerManager, streamResolver, seriesStructureDao)
 
     private var cleanupJob: kotlinx.coroutines.Job? = null

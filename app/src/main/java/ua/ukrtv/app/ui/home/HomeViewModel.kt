@@ -24,7 +24,6 @@ import ua.ukrtv.app.data.repository.ContentRepository
 import ua.ukrtv.app.data.repository.WatchlistRepository
 import ua.ukrtv.app.data.repository.Top200Repository
 import ua.ukrtv.app.domain.model.Movie
-import ua.ukrtv.app.domain.model.Provider
 import ua.ukrtv.app.domain.model.Top200Movie
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.HomePreferences
@@ -293,7 +292,6 @@ class HomeViewModel @Inject constructor(
 
     val focusColor: StateFlow<Color> = _focusColor.asStateFlow()
     val focusedMovie: StateFlow<Movie?> = _focusedMovie.asStateFlow()
-    val providers: List<Provider> = providerManager.getProviders()
 
     private var lastDismissTime = 0L
 
@@ -325,10 +323,6 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             mediaRepository.removeFromContinueWatching(movie)
         }
-    }
-
-    fun switchProvider(providerId: String) {
-        providerManager.setActiveProvider(providerId)
     }
 
     fun retryGrid() {

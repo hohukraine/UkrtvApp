@@ -302,10 +302,15 @@ class CatalogRepository @Inject constructor(
         }
     }
 
-    suspend fun awaitReady() {
-        if (!_state.value.isBuilding && _state.value.uakinoReady && _state.value.uaflixReady) return
+    /**
+     * Waits only until the given provider's index is ready, so search/trends don't block
+     * on the other provider being built or imported. The other provider is still ensured
+     * when needed, but never holds the active-provider path back.
+     */
+    suspend fun awaitProviderReady(providerName: String) {
+        if (isProviderReady(providerName)) return
         ensureBuilt()
-        state.first { !it.isBuilding }
+        state.first { !it.isBuilding || isProviderReady(providerName) }
     }
 
     fun updateCatalogSuspend() {

@@ -39,6 +39,12 @@ object GridDefaults {
     val contentBottomPadding = 80.dp
 }
 
+// ── Top Bar ──
+object TopBarDefaults {
+    val panelRadius = 16.dp
+    val actionHeight = 40.dp
+}
+
 // ── Hero Section ──
 object HeroDefaults {
     val height = 340.dp

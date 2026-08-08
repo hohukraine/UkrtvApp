@@ -13,7 +13,6 @@ import ua.ukrtv.app.data.repository.CatalogRepository
 import ua.ukrtv.app.data.repository.SessionRepository
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.HomePreferences
-import ua.ukrtv.app.domain.model.Provider
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -52,10 +51,6 @@ class ProviderManager @Inject constructor(
             _activeProvider.value = provider
             _brandColor.value = Color.parseColor(provider.brandColor)
         }
-    }
-
-    fun getProviders(): List<Provider> = availableProviders.map {
-        Provider(it.name, it.brandColor)
     }
 
     fun getProviderForUrl(url: String): MediaProvider? {

@@ -10,9 +10,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
@@ -43,7 +41,6 @@ import coil3.request.crossfade
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import ua.ukrtv.app.domain.model.Movie
-import ua.ukrtv.app.domain.model.Provider
 import ua.ukrtv.app.ui.theme.Background
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.FormFactor
@@ -61,9 +58,11 @@ import androidx.tv.material3.ButtonDefaults as TvButtonDefaults
 import ua.ukrtv.app.ui.home.components.ContentRow
 import ua.ukrtv.app.ui.home.components.HeroCarousel
 import ua.ukrtv.app.ui.home.components.PhoneHeroSection
-import ua.ukrtv.app.ui.home.components.PhoneProviderSwitcher
 import ua.ukrtv.app.ui.home.components.Top200SignatureHero
 import ua.ukrtv.app.ui.home.components.TopBar
+import ua.ukrtv.app.ui.home.components.LogoLockup
+import ua.ukrtv.app.ui.home.components.ProviderChip
+import ua.ukrtv.app.ui.home.components.SearchAction
 import ua.ukrtv.app.ui.home.components.HomeBackground
 import ua.ukrtv.app.ui.theme.*
 import ua.ukrtv.app.ui.theme.PosterStyle
@@ -94,7 +93,6 @@ private data class HomeScreenState(
     val providerColor: Color,
     val focusColor: Color,
     val bannerFocusRequester: FocusRequester,
-    val providers: List<Provider>,
     val currentProviderId: String
 )
 
@@ -111,7 +109,6 @@ private data class HomeScreenActions(
     val onActiveMovieChange: (Top200Movie) -> Unit,
     val onSeeAllTrendsClick: () -> Unit,
     val onSeeAllCategoryClick: (String) -> Unit,
-    val onProviderClick: (String) -> Unit,
     val onSettingsClick: () -> Unit
 )
 
@@ -212,7 +209,6 @@ private fun TvHomeScreen(
         providerColor = providerColor,
         focusColor = focusColor,
         bannerFocusRequester = bannerFocusRequester,
-        providers = viewModel.providers,
         currentProviderId = configState.currentProviderId
     )
 
@@ -229,7 +225,6 @@ private fun TvHomeScreen(
         onActiveMovieChange = { activeBannerMovie = it },
         onSeeAllTrendsClick = onSeeAllTrendsClick,
         onSeeAllCategoryClick = onSeeAllCategoryClick,
-        onProviderClick = { viewModel.switchProvider(it) },
         onSettingsClick = onSettingsClick
     )
 
@@ -263,8 +258,8 @@ private fun HomeScreenContent(
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedContentScope: AnimatedContentScope? = null
 ) {
-    val (isLoading, isCategoriesLoading, gridError, isOnline, top200Banners, bannerMovies, continueWatching, watchlist, homeTrending, trendingLabel, homeLayout, categoryMovies, categorySeries, categoryAnime, categoryCartoons, categoryCartoonSeries, activeBannerMovie, providerColor, focusColor, bannerFocusRequester, providers, currentProviderId) = state
-    val (onRetryGrid, onSearchClick, onMovieClick, onContinueWatchingClick, onTop200ItemClick, onTop200Click, onMovieFocused, onActiveColorChange, onDismissItem, onActiveMovieChange, onSeeAllTrendsClick, onSeeAllCategoryClick, onProviderClick, onSettingsClick) = actions
+    val (isLoading, isCategoriesLoading, gridError, isOnline, top200Banners, bannerMovies, continueWatching, watchlist, homeTrending, trendingLabel, homeLayout, categoryMovies, categorySeries, categoryAnime, categoryCartoons, categoryCartoonSeries, activeBannerMovie, providerColor, focusColor, bannerFocusRequester, currentProviderId) = state
+    val (onRetryGrid, onSearchClick, onMovieClick, onContinueWatchingClick, onTop200ItemClick, onTop200Click, onMovieFocused, onActiveColorChange, onDismissItem, onActiveMovieChange, onSeeAllTrendsClick, onSeeAllCategoryClick, onSettingsClick) = actions
 
     val restoreTarget = remember { restoreMovie }
     var restoreWindowOpen by remember { mutableStateOf(true) }
@@ -280,10 +275,8 @@ private fun HomeScreenContent(
     ) {
         item(key = "top_bar") {
             TopBar(
-                providers = providers,
                 currentProviderId = currentProviderId,
                 brandColor = providerColor,
-                onProviderClick = onProviderClick,
                 onSearchClick = onSearchClick,
                 onSettingsClick = onSettingsClick
             )
@@ -560,7 +553,6 @@ private fun PhoneHomeScreen(
     }
 
     val providerColor = remember(configState.brandColor) { Color(configState.brandColor) }
-    val providers = remember { viewModel.providers }
     var activeTop200Movie by remember { mutableStateOf<Top200Movie?>(null) }
 
     val deviceClass = LocalDeviceClass.current
@@ -607,7 +599,7 @@ private fun PhoneHomeScreen(
                 .background(Background)
                 .statusBarsPadding()
         ) {
-            // TopBar: UKRTV logo + Search + Settings
+            // TopBar dock: UKRTV logo + provider chip + Search (settings live in bottom nav)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -618,31 +610,22 @@ private fun PhoneHomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("UKR", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Black)
-                    Text("TV", color = providerColor, fontSize = 18.sp, fontWeight = FontWeight.Black)
+                    LogoLockup(brandColor = providerColor, fontSize = 18.dp)
+                    Spacer(Modifier.width(10.dp))
+                    ProviderChip(
+                        providerName = configState.currentProviderId,
+                        brandColor = providerColor,
+                        fontSize = 11.dp,
+                        compact = true
+                    )
                     Spacer(Modifier.weight(1f))
-                    Box(
-                        modifier = Modifier
-                            .background(Color(0xFF1A1A1D), RoundedCornerShape(8.dp))
-                            .clickable(onClick = onSearchClick)
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Search, contentDescription = null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Text("Пошук...", color = Color.White.copy(alpha = 0.4f), fontSize = 14.sp)
-                        }
-                    }
+                    SearchAction(
+                        brandColor = providerColor,
+                        onClick = onSearchClick,
+                        compact = true
+                    )
                 }
             }
-
-            // Sticky provider segmented control
-            PhoneProviderSwitcher(
-                providers = providers,
-                currentProviderId = configState.currentProviderId,
-                brandColor = providerColor,
-                onProviderClick = { viewModel.switchProvider(it) }
-            )
 
             val pullRefreshState = rememberPullToRefreshState()
             PullToRefreshBox(

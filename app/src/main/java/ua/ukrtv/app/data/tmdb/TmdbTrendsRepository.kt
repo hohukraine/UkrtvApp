@@ -166,7 +166,7 @@ class TmdbTrendsRepository @Inject constructor(
         }
         if (items.isEmpty()) return MatchedTrends(emptyList(), emptyList())
 
-        catalogRepository.awaitReady()
+        catalogRepository.awaitProviderReady(provider.name)
 
         val previous = readPersisted(provider.name)
         // A very old base forces a full re-match so catalog changes (titles/posters/
