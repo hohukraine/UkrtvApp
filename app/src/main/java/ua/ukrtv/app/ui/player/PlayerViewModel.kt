@@ -74,6 +74,12 @@ class PlayerViewModel @Inject constructor(
     private var isAutoAdvancing = false
     private var externalPlayerLaunchTimeMs: Long = 0L
 
+    private var lastFinishedSeason: Int? = null
+    private var lastFinishedEpisode: Int? = null
+    private var lastFinishedEpisodeId: String? = null
+    private var lastFinishedPositionMs: Long = 0L
+    private var lastFinishedDurationMs: Long = 0L
+
     private fun inferSeasonEpisodeFromUrl(url: String) {
         if (this.season != null && this.episode != null) return
         
@@ -475,12 +481,17 @@ class PlayerViewModel @Inject constructor(
 
         val elapsedInPlayerMs = if (externalPlayerLaunchTimeMs > 0L) System.currentTimeMillis() - externalPlayerLaunchTimeMs else 0L
 
-        AppLogger.d("ExternalPlayer", "handleResult: result=$result, savedDur=$savedDur, elapsed=${elapsedInPlayerMs}ms")
+        // A cancelled activity result (user pressed back in the player) or an explicit
+        // exit/stop report means the user walked away mid-playback. Their position must be
+        // preserved as-is, never treated as a finished episode that auto-advances.
+        val manualExit = resultCode == Activity.RESULT_CANCELED || result?.endedManually == true
+
+        AppLogger.d("ExternalPlayer", "handleResult: result=$result, savedDur=$savedDur, elapsed=${elapsedInPlayerMs}ms, manualExit=$manualExit")
 
         // Fallback: players (VLC especially) sometimes return 0/0 with no end_by even after
         // natural completion. If the player reported RESULT_OK and the user spent a meaningful
         // time in it, treat the playback as completed.
-        val looksLikeNaturalCompletion = resultCode == Activity.RESULT_OK &&
+        val looksLikeNaturalCompletion = !manualExit && resultCode == Activity.RESULT_OK &&
                 elapsedInPlayerMs >= MIN_EXTERNAL_PLAYBACK_MS_FOR_COMPLETION
 
         // Player returned nothing usable (activity destroyed without a result, VLC released its
@@ -502,6 +513,7 @@ class PlayerViewModel @Inject constructor(
                 }
                 if (hasNextEpisode()) {
                     AppLogger.d("ExternalPlayer", "Advancing from empty result + natural completion")
+                    rememberFinishedEpisode(effectiveDur, effectiveDur)
                     advanceToNextEpisodeFromExternalPlayer()
                     return ExternalPlayerReturnResult.Advanced
                 }
@@ -529,15 +541,18 @@ class PlayerViewModel @Inject constructor(
                 // "Продовжити перегляд") and advance to the next episode.
                 AppLogger.d("ExternalPlayer", "No duration, RESULT_OK + ${elapsedInPlayerMs}ms -> advancing (series)")
                 saveProgressSynchronously(result.positionMs, 0L)
+                rememberFinishedEpisode(result.positionMs, 0L)
                 advanceToNextEpisodeFromExternalPlayer()
                 return ExternalPlayerReturnResult.Advanced
             }
         }
 
         val ratio = if (durationMs > 0 && result.positionMs > 0) result.positionMs.toFloat() / durationMs else 0f
-        val isFinished = result.isFinished ||
+        val isFinished = !manualExit && (
+                result.isFinished ||
                 (durationMs > 0 && result.positionMs > 0 && ratio >= 0.90f) ||
                 (result.positionMs <= 0L && durationMs > 0 && looksLikeNaturalCompletion)
+        )
 
         AppLogger.d("ExternalPlayer", "isFinished=$isFinished, pos=${result.positionMs}, dur=$durationMs, ratio=$ratio")
 
@@ -556,12 +571,63 @@ class PlayerViewModel @Inject constructor(
 
         if (isFinished && hasNextEpisode()) {
             AppLogger.d("ExternalPlayer", "Advancing to next episode")
+            rememberFinishedEpisode(
+                realPos = if (result.positionMs > 0L) result.positionMs else durationMs,
+                dur = durationMs
+            )
             advanceToNextEpisodeFromExternalPlayer()
             return ExternalPlayerReturnResult.Advanced
         }
 
         AppLogger.d("ExternalPlayer", "Returning NotFinished")
         return ExternalPlayerReturnResult.NotFinished(result.positionMs, durationMs)
+    }
+
+    /**
+     * Captures the episode that just finished so that cancelling the auto-advance countdown
+     * ([cancelAdvance]) can restore it as a resumable entry instead of leaving it at 100%.
+     */
+    private fun rememberFinishedEpisode(realPos: Long, dur: Long) {
+        lastFinishedSeason = this.season
+        lastFinishedEpisode = this.episode
+        lastFinishedEpisodeId = this.episodeId
+        lastFinishedPositionMs = realPos
+        lastFinishedDurationMs = dur
+    }
+
+    /**
+     * Called when the user cancels the "next episode" countdown. The finished episode must not
+     * stay at 100% (it would vanish from "Продовжити перегляд"); re-save it at a resumable
+     * position just below the completion threshold and revert the navigation state to it.
+     */
+    fun cancelAdvance() {
+        loadJob?.cancel()
+        preResolveJob?.cancel()
+        val finishedEpisodeId = lastFinishedEpisodeId ?: return
+        val resumePos = if (lastFinishedDurationMs > 0L) {
+            minOf(lastFinishedPositionMs, (lastFinishedDurationMs * 0.95).toLong().coerceAtLeast(0L))
+        } else lastFinishedPositionMs
+
+        val contentId = this.contentId
+        val title = this.title
+        val poster = this.poster
+        val pageUrl = this.pageUrl
+        val durationMs = lastFinishedDurationMs
+        viewModelScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+            // Stream fields are omitted so the repository keeps the finished episode's own
+            // cached stream instead of the next episode's.
+            watchProgressRepository.saveProgress(
+                contentId, finishedEpisodeId, resumePos, durationMs, title, poster, pageUrl
+            )
+        }
+
+        this.season = lastFinishedSeason
+        this.episode = lastFinishedEpisode
+        this.episodeId = finishedEpisodeId
+        savedStateHandle[KEY_SEASON] = lastFinishedSeason
+        savedStateHandle[KEY_EPISODE] = lastFinishedEpisode
+        isAutoAdvancing = false
+        updateNavigationState()
     }
 
     private fun advanceToNextEpisodeFromExternalPlayer() {

@@ -167,7 +167,8 @@ class ExternalPlayerLauncher(private val context: Context) {
         val positionMs: Long,
         val durationMs: Long,
         val isFinished: Boolean = false,
-        val url: String? = null
+        val url: String? = null,
+        val endedManually: Boolean = false
     )
 
     fun extractResult(resultCode: Int, data: Intent?): ExternalPlayerResult? {
@@ -206,11 +207,12 @@ class ExternalPlayerLauncher(private val context: Context) {
 
     companion object {
         fun parseResult(positionMs: Long, durationMs: Long, endBy: String?, url: String? = null): ExternalPlayerResult {
+            val endedManually = endBy == "exit" || endBy == "stop"
             if (endBy == "playback_completion") {
-                return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = true, url = url)
+                return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = true, url = url, endedManually = false)
             }
-            if (endBy == "exit") {
-                return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = false, url = url)
+            if (endedManually) {
+                return ExternalPlayerResult(positionMs = positionMs, durationMs = durationMs, isFinished = false, url = url, endedManually = true)
             }
             if (durationMs > 0) {
                 val isFinished = positionMs.toFloat() / durationMs >= 0.90f

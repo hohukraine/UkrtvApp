@@ -189,4 +189,32 @@ class ExternalPlayerResultTest {
         val result = ExternalPlayerLauncher.parseResult(2280000L, 2561642L, null)
         assertFalse(result.isFinished)
     }
+
+    @Test
+    fun `end_by exit marks result as ended manually`() {
+        val result = ExternalPlayerLauncher.parseResult(1190000L, 1200000L, "exit")
+        assertTrue(result.endedManually)
+        assertFalse(result.isFinished)
+    }
+
+    @Test
+    fun `end_by stop marks result as ended manually`() {
+        val result = ExternalPlayerLauncher.parseResult(1100000L, 1200000L, "stop")
+        assertTrue(result.endedManually)
+        assertFalse(result.isFinished)
+    }
+
+    @Test
+    fun `playback_completion is not ended manually`() {
+        val result = ExternalPlayerLauncher.parseResult(1200000L, 1344766L, "playback_completion")
+        assertFalse(result.endedManually)
+        assertTrue(result.isFinished)
+    }
+
+    @Test
+    fun `null end_by is not ended manually`() {
+        val result = ExternalPlayerLauncher.parseResult(1341972L, 1341972L, null)
+        assertFalse(result.endedManually)
+        assertTrue(result.isFinished)
+    }
 }

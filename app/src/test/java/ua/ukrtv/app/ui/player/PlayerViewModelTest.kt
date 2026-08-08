@@ -569,4 +569,103 @@ class PlayerViewModelTest {
         }
         kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
     }
+
+    @Test
+    fun `cancelled result near the end does not advance and saves real position`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "seasons", listOf(season(1, ep(1), ep(2))))
+        setField(vm, "season", 1)
+        setField(vm, "episode", 1)
+        setField(vm, "episodeId", "s1e1")
+        setField(vm, "contentId", "content123")
+        setField(vm, "pageUrl", "https://test/series")
+        setField(vm, "title", "Series")
+
+        // User pressed back in VLC at 95%: RESULT_CANCELED, but the player still reported data.
+        val mockLauncher = mockk<ExternalPlayerLauncher>(relaxed = true)
+        every { mockLauncher.extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(95_000L, 100_000L, true)
+        setField(vm, "externalPlayerLauncher", mockLauncher)
+
+        val result = vm.handleExternalPlayerResult(Activity.RESULT_CANCELED, mockk<Intent>())
+
+        kotlinx.coroutines.runBlocking {
+            vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.join() }
+        }
+
+        assertEquals(ExternalPlayerReturnResult.NotFinished(95_000L, 100_000L), result)
+        assertEquals(1, getField(vm, "episode"))
+        assertEquals("s1e1", getField(vm, "episodeId"))
+        coVerify(exactly = 1) {
+            watchProgressRepository.saveProgress("content123", "s1e1", 95_000L, 100_000L, any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
+    }
+
+    @Test
+    fun `ended manually result near the end does not advance`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "seasons", listOf(season(1, ep(1), ep(2))))
+        setField(vm, "season", 1)
+        setField(vm, "episode", 1)
+        setField(vm, "episodeId", "s1e1")
+        setField(vm, "contentId", "content123")
+        setField(vm, "pageUrl", "https://test/series")
+        setField(vm, "title", "Series")
+
+        // VLC reports end_by=exit with a near-complete position but a successful result code.
+        val mockLauncher = mockk<ExternalPlayerLauncher>(relaxed = true)
+        every { mockLauncher.extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(119_000L, 120_000L, false, endedManually = true)
+        setField(vm, "externalPlayerLauncher", mockLauncher)
+
+        val result = vm.handleExternalPlayerResult(Activity.RESULT_OK, mockk<Intent>())
+
+        kotlinx.coroutines.runBlocking {
+            vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.join() }
+        }
+
+        assertEquals(ExternalPlayerReturnResult.NotFinished(119_000L, 120_000L), result)
+        assertEquals("s1e1", getField(vm, "episodeId"))
+        coVerify(exactly = 1) {
+            watchProgressRepository.saveProgress("content123", "s1e1", 119_000L, 120_000L, any(), any(), any(), any(), any(), any(), any(), any())
+        }
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
+    }
+
+    @Test
+    fun `cancelAdvance re-saves finished episode at resumable position and restores navigation`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "seasons", listOf(season(1, ep(1), ep(2))))
+        setField(vm, "season", 1)
+        setField(vm, "episode", 1)
+        setField(vm, "episodeId", "s1e1")
+        setField(vm, "contentId", "content123")
+        setField(vm, "pageUrl", "https://test/series")
+        setField(vm, "title", "Series")
+        setField(vm, "poster", "poster.jpg")
+
+        // Episode genuinely completes; the ViewModel advances to S1E2.
+        val mockLauncher = mockk<ExternalPlayerLauncher>(relaxed = true)
+        every { mockLauncher.extractResult(any(), any()) } returns ExternalPlayerLauncher.ExternalPlayerResult(100_000L, 100_000L, true)
+        setField(vm, "externalPlayerLauncher", mockLauncher)
+
+        val result = vm.handleExternalPlayerResult(Activity.RESULT_OK, mockk<Intent>())
+        assertEquals(ExternalPlayerReturnResult.Advanced, result)
+        assertEquals(2, getField(vm, "episode"))
+        assertEquals("s1e2", getField(vm, "episodeId"))
+
+        // User cancels the countdown: the finished episode must stay resumable.
+        vm.cancelAdvance()
+
+        kotlinx.coroutines.runBlocking {
+            vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.join() }
+        }
+
+        assertEquals(1, getField(vm, "season"))
+        assertEquals(1, getField(vm, "episode"))
+        assertEquals("s1e1", getField(vm, "episodeId"))
+        coVerify(exactly = 1) {
+            watchProgressRepository.saveProgress("content123", "s1e1", 95_000L, 100_000L, "Series", "poster.jpg", "https://test/series")
+        }
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
+    }
 }

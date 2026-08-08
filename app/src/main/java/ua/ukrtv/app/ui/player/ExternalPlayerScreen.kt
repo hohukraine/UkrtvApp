@@ -157,6 +157,7 @@ fun ExternalPlayerScreen(
     BackHandler(enabled = isLoadingVisible || showAdvanceCountdown) {
         if (showAdvanceCountdown) {
             showAdvanceCountdown = false
+            viewModel.cancelAdvance()
             onBack()
         } else {
             viewModel.releaseExternalPlayerLaunchLock()
@@ -209,6 +210,7 @@ fun ExternalPlayerScreen(
                             .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
                             .clickable {
                                 showAdvanceCountdown = false
+                                viewModel.cancelAdvance()
                                 onBack()
                             }
                             .padding(horizontal = 24.dp, vertical = 12.dp)
