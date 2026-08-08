@@ -28,6 +28,9 @@ object CardDefaults {
     
     val defaultWidth get() = wideWidth
     val defaultHeight get() = wideHeight
+
+    // Focus slide-out info panel (below the poster, premium TV cards)
+    val focusPanelHeight = 68.dp
 }
 
 // ── Grid / Layout ──

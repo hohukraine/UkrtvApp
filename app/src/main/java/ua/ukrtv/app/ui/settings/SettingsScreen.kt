@@ -872,7 +872,7 @@ private fun PreviewCard(deviceClass: DeviceClass, isActive: Boolean) {
         val decodeSize = when (deviceClass) {
             DeviceClass.LOW -> "120×180"
             DeviceClass.MID -> "180×270"
-            DeviceClass.HIGH -> "300×450"
+            DeviceClass.HIGH -> "368×207"
         }
         val effects = when (deviceClass) {
             DeviceClass.LOW -> "Без анімацій"
@@ -882,7 +882,7 @@ private fun PreviewCard(deviceClass: DeviceClass, isActive: Boolean) {
         val homeItems = when (deviceClass) {
             DeviceClass.LOW -> 8
             DeviceClass.MID -> 15
-            DeviceClass.HIGH -> 30
+            DeviceClass.HIGH -> 20
         }
         Text(
             text = "$decodeSize · $homeItems карток\n$effects",

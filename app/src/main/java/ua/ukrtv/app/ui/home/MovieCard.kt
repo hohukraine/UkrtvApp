@@ -2,6 +2,7 @@ package ua.ukrtv.app.ui.home
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -20,19 +21,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -61,7 +58,8 @@ import ua.ukrtv.app.ui.theme.PlaceholderDark
 import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.util.DeviceClass
 
-private val cardShape = RoundedCornerShape(8.dp)
+private val cardRadius = 12.dp
+private val cardShape = RoundedCornerShape(cardRadius)
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -72,6 +70,9 @@ fun MovieCard(
     width: Dp = CardDefaults.posterWidth,
     height: Dp = CardDefaults.posterHeight,
     modifier: Modifier = Modifier,
+    focusModifier: Modifier = Modifier,
+    showFocusPanel: Boolean = false,
+    onFocused: (() -> Unit)? = null,
     sharedTransitionScope: SharedTransitionScope? = null,
     animatedContentScope: AnimatedContentScope? = null,
     onClick: () -> Unit,
@@ -87,6 +88,10 @@ fun MovieCard(
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
     val density = LocalDensity.current.density
+
+    LaunchedEffect(isFocused) {
+        if (isFocused) onFocused?.invoke()
+    }
 
     val targetScale = when (deviceClass) {
         DeviceClass.LOW -> 1.05f
@@ -123,10 +128,30 @@ fun MovieCard(
         label = "contentAlpha"
     )
 
-    val glowAlpha by animateFloatAsState(
-        targetValue = if (isFocused && isTv) 0.5f else 0f,
-        animationSpec = tween(400),
-        label = "glowAlpha"
+    val showPanel = showFocusPanel && isTv
+    val labelHeight = if (showPanel) CardDefaults.focusPanelHeight else 0.dp
+
+    val panelProgress by animateFloatAsState(
+        targetValue = if (isFocused && showPanel) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = 0.8f,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "panelProgress"
+    )
+
+    // The poster's bottom corners square off while the label bar expands under it,
+    // so the focused tile reads as one continuous rounded surface (Netflix-style).
+    val tileBottomRadius by animateDpAsState(
+        targetValue = if (showPanel && isFocused) 0.dp else cardRadius,
+        animationSpec = tween(320),
+        label = "tileBottomRadius"
+    )
+    val tileShape = RoundedCornerShape(
+        topStart = cardRadius,
+        topEnd = cardRadius,
+        bottomStart = tileBottomRadius,
+        bottomEnd = tileBottomRadius
     )
 
     val posterStyle = remember(movie.provider) {
@@ -170,190 +195,294 @@ fun MovieCard(
     Box(
         modifier = modifier
             .width(width)
-            .height(height)
-            .testTag("movie_item")
-            .then(sharedModifier)
-            .drawBehind {
-                if (glowAlpha > 0f && deviceClass != DeviceClass.LOW) {
-                    val gColor = accentColor.copy(alpha = glowAlpha * 0.4f)
-                    val glowPadding = 12.dp.toPx()
-                    val s = this.size
-                    drawRoundRect(
-                        color = gColor,
-                        topLeft = Offset(-glowPadding, -glowPadding),
-                        size = androidx.compose.ui.geometry.Size(s.width + glowPadding * 2, s.height + glowPadding * 2),
-                        cornerRadius = CornerRadius(16.dp.toPx())
-                    )
-                }
-            }
+            .height(height + labelHeight)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
                 translationY = translateY * density
-                
-                if (isFocused) {
-                    shadowElevation = if (deviceClass == DeviceClass.HIGH) 16.dp.toPx() else 8.dp.toPx()
-                    spotShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.4f else 0.2f)
-                    ambientShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.6f else 0.3f)
-                }
-                
-                clip = true
-                shape = cardShape
             }
-            .background(accentColor.copy(alpha = 0.15f))
-            .clickable(
-                interactionSource = interactionSource,
-                indication = if (formFactor == FormFactor.PHONE) ripple() else null,
-                onClick = onClick
-            )
-            .onKeyEvent { event ->
-                if (actualDismiss != null) {
-                    val isMenu = event.key == Key.Menu || event.key == Key.Settings
-                    if (isMenu && event.type == KeyEventType.KeyUp) {
-                        actualDismiss()
-                        return@onKeyEvent true
-                    }
-                }
-                false
-            }
-            .then(
-                if (isFocused) {
-                    val borderColor = when {
-                        deviceClass == DeviceClass.HIGH -> Color.White
-                        deviceClass == DeviceClass.MID -> accentColor
-                        else -> Color.White.copy(alpha = 0.8f)
-                    }
-                    val borderWidth = when (deviceClass) {
-                        DeviceClass.HIGH -> 3.dp
-                        DeviceClass.MID -> 2.dp
-                        DeviceClass.LOW -> 2.dp
-                    }
-                    Modifier.border(BorderStroke(borderWidth, borderColor), cardShape)
-                } else Modifier
-            )
     ) {
-        AsyncImage(
-            model = imageRequest,
-            contentDescription = movie.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-            placeholder = PlaceholderDark,
-            error = PlaceholderDark
-        )
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .graphicsLayer {
-                    alpha = playIconAlpha
-                    val s = 0.8f + (playIconAlpha * 0.2f)
-                    scaleX = s
-                    scaleY = s
-                }
-                .size(48.dp)
-                .background(brandColor.copy(alpha = 0.9f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.PlayArrow,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(32.dp)
-            )
-        }
-
-        if (movie.provider != null) {
+        Column {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(4.dp)
-                    .background(brandColor.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 5.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = movie.provider.uppercase(),
-                    color = Color.White,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp,
-                    maxLines = 1
-                )
-            }
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                    .width(width)
+                    .height(height)
+                    .testTag("movie_item")
+                    .then(sharedModifier)
+                    .graphicsLayer {
+                        if (isFocused) {
+                            shadowElevation = if (deviceClass == DeviceClass.HIGH) 26.dp.toPx() else 10.dp.toPx()
+                            spotShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.35f else 0.2f)
+                            ambientShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.45f else 0.25f)
+                        }
+                        clip = true
+                        shape = tileShape
+                    }
+                    .background(accentColor.copy(alpha = 0.15f))
+                    .then(focusModifier)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = if (formFactor == FormFactor.PHONE) ripple() else null,
+                        onClick = onClick
                     )
-                )
-        )
-
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 10.dp, end = 10.dp, bottom = 6.dp)
-                .graphicsLayer { alpha = contentAlpha }
-        ) {
-            Text(
-                text = movie.title.uppercase(),
-                color = Color.White,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                letterSpacing = 0.3.sp,
-                lineHeight = 14.sp
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.padding(top = 3.dp)
+                    .onKeyEvent { event ->
+                        if (actualDismiss != null) {
+                            val isMenu = event.key == Key.Menu || event.key == Key.Settings
+                            if (isMenu && event.type == KeyEventType.KeyUp) {
+                                actualDismiss()
+                                return@onKeyEvent true
+                            }
+                        }
+                        false
+                    }
+                    .then(
+                        if (isFocused) {
+                            val borderColor = when {
+                                deviceClass == DeviceClass.HIGH -> accentColor.copy(alpha = 0.6f)
+                                deviceClass == DeviceClass.MID -> accentColor.copy(alpha = 0.9f)
+                                else -> Color.White.copy(alpha = 0.8f)
+                            }
+                            Modifier.border(BorderStroke(2.dp, borderColor), tileShape)
+                        } else Modifier
+                    )
             ) {
-                if (movie.year != null) {
-                    Text(
-                        text = movie.year.toString(),
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = movie.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    placeholder = PlaceholderDark,
+                    error = PlaceholderDark
+                )
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .graphicsLayer {
+                            alpha = playIconAlpha
+                            val s = 0.8f + (playIconAlpha * 0.2f)
+                            scaleX = s
+                            scaleY = s
+                        }
+                        .size(40.dp)
+                        .background(brandColor.copy(alpha = 0.9f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(26.dp)
                     )
                 }
-                if (!movie.rating.isNullOrEmpty()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+
+                if (showPanel) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f))
+                                )
+                            )
+                    )
+                }
+
+                if (movie.provider != null) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(4.dp)
+                            .background(brandColor.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
                         Text(
-                            text = "\u2605",
-                            color = Color(0xFFDAA520),
-                            fontSize = 9.sp
-                        )
-                        Spacer(Modifier.width(1.dp))
-                        Text(
-                            text = movie.rating,
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            text = movie.provider.uppercase(),
+                            color = Color.White,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp,
+                            maxLines = 1
                         )
                     }
                 }
-                if (!movie.quality.isNullOrEmpty()) {
-                    Text(
-                        text = movie.quality.uppercase(),
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Medium
+
+                if (!showPanel) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(80.dp)
+                            .align(Alignment.BottomCenter)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                                )
+                            )
                     )
+
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 10.dp, end = 10.dp, bottom = 6.dp)
+                            .graphicsLayer { alpha = contentAlpha }
+                    ) {
+                        Text(
+                            text = movie.title.uppercase(),
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            letterSpacing = 0.3.sp,
+                            lineHeight = 14.sp
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(top = 3.dp)
+                        ) {
+                            if (movie.year != null) {
+                                Text(
+                                    text = movie.year.toString(),
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            if (!movie.rating.isNullOrEmpty()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "\u2605",
+                                        color = Color(0xFFDAA520),
+                                        fontSize = 9.sp
+                                    )
+                                    Spacer(Modifier.width(1.dp))
+                                    Text(
+                                        text = movie.rating,
+                                        color = Color.White.copy(alpha = 0.9f),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            if (!movie.quality.isNullOrEmpty()) {
+                                Text(
+                                    text = movie.quality.uppercase(),
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                            if (!movie.duration.isNullOrEmpty()) {
+                                Text(
+                                    text = movie.duration,
+                                    color = Color.White.copy(alpha = 0.5f),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
                 }
-                if (!movie.duration.isNullOrEmpty()) {
-                    Text(
-                        text = movie.duration,
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+            }
+
+            if (showPanel) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(labelHeight)
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 0.dp,
+                                topEnd = 0.dp,
+                                bottomStart = cardRadius,
+                                bottomEnd = cardRadius
+                            )
+                        )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                translationY = (1f - panelProgress) * labelHeight.toPx()
+                                alpha = panelProgress
+                            }
+                            .background(Color(0xFF0D0D0F))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth()
+                                .height(2.dp)
+                                .background(accentColor.copy(alpha = 0.6f))
+                        )
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = movie.title,
+                                color = Color.White,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                letterSpacing = 0.2.sp,
+                                lineHeight = 16.sp
+                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.padding(top = 3.dp)
+                            ) {
+                                if (movie.year != null) {
+                                    Text(
+                                        text = movie.year.toString(),
+                                        color = accentColor.copy(alpha = 0.95f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (!movie.rating.isNullOrEmpty()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = "\u2605",
+                                            color = Color(0xFFDAA520),
+                                            fontSize = 10.sp
+                                        )
+                                        Spacer(Modifier.width(1.dp))
+                                        Text(
+                                            text = movie.rating,
+                                            color = Color.White.copy(alpha = 0.9f),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                if (!movie.quality.isNullOrEmpty()) {
+                                    Text(
+                                        text = movie.quality.uppercase(),
+                                        color = Color.White.copy(alpha = 0.55f),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        letterSpacing = 0.5.sp
+                                    )
+                                }
+                                if (!movie.duration.isNullOrEmpty()) {
+                                    Text(
+                                        text = movie.duration,
+                                        color = Color.White.copy(alpha = 0.55f),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

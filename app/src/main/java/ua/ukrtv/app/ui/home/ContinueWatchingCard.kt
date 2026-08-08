@@ -2,6 +2,7 @@ package ua.ukrtv.app.ui.home
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -24,11 +25,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -57,10 +53,11 @@ import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalFormFactor
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
 import ua.ukrtv.app.ui.theme.FormFactor
-import ua.ukrtv.app.ui.theme.Shapes
 import ua.ukrtv.app.ui.theme.PlaceholderDark
 import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.util.DeviceClass
+
+private val cardRadius = 12.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -71,6 +68,9 @@ fun ContinueWatchingCard(
     width: androidx.compose.ui.unit.Dp? = null,
     height: androidx.compose.ui.unit.Dp? = null,
     modifier: Modifier = Modifier,
+    focusModifier: Modifier = Modifier,
+    showFocusPanel: Boolean = false,
+    onFocused: (() -> Unit)? = null,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     onDismiss: (() -> Unit)? = null,
@@ -85,6 +85,14 @@ fun ContinueWatchingCard(
     val density = LocalDensity.current.density
 
     var deleteMode by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isFocused) {
+        if (isFocused) {
+            onFocused?.invoke()
+        } else {
+            deleteMode = false
+        }
+    }
 
     val targetScale = when (deviceClass) {
         DeviceClass.LOW -> 1.05f
@@ -119,12 +127,6 @@ fun ContinueWatchingCard(
         targetValue = if (isFocused || !isTv) 1f else 0f,
         animationSpec = tween(300),
         label = "contentAlpha"
-    )
-
-    val glowAlpha by animateFloatAsState(
-        targetValue = if (isFocused && isTv && !deleteMode) 0.5f else 0f,
-        animationSpec = tween(400),
-        label = "glowAlpha"
     )
 
     val posterStyle = remember(movie.provider) {
@@ -164,10 +166,7 @@ fun ContinueWatchingCard(
             .build()
     }
 
-    val cardShape = remember { Shapes.cardCompact }
-
-    val episodeLabel = remember(movie.season, movie.episode) {
-        if (movie.season != null && movie.episode != null) {
+    val episodeLabel = remember(movie.season, movie.episode) {        if (movie.season != null && movie.episode != null) {
             "S${movie.season} E${movie.episode}"
         } else null
     }
@@ -176,45 +175,60 @@ fun ContinueWatchingCard(
         when (deviceClass) {
             DeviceClass.LOW -> 0.75f
             DeviceClass.MID -> 1.0f
-            DeviceClass.HIGH -> 1.25f
+            DeviceClass.HIGH -> 1.0f
         }
     }
 
-    Column(
-        modifier = modifier.width(cardDims.width * (if (width != null) 1f else cardScale))
+    val showPanel = showFocusPanel && isTv
+    val labelHeight = if (showPanel) CardDefaults.focusPanelHeight else 0.dp
+
+    val panelProgress by animateFloatAsState(
+        targetValue = if (isFocused && !deleteMode && showPanel) 1f else 0f,
+        animationSpec = spring(
+            dampingRatio = 0.8f,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "panelProgress"
+    )
+
+    // Poster bottom corners square off while the label bar expands under it.
+    val tileBottomRadius by animateDpAsState(
+        targetValue = if (showPanel && isFocused && !deleteMode) 0.dp else cardRadius,
+        animationSpec = tween(320),
+        label = "tileBottomRadius"
+    )
+    val tileShape = RoundedCornerShape(
+        topStart = cardRadius,
+        topEnd = cardRadius,
+        bottomStart = tileBottomRadius,
+        bottomEnd = tileBottomRadius
+    )
+
+    Box(
+        modifier = modifier
+            .width(cardDims.width * (if (width != null) 1f else cardScale))
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                translationY = translateY * density
+            }
     ) {
+        Column {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(cardDims.height * (if (height != null) 1f else cardScale))
-                .drawBehind {
-                    if (glowAlpha > 0f && deviceClass != DeviceClass.LOW) {
-                        val gColor = accentColor.copy(alpha = glowAlpha * 0.4f)
-                        val glowPadding = 10.dp.toPx()
-                        drawRoundRect(
-                            color = gColor,
-                            topLeft = Offset(-glowPadding, -glowPadding),
-                            size = androidx.compose.ui.geometry.Size(size.width + glowPadding * 2, size.height + glowPadding * 2),
-                            cornerRadius = CornerRadius(12.dp.toPx())
-                        )
-                    }
-                }
                 .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    translationY = translateY * density
-                    
                     if (isFocused && !deleteMode) {
-                        shadowElevation = if (deviceClass == DeviceClass.HIGH) 16.dp.toPx() else 8.dp.toPx()
-                        spotShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.4f else 0.2f)
-                        ambientShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.6f else 0.3f)
+                        shadowElevation = if (deviceClass == DeviceClass.HIGH) 26.dp.toPx() else 10.dp.toPx()
+                        spotShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.35f else 0.2f)
+                        ambientShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.45f else 0.25f)
                     }
-                    
                     clip = true
-                    shape = cardShape
+                    shape = tileShape
                 }
                 .background(Color(0xFF141414))
-                .onFocusChanged { if (!it.isFocused) deleteMode = false }
+                .then(focusModifier)
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = if (formFactor == FormFactor.PHONE) ripple() else null,
@@ -244,15 +258,11 @@ fun ContinueWatchingCard(
                 .then(
                     if (isFocused && !deleteMode) {
                         val borderColor = when {
-                            deviceClass == DeviceClass.HIGH -> Color.White
-                            deviceClass == DeviceClass.MID -> accentColor
+                            deviceClass == DeviceClass.HIGH -> accentColor.copy(alpha = 0.6f)
+                            deviceClass == DeviceClass.MID -> accentColor.copy(alpha = 0.9f)
                             else -> Color.White.copy(alpha = 0.8f)
                         }
-                        val borderWidth = when (deviceClass) {
-                            DeviceClass.HIGH -> 3.dp
-                            else -> 2.dp
-                        }
-                        Modifier.border(BorderStroke(borderWidth, borderColor), cardShape)
+                        Modifier.border(BorderStroke(2.dp, borderColor), tileShape)
                     } else Modifier
                 )
         ) {
@@ -274,7 +284,7 @@ fun ContinueWatchingCard(
                         scaleX = s
                         scaleY = s
                     }
-                    .size(48.dp)
+                    .size(40.dp)
                     .background(brandColor.copy(alpha = 0.9f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
@@ -282,54 +292,70 @@ fun ContinueWatchingCard(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(26.dp)
                 )
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .align(Alignment.BottomCenter)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+            if (showPanel) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f))
+                            )
                         )
-                    )
-            )
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 10.dp, end = 10.dp, bottom = 6.dp)
-                    .graphicsLayer { alpha = contentAlpha }
-            ) {
-                Text(
-                    text = movie.title.uppercase(),
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    letterSpacing = 0.3.sp,
-                    lineHeight = 14.sp
                 )
-                if (episodeLabel != null) {
+            }
+
+            if (!showPanel) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
+                            )
+                        )
+                )
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 10.dp, end = 10.dp, bottom = 6.dp)
+                        .graphicsLayer { alpha = contentAlpha }
+                ) {
                     Text(
-                        text = episodeLabel,
-                        color = accentColor.copy(alpha = 0.9f),
-                        fontSize = 11.sp,
+                        text = movie.title.uppercase(),
+                        color = Color.White,
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        letterSpacing = 0.3.sp,
+                        lineHeight = 14.sp
                     )
-                }
-                if (!movie.duration.isNullOrEmpty()) {
-                    Text(
-                        text = movie.duration,
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                    if (episodeLabel != null) {
+                        Text(
+                            text = episodeLabel,
+                            color = accentColor.copy(alpha = 0.9f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                    if (!movie.duration.isNullOrEmpty()) {
+                        Text(
+                            text = movie.duration,
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
 
@@ -358,5 +384,79 @@ fun ContinueWatchingCard(
                 }
             }
         }
+
+        if (showPanel) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(labelHeight)
+                    .clip(
+                        RoundedCornerShape(
+                            topStart = 0.dp,
+                            topEnd = 0.dp,
+                            bottomStart = cardRadius,
+                            bottomEnd = cardRadius
+                        )
+                    )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            translationY = (1f - panelProgress) * labelHeight.toPx()
+                            alpha = panelProgress
+                        }
+                        .background(Color(0xFF0D0D0F))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .fillMaxWidth()
+                            .height(2.dp)
+                            .background(accentColor.copy(alpha = 0.6f))
+                    )
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = movie.title,
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            letterSpacing = 0.2.sp,
+                            lineHeight = 16.sp
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.padding(top = 3.dp)
+                        ) {
+                            if (episodeLabel != null) {
+                                Text(
+                                    text = episodeLabel,
+                                    color = accentColor.copy(alpha = 0.95f),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                            if (!movie.duration.isNullOrEmpty()) {
+                                Text(
+                                    text = movie.duration,
+                                    color = Color.White.copy(alpha = 0.55f),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
+}
 }

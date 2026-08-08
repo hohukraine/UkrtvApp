@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -26,13 +27,14 @@ fun SectionHeader(
 ) {
     if (title.isEmpty()) return
 
-    val titleColor = remember(brandColor) { brandColor.copy(alpha = 0.7f) }
-    
-    val barWidth = 3.dp
-    val barHeight = if (isPhone) 14.dp else 18.dp
-    val spacing = if (isPhone) 8.dp else 10.dp
-    val fontSize = if (isPhone) 12.sp else 13.sp
-    val letterSpacing = if (isPhone) 1.sp else 2.sp
+    val titleColor = Color(0xFFF2F2F2)
+    val barColor = remember(brandColor) { brandColor.copy(alpha = 0.95f) }
+
+    val barWidth = if (isPhone) 3.dp else 4.dp
+    val barHeight = if (isPhone) 16.dp else 20.dp
+    val spacing = if (isPhone) 8.dp else 12.dp
+    val fontSize = if (isPhone) 13.sp else 20.sp
+    val letterSpacing = if (isPhone) 0.5.sp else 1.sp
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -42,7 +44,7 @@ fun SectionHeader(
             modifier = Modifier
                 .width(barWidth)
                 .height(barHeight)
-                .background(brandColor, RoundedCornerShape(2.dp))
+                .background(barColor, RoundedCornerShape(2.dp))
         )
         Spacer(modifier = Modifier.width(spacing))
         Text(
@@ -52,5 +54,18 @@ fun SectionHeader(
             fontWeight = FontWeight.Black,
             letterSpacing = letterSpacing
         )
+        if (!isPhone) {
+            Spacer(modifier = Modifier.width(spacing * 2))
+            Box(
+                modifier = Modifier
+                    .width(48.dp)
+                    .height(2.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(barColor.copy(alpha = 0.55f), Color.Transparent)
+                        )
+                    )
+            )
+        }
     }
 }

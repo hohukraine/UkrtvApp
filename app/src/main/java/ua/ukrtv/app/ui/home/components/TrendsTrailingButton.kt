@@ -43,14 +43,15 @@ fun TrendsTrailingButton(
         when (deviceClass) {
             DeviceClass.LOW -> 0.75f
             DeviceClass.MID -> 1.0f
-            DeviceClass.HIGH -> 1.25f
+            DeviceClass.HIGH -> 1.15f
         }
     }
 
     val posterStyle = remember(provider) { PosterStyle.forProvider(provider) }
     val dims = ProviderSizes.card(posterStyle)
 
-    val baseHeight = if (useLargeCards) dims.height * 1.15f else dims.height
+    val largeCardScale = if (deviceClass == DeviceClass.HIGH) 1.25f else 1.15f
+    val baseHeight = if (useLargeCards) dims.height * largeCardScale else dims.height
     val baseWidth = dims.width * 0.6f
 
     Surface(

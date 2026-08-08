@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -17,6 +18,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
 import coil3.request.crossfade
@@ -31,6 +34,7 @@ fun HomeBackground(
     brandColor: Color,
     backdropColor: Color = Color.Unspecified,
     backdropUrl: String? = null,
+    backdropBlur: Dp = 0.dp,
     scrollFraction: () -> Float = { 0f },
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
@@ -70,6 +74,11 @@ fun HomeBackground(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.9f)
+                    .then(
+                        if (backdropBlur > 0.dp && deviceClass == DeviceClass.HIGH && !isMediatek) {
+                            Modifier.blur(backdropBlur)
+                        } else Modifier
+                    )
                     .graphicsLayer {
                         val scroll = scrollFraction()
                         // Cinematic visibility: High but tinted by the overlay
@@ -86,7 +95,12 @@ fun HomeBackground(
                     val scroll = scrollFraction()
                     val s = size
                     val color = animatedPrimaryColor
-                    
+
+                    // Dim the blurred poster backdrop so rows stay readable
+                    if (backdropBlur > 0.dp) {
+                        drawRect(color = Color.Black.copy(alpha = 0.35f))
+                    }
+
                     // 2.1 THE TMDB "WASH" - A heavy gradient of the primary color over the image
                     // This creates the exact TMDB look where the image is tinted by the movie color.
                     drawRect(

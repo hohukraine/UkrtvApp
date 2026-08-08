@@ -6,12 +6,12 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,12 +38,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.focusGroup
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -52,12 +50,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.ui.home.ContinueWatchingCard
 import ua.ukrtv.app.ui.home.MovieCard
@@ -95,11 +90,14 @@ fun ContentRow(
     providerHint: String? = null,
     restoreMovie: Movie? = null,
     restoreWindowOpen: () -> Boolean = { false },
-    onRestoreHandled: () -> Unit = {}
+    onRestoreHandled: () -> Unit = {},
+    rowId: String? = null,
+    focusedRowId: String? = null,
+    onRowFocused: (() -> Unit)? = null
 ) {
     val formFactor = LocalFormFactor.current
     when (formFactor) {
-        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useLargeCards, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint, restoreMovie, restoreWindowOpen, onRestoreHandled)
+        FormFactor.TV -> TvContentRow(title, items, brandColor, onItemClick, onItemDismiss, onItemFocused, useLargeCards, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint, restoreMovie, restoreWindowOpen, onRestoreHandled, rowId, focusedRowId, onRowFocused)
         FormFactor.PHONE, FormFactor.TABLET -> PhoneContentRow(title, items, brandColor, onItemClick, trailingContent, isLoading, sharedTransitionScope, animatedContentScope, providerHint)
     }
 }
@@ -223,7 +221,10 @@ private fun TvContentRow(
     providerHint: String? = null,
     restoreMovie: Movie? = null,
     restoreWindowOpen: () -> Boolean = { false },
-    onRestoreHandled: () -> Unit = {}
+    onRestoreHandled: () -> Unit = {},
+    rowId: String? = null,
+    focusedRowId: String? = null,
+    onRowFocused: (() -> Unit)? = null
 ) {
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
@@ -231,11 +232,20 @@ private fun TvContentRow(
         when (deviceClass) {
             DeviceClass.LOW -> 0.75f
             DeviceClass.MID -> 1.0f
-            DeviceClass.HIGH -> 1.25f
+            DeviceClass.HIGH -> 1.15f
         }
     }
+    // "Use large cards" is used for trending rows; keep it subtle on the premium preset
+    val largeCardScale = remember(deviceClass) {
+        if (deviceClass == DeviceClass.HIGH) 1.25f else 1.15f
+    }
+    val showFocusPanel = deviceClass == DeviceClass.HIGH
+    // Rail Fade uses plain alpha compositing — cheap even on Mediatek GPUs.
+    val rowFadeEnabled = deviceClass == DeviceClass.HIGH
+    val isRowFocused = rowId == null || focusedRowId == rowId
     val lazyListState = rememberLazyListState()
     val (rowFocus, firstItemFocus, trailingFocus) = remember { FocusRequester.createRefs() }
+    var hadFocus by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
 
@@ -270,25 +280,41 @@ private fun TvContentRow(
         }
     }
 
-    val scope = rememberCoroutineScope()
-
     val posterStyle = remember(items, providerHint) {
         val provider = items.firstOrNull()?.provider ?: providerHint
         PosterStyle.forProvider(provider)
     }
     val tvDims = ProviderSizes.card(posterStyle)
 
-    val rowHeight = remember(useLargeCards, cardScale, posterStyle) {
-        val baseHeight = if (useLargeCards) tvDims.height * 1.15f
+    val cardWidth = (if (useLargeCards) tvDims.width * largeCardScale else tvDims.width) * cardScale
+    val cardHeight = (if (useLargeCards) tvDims.height * largeCardScale else tvDims.height) * cardScale
+
+    // Rail Fade: non-focused rows dim so the active shelf stands out (premium preset).
+    val rowAlpha by animateFloatAsState(
+        targetValue = if (!rowFadeEnabled || isRowFocused) 1f else 0.5f,
+        animationSpec = tween(250),
+        label = "rowFade"
+    )
+
+    val rowHeight = remember(useLargeCards, cardScale, largeCardScale, posterStyle, showFocusPanel) {
+        val baseHeight = if (useLargeCards) tvDims.height * largeCardScale
         else tvDims.height
-        (baseHeight * cardScale) + 32.dp
+        (baseHeight * cardScale) + if (showFocusPanel) CardDefaults.focusPanelHeight + 8.dp else 32.dp
     }
 
-    Column(modifier = Modifier.padding(bottom = 24.dp)) {
+    Column(
+        modifier = Modifier
+            .padding(bottom = if (showFocusPanel) 12.dp else 24.dp)
+            .graphicsLayer { alpha = rowAlpha }
+    ) {
         SectionHeader(
             title = title,
             brandColor = brandColor,
-            modifier = Modifier.padding(start = GridDefaults.horizontalPadding, bottom = 12.dp, top = 32.dp),
+            modifier = Modifier.padding(
+                start = GridDefaults.horizontalPadding,
+                bottom = 12.dp,
+                top = if (showFocusPanel) 16.dp else 32.dp
+            ),
             isPhone = false
         )
 
@@ -306,13 +332,14 @@ private fun TvContentRow(
                     .focusGroup()
                     .focusRequester(rowFocus)
                     .onFocusChanged { state ->
-                        if (state.isFocused) {
-                            scope.launch {
-                                withFrameNanos { }
-                                if (items.isNotEmpty()) firstItemFocus.requestFocus()
-                                else if (trailingContent != null) trailingFocus.requestFocus()
-                            }
+                        // The row is a focus group (Focusability.Never), so `state.isFocused`
+                        // is never true — entering the row surfaces as a hasFocus transition.
+                        // We only use it to signal the rail fade, never to move focus.
+                        val hasFocus = state.hasFocus
+                        if (hasFocus && !hadFocus) {
+                            onRowFocused?.invoke()
                         }
+                        hadFocus = hasFocus
                     },
                 state = lazyListState,
                 flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState),
@@ -339,7 +366,6 @@ private fun TvContentRow(
                 ) { index, item ->
                     val isFirst = index == 0
                     val isLast = index == items.lastIndex && trailingContent == null
-                    val itemModifier = remember(isFirst) { if (isFirst) Modifier.focusRequester(firstItemFocus) else Modifier }
 
                     val keyBlockMod = remember(isFirst, isLast) {
                         Modifier.onPreviewKeyEvent { event ->
@@ -352,10 +378,12 @@ private fun TvContentRow(
                         }
                     }
 
+                    val itemKey = keyOf(item)
                     val lastSoundTime = remember { mutableLongStateOf(0L) }
                     val isRestoreTarget = restoreKey != null && keyOf(item) == restoreKey
-                    val focusMod = remember(item, onItemFocused, audioManager, keyBlockMod, itemModifier, isRestoreTarget) {
-                        var mod: Modifier = itemModifier
+
+                    val focusModifier = remember(item, keyBlockMod, isFirst, isRestoreTarget) {
+                        var mod: Modifier = keyBlockMod
                             .focusProperties {
                                 exit = { focusDirection ->
                                     if (focusDirection == androidx.compose.ui.focus.FocusDirection.Right) {
@@ -367,21 +395,24 @@ private fun TvContentRow(
                                     }
                                 }
                             }
-                            .then(keyBlockMod)
+                        if (isFirst) mod = mod.then(Modifier.focusRequester(firstItemFocus))
                         if (isRestoreTarget) mod = mod.then(Modifier.focusRequester(targetFocus))
-                        mod.onFocusChanged { state ->
-                            if (state.isFocused) {
-                                onItemFocused?.invoke(item)
-                                val now = System.currentTimeMillis()
-                                if (now - lastSoundTime.longValue > 150L) {
-                                    lastSoundTime.longValue = now
-                                    audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
-                                }
-                            }
+                        mod
+                    }
+
+                    // onFocusChanged above a clickable/combinedClickable never fires (the clickable's
+                    // FocusableNode blocks the focus-event walk), so focus side effects are driven by
+                    // the card's interactionSource instead.
+                    val onFocused = {
+                        onItemFocused?.invoke(item)
+                        val now = System.currentTimeMillis()
+                        if (now - lastSoundTime.longValue > 150L) {
+                            lastSoundTime.longValue = now
+                            audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
                         }
                     }
 
-                    val entranceMod = focusMod
+                    val entranceMod = Modifier
                         .graphicsLayer {
                             if (animateEntrance) {
                                 val start = index * 0.05f
@@ -403,42 +434,45 @@ private fun TvContentRow(
                     }
 
                     if (item.watchProgress != null) {
-                        val cwWidth = (if (useLargeCards) tvDims.width * 1.15f else tvDims.width) * cardScale
-                        val cwHeight = (if (useLargeCards) tvDims.height * 1.15f else tvDims.height) * cardScale
                         ContinueWatchingCard(
                             movie = item,
                             brandColor = brandColor,
                             accentColor = accentColor,
-                            width = cwWidth,
-                            height = cwHeight,
+                            width = cardWidth,
+                            height = cardHeight,
+                            showFocusPanel = showFocusPanel,
                             onClick = onClick,
                             onLongClick = onDismiss,
                             onDismiss = onDismiss,
-                            modifier = entranceMod
+                            modifier = entranceMod,
+                            focusModifier = focusModifier,
+                            onFocused = onFocused
                         )
                     } else {
                         MovieCard(
                             movie = item,
                             brandColor = brandColor,
                             accentColor = accentColor,
-                            width = (if (useLargeCards) tvDims.width * 1.15f else tvDims.width) * cardScale,
-                            height = (if (useLargeCards) tvDims.height * 1.15f else tvDims.height) * cardScale,
+                            width = cardWidth,
+                            height = cardHeight,
+                            showFocusPanel = showFocusPanel,
                             onClick = onClick,
                             onDismiss = onDismiss,
                             sharedTransitionScope = sharedTransitionScope,
                             animatedContentScope = animatedContentScope,
-                            modifier = entranceMod
+                            modifier = entranceMod,
+                            focusModifier = focusModifier,
+                            onFocused = onFocused
                         )
                     }
                 }
 
                 if (trailingContent != null) {
                     item(key = "__trailing", contentType = "trailing") {
-                        val trailingInteractionSource = remember { MutableInteractionSource() }
                         Box(
                             modifier = Modifier
                                 .focusRequester(trailingFocus)
-                                .focusable(interactionSource = trailingInteractionSource)
+                                .focusTarget()
                         ) {
                             trailingContent()
                         }
