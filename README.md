@@ -1,3 +1,5 @@
+<img width="640" height="360" alt="Screenshot_20260808_121536" src="https://github.com/user-attachments/assets/c284b082-9f79-428c-9ba0-e0588f82b4ca" />
+
 # UkrtvApp
 
 Android TV додаток для перегляду фільмів та серіалів з українських онлайн-ресурсів.
