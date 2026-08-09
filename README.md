@@ -33,6 +33,7 @@ python3 scripts/sync_catalog.py --prune-verify
 
 - **Android TV** (звичайний Android теж працює)
 - **Android 8.0+** (API 26)
+- **Зовнішній плеєр** — для відтворення потрібен [VLC](https://play.google.com/store/apps/details?id=org.videolan.vlc) або [Just Player](https://play.google.com/store/apps/details?id=com.brouken.player)
 - **Апаратне прискорення** — рекомендовано
 
 ## Збірка
