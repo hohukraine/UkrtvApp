@@ -6,10 +6,12 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.repository.CatalogRepository
+import ua.ukrtv.app.data.repository.SeriesIndexRepository
 import ua.ukrtv.app.data.repository.SessionRepository
 import ua.ukrtv.app.util.AppLogger
 
@@ -72,6 +74,7 @@ class UaflixProviderTest {
 
     private lateinit var htmlClient: HtmlHttpClient
     private lateinit var provider: UaflixProvider
+    private lateinit var seriesIndexRepo: SeriesIndexRepository
 
     @Before
     fun setup() {
@@ -92,7 +95,8 @@ class UaflixProviderTest {
         htmlClient = mockk<HtmlHttpClient>(relaxed = true)
         val sessionRepo = mockk<SessionRepository>(relaxed = true)
         val catalogRepo = mockk<CatalogRepository>(relaxed = true)
-        provider = UaflixProvider(htmlClient, sessionRepo, catalogRepo)
+        seriesIndexRepo = mockk<SeriesIndexRepository>(relaxed = true)
+        provider = UaflixProvider(htmlClient, sessionRepo, catalogRepo, seriesIndexRepo)
         coEvery { htmlClient.getHtml(serialUrl, baseUrl) } returns serialPageHtml()
     }
 
@@ -165,5 +169,121 @@ class UaflixProviderTest {
         assertNotNull(s1)
         // Unchanged from the grid parse, but still deduped.
         assertEquals(listOf(1, 6, 7, 8, 9, 10), s1!!.episodes.map { it.number })
+    }
+
+    @Test
+    fun `indexed serial builds full structure without season page fetches`() = runTest {
+        val indexedSeasons = mapOf(
+            1 to (1..10).toList(),
+            2 to (1..8).toList(),
+            3 to listOf(1)
+        )
+        every { seriesIndexRepo.uaflixEpisodes("gt-diim-v-drakona") } returns indexedSeasons
+        every { seriesIndexRepo.uaflixVariantUrl(any(), any(), any()) } returns null
+
+        val source = resolve(isDeep = true)
+
+        assertEquals(3, source.seasons.size)
+        assertEquals((1..10).toList(), source.seasons.first { it.number == 1 }.episodes.map { it.number })
+        assertEquals((1..8).toList(), source.seasons.first { it.number == 2 }.episodes.map { it.number })
+        assertEquals(listOf(1), source.seasons.first { it.number == 3 }.episodes.map { it.number })
+
+        coVerify(exactly = 0) { htmlClient.getHtml(season1Url, serialUrl, skipRateLimitRetry = true) }
+        coVerify(exactly = 0) { htmlClient.getHtml(season2Url, serialUrl, skipRateLimitRetry = true) }
+        coVerify(exactly = 0) { htmlClient.getHtml(season3Url, serialUrl, skipRateLimitRetry = true) }
+    }
+
+    @Test
+    fun `indexed variant episode uses full variant url`() = runTest {
+        val indexedSeasons = mapOf(1 to listOf(1, 2), 2 to listOf(1))
+        every { seriesIndexRepo.uaflixVariantUrl(any(), any(), any()) } returns null
+        every { seriesIndexRepo.uaflixEpisodes("gt-diim-v-drakona") } returns indexedSeasons
+        every { seriesIndexRepo.uaflixVariantUrl("gt-diim-v-drakona", 2, 1) } returns
+            "https://uafix.net/serials/gt-diim-v-drakona/season-02-episode-01/v1/"
+
+        val source = resolve()
+
+        val s2 = source.seasons.first { it.number == 2 }
+        assertEquals("https://uafix.net/serials/gt-diim-v-drakona/season-02-episode-01/v1/", s2.episodes.first().url)
+        // Non-variant episodes reconstruct the canonical URL.
+        val s1 = source.seasons.first { it.number == 1 }
+        assertEquals("https://uafix.net/serials/gt-diim-v-drakona/season-01-episode-01/", s1.episodes.first().url)
+
+        coVerify(exactly = 0) { htmlClient.getHtml(season1Url, serialUrl, skipRateLimitRetry = true) }
+        coVerify(exactly = 0) { htmlClient.getHtml(season2Url, serialUrl, skipRateLimitRetry = true) }
+    }
+
+    @Test
+    fun `unknown slug falls back to runtime parsing`() = runTest {
+        every { seriesIndexRepo.uaflixEpisodes(any()) } returns null
+
+        val source = resolve(season = 1, episode = 1)
+
+        val s1 = source.seasons.first { it.number == 1 }
+        assertEquals(listOf(1, 6, 7, 8, 9, 10), s1.episodes.map { it.number })
+    }
+
+    private fun pagedSeasonPageHtml(episodes: List<Int>, withNav: Boolean): String {
+        val eps = episodes.joinToString("\n") { n ->
+            "            <a href=\"${episodeLink(1, n)}\">${n} серія</a>"
+        }
+        val nav = if (withNav) """
+            <div id="bottom-nav"><ul class="pagination">
+                <li class="active"><span>1</span></li>
+                <li><a href="${season1Url}?page=2">2</a></li>
+            </ul></div>
+        """.trimIndent() else ""
+        return """
+            <html><body>
+            <div class="list">
+            $eps
+            </div>
+            $nav
+            </body></html>
+        """.trimIndent()
+    }
+
+    @Test
+    fun `paged season page completes via page 2`() = runTest {
+        coEvery { htmlClient.getHtml(season1Url, serialUrl, skipRateLimitRetry = true) } returns
+            pagedSeasonPageHtml(episodes = (7..26).toList(), withNav = true)
+        coEvery { htmlClient.getHtml("$season1Url?page=2", serialUrl, skipRateLimitRetry = true) } returns
+            pagedSeasonPageHtml(episodes = (1..6).toList(), withNav = false)
+
+        val source = resolve(season = 1, episode = 26)
+
+        val s1 = source.seasons.first { it.number == 1 }
+        assertEquals((1..26).toList(), s1.episodes.map { it.number })
+
+        // The pagination link must not be treated as an extra season page.
+        coVerify(exactly = 1) { htmlClient.getHtml(season1Url, serialUrl, skipRateLimitRetry = true) }
+        coVerify(exactly = 1) { htmlClient.getHtml("$season1Url?page=2", serialUrl, skipRateLimitRetry = true) }
+    }
+
+    @Test
+    fun `season url entry still resolves every season`() = runTest {
+        val season1Entry = """
+            <html><body>
+            <div class="list">
+                <a href="${episodeLink(1, 1)}">1 серія</a>
+            </div>
+            <nav>
+                <a class="sect-link" href="/serials/gt-diim-v-drakona/sezon-1/">Сезон 1</a>
+                <a class="sect-link" href="/serials/gt-diim-v-drakona/sezon-2/">Сезон 2</a>
+                <a class="sect-link" href="/serials/gt-diim-v-drakona/sezon-3/">Сезон 3</a>
+            </nav>
+            </body></html>
+        """.trimIndent()
+        coEvery { htmlClient.getHtml(season1Url, baseUrl) } returns season1Entry
+        coEvery { htmlClient.getHtml(season1Url, season1Url, skipRateLimitRetry = true) } returns seasonPageHtml(1, 10)
+        coEvery { htmlClient.getHtml(season2Url, season1Url, skipRateLimitRetry = true) } returns seasonPageHtml(2, 8)
+        coEvery { htmlClient.getHtml(season3Url, season1Url, skipRateLimitRetry = true) } returns seasonPageHtml(3, 7)
+
+        val source = provider.getMediaSource(season1Url, null, null, isDeep = true) as MediaSource.Series
+
+        assertEquals(3, source.seasons.size)
+        assertEquals((1..10).toList(), source.seasons.first { it.number == 1 }.episodes.map { it.number })
+        assertEquals((1..8).toList(), source.seasons.first { it.number == 2 }.episodes.map { it.number })
+        assertEquals((1..7).toList(), source.seasons.first { it.number == 3 }.episodes.map { it.number })
     }
 }

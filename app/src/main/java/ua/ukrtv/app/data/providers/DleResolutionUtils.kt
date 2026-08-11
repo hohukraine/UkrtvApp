@@ -119,24 +119,44 @@ object DleResolutionUtils {
         return SeriesPlaylistParser.parseUrlBasedSeries(allLinks, pageUrl, providerName) ?: source
     }
 
+    private val UAKINO_SEASON_URL_REGEX = Regex("""^(\d+)-(.+)-(\d+)-sezon\.html$""")
+
+    /**
+     * Returns other seasons as (seasonNumber, newsId). The news_id is read directly from each
+     * season URL (format {newsId}-{slug}-{n}-sezon.html), so callers can POST playlists.php
+     * without a per-season HTML round trip. Seasons are matched by slug, not by a shared
+     * news_id — series like Druzy have a distinct news_id per season. Returns (season, url)
+     * as a fallback for links whose URL does not parse.
+     */
     fun resolveOtherSeasons(doc: org.jsoup.nodes.Document, pageUrl: String, logTag: String): List<Pair<Int, String>> {
         try {
-            val currentId = pageUrl.substringAfterLast("/").substringBefore("-").toIntOrNull()
-            val titleSlug = pageUrl.substringAfterLast("/").substringAfter("-").substringBefore("-sezon").takeIf { it.length > 3 }
+            val pageMatch = UAKINO_SEASON_URL_REGEX.matchEntire(pageUrl.trimEnd('/').substringAfterLast('/'))
+            val currentNewsId = pageMatch?.groupValues?.get(1)
+            val titleSlug = pageMatch?.groupValues?.get(2)
+
+            fun newsIdOrUrl(url: String): Pair<Int, String>? {
+                val m = UAKINO_SEASON_URL_REGEX.matchEntire(url.trimEnd('/').substringAfterLast('/')) ?: return null
+                if (titleSlug != null && m.groupValues[2] != titleSlug) return null
+                val sNum = m.groupValues[3].toIntOrNull() ?: return null
+                if (sNum > 50) return null
+                return sNum to m.groupValues[1]
+            }
 
             val source = doc.select(".seasons, .franchise-list, .serial-series, .related-ids, .video-tabs, .player-tabs, .tabs-sel")
             if (source.isNotEmpty()) {
                 val links = source.select("a[href]").mapNotNull { a ->
+                    val href = a.attr("abs:href")
+                    newsIdOrUrl(href)?.let { return@mapNotNull it }
                     val sNum = extractSeasonNum(a.text()) ?: return@mapNotNull null
                     if (sNum > 50) return@mapNotNull null
-                    sNum to a.attr("abs:href")
+                    sNum to href
                 }
                 if (links.isNotEmpty()) return links.distinctBy { it.second }.sortedBy { it.first }
             }
 
             return doc.select("a[href*='-sezon']").filter { a ->
                 val href = a.attr("abs:href")
-                val matchesId = currentId != null && href.contains("/$currentId-")
+                val matchesId = currentNewsId != null && href.contains("/$currentNewsId-")
                 val matchesSlug = titleSlug != null && href.contains(titleSlug)
 
                 (matchesId || matchesSlug) &&
@@ -145,9 +165,12 @@ object DleResolutionUtils {
                     cls.contains("side") || cls.contains("sidebar") || cls.contains("related")
                 }
             }.mapNotNull { a ->
-                val sNum = extractSeasonNum(a.text()) ?: return@mapNotNull null
-                if (sNum > 50) return@mapNotNull null
-                sNum to a.attr("abs:href")
+                val href = a.attr("abs:href")
+                newsIdOrUrl(href) ?: run {
+                    val sNum = extractSeasonNum(a.text()) ?: return@mapNotNull null
+                    if (sNum > 50) return@mapNotNull null
+                    sNum to href
+                }
             }.distinctBy { it.second }.sortedBy { it.first }
         } catch (e: Exception) {
             AppLogger.w(logTag, "resolveOtherSeasons failed: ${e.message}")

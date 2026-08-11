@@ -22,7 +22,8 @@ import ua.ukrtv.app.matching.SearchScorer
 internal class DetailSource(
     private val providerManager: ProviderManager,
     private val streamResolver: StreamResolver,
-    private val seriesStructureDao: SeriesStructureDao
+    private val seriesStructureDao: SeriesStructureDao,
+    private val seriesIndexRepository: SeriesIndexRepository
 ) {
     private val metadataCache = TtlLruCache<String, MovieDetail>(maxSize = 200, ttlMs = Constants.METADATA_CACHE_TTL_MS)
     private val navigationCache = TtlLruCache<String, MovieDetail>(maxSize = 100, ttlMs = 60 * 60 * 1000L)
@@ -104,12 +105,23 @@ internal class DetailSource(
         val cachedSeasons = cached?.let { deserializeSeasons(it.seasonsJson).takeIf { s -> s.isNotEmpty() } }
         val cacheAge = cached?.let { System.currentTimeMillis() - it.updatedAt }
 
-        if (cachedSeasons != null && cacheAge != null && cacheAge < Constants.SERIES_STRUCTURE_CACHE_TTL_MS) {
+        // A cache holding FEWER episodes than the precomputed index (e.g. written before the slug
+        // was indexed) is partial: keep serving it would hide episodes that the offline index can
+        // now produce for free. Re-resolve fresh instead (index fast path = 0 HTTP).
+        val indexSlug = SeriesIndexRepository.uaflixSlugFromUrl(url)
+        val indexedCount = indexSlug?.let { seriesIndexRepository.indexEpisodeCount(it) }
+        val cachedCount = cachedSeasons?.sumOf { s -> s.voiceovers.sumOf { v -> v.episodes.size } }
+        val cacheComplete = SeriesStructureCompleteness.isCacheComplete(indexedCount, cachedCount)
+        if (!cacheComplete) {
+            AppLogger.d("ContentRepository", "Series structure cache INCOMPLETE for $url (cached=$cachedCount, index=$indexedCount), re-resolving")
+        }
+
+        if (cacheComplete && cachedSeasons != null && cacheAge != null && cacheAge < Constants.SERIES_STRUCTURE_CACHE_TTL_MS) {
             AppLogger.d("ContentRepository", "Series structure cache HIT (fresh) for $url (${cachedSeasons.size} seasons)")
             return cacheEnriched(detail, cacheKey, cachedSeasons)
         }
 
-        if (cachedSeasons != null && cacheAge != null && cacheAge < Constants.SERIES_STRUCTURE_CACHE_STALE_TTL_MS) {
+        if (cacheComplete && cachedSeasons != null && cacheAge != null && cacheAge < Constants.SERIES_STRUCTURE_CACHE_STALE_TTL_MS) {
             AppLogger.d("ContentRepository", "Series structure cache HIT (stale) for $url, refreshing in background")
             refreshStructureInBackground(url)
             return cacheEnriched(detail, cacheKey, cachedSeasons)

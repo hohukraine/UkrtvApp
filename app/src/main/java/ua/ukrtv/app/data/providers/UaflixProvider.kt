@@ -12,6 +12,7 @@ import org.jsoup.nodes.Document
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.repository.CatalogRepository
+import ua.ukrtv.app.data.repository.SeriesIndexRepository
 import ua.ukrtv.app.data.repository.SessionRepository
 import ua.ukrtv.app.util.AppLogger
 import javax.inject.Inject
@@ -20,6 +21,7 @@ class UaflixProvider @Inject constructor(
     htmlHttpClient: HtmlHttpClient,
     sessionRepository: SessionRepository,
     catalogRepository: CatalogRepository,
+    private val seriesIndexRepository: SeriesIndexRepository,
 ) : DleProviderBase(htmlHttpClient, sessionRepository, catalogRepository, UaflixProfile) {
 
     override val name = "UAFLIX"
@@ -56,6 +58,24 @@ class UaflixProvider @Inject constructor(
             return null
         }
 
+        // Fast path: reconstruct the full season structure offline from the precomputed index
+        // (0 HTTP requests). Only applies to the canonical /serials/{slug}/ URL form.
+        val indexSlug = SeriesIndexRepository.uaflixSlugFromUrl(pageUrl)
+        val indexedSeasons = indexSlug?.let { seriesIndexRepository.uaflixEpisodes(it) }
+        if (indexedSeasons != null && indexedSeasons.isNotEmpty()) {
+            val providerSeasons = indexedSeasons.map { (num, eps) ->
+                val episodes = eps.map { eNum ->
+                    val variant = seriesIndexRepository.uaflixVariantUrl(indexSlug!!, num, eNum)
+                        .takeIf { !it.isNullOrBlank() }
+                    val url = variant ?: episodeUrl(indexSlug!!, num, eNum)
+                    ProviderEpisode(eNum, "Серія $eNum", url)
+                }
+                ProviderSeason(num, episodes)
+            }.sortedBy { it.number }
+            AppLogger.d("UAFLIX", "Series structure from index: ${providerSeasons.size} seasons (slug=$indexSlug)")
+            return MediaSource.Series(providerSeasons, pageUrl, name)
+        }
+
         // Find episode links like /serials/poganij-prokuror/season-01-episode-01/
         val seasonsMap = parseEpisodeLinks(doc).toMutableMap()
         if (seasonsMap.isEmpty()) return null
@@ -68,7 +88,7 @@ class UaflixProvider @Inject constructor(
             (season != null && episode != null && seasonsMap[season]?.any { it.number == episode } != true)
         if (needsCompleteList) {
             val seasonPageUrls = seasonPageLinks(doc, pageUrl)
-                .filter { (_, sUrl) -> sUrl != pageUrl }
+                .filter { (_, sUrl) -> sUrl != pageUrl || pageUrl.contains("/sezon-") }
                 .let { links ->
                     if (season != null) links.filter { (sNum, _) -> sNum == season } else links
                 }
@@ -78,27 +98,11 @@ class UaflixProvider @Inject constructor(
                         .mapIndexed { idx, (sNum, sUrl) ->
                             async(Dispatchers.IO) {
                                 if (idx > 0) delay(Constants.SERIES_FETCH_STAGGER_MS * idx)
-                                withTimeoutOrNull(Constants.PER_SEASON_FETCH_TIMEOUT_MS) {
-                                    try {
-                                        val sHtml = htmlHttpClient.getHtml(sUrl, pageUrl, skipRateLimitRetry = true)
-                                        if (sHtml == null) {
-                                            AppLogger.w("UAFLIX", "Failed to fetch season page S$sNum")
-                                            null
-                                        } else {
-                                            val sDoc = Jsoup.parse(sHtml, sUrl)
-                                            sNum to parseEpisodeLinks(sDoc)[sNum]
-                                        }
-                                    } catch (e: CancellationException) {
-                                        throw e
-                                    } catch (e: Exception) {
-                                        AppLogger.w("UAFLIX", "Failed to fetch season page S$sNum: ${e.message}")
-                                        null
-                                    }
-                                }
+                                sNum to fetchCompleteSeasonEpisodes(sUrl, sNum, pageUrl)
                             }
                         }
                         .awaitAll()
-                        .filterNotNull()
+                        .filter { it.second != null }
                 }
                 completed.forEach { (sNum, eps) ->
                     if (eps != null) seasonsMap[sNum] = eps
@@ -141,13 +145,89 @@ class UaflixProvider @Inject constructor(
     }
 
     private fun seasonPageLinks(doc: Document, pageUrl: String): List<Pair<Int, String>> {
-        val slug = pageUrl.trimEnd('/').substringAfterLast("/").substringBefore("-sezon")
-        if (slug.isEmpty()) return emptyList()
+        val slug = serialSlugFromUrl(pageUrl) ?: return emptyList()
         return doc.select("a[href*='sezon-']").mapNotNull { link ->
             val href = link.attr("abs:href")
-            if (!href.contains("/$slug/")) return@mapNotNull null
+            if (!href.contains("/$slug/") || href.contains("?page=")) return@mapNotNull null
             val sNum = Regex("""sezon-(\d+)""").find(href)?.groupValues?.get(1)?.toIntOrNull()
             if (sNum != null && sNum in 1..50) sNum to href else null
         }.distinctBy { it.second }
     }
+
+    /**
+     * Fetches a season page and follows its pagination (#bottom-nav ul.pagination). UAFLIX season
+     * pages show at most 20 episodes per page, so seasons longer than that need ?page=2..N merged
+     * into a single complete list.
+     */
+    private suspend fun fetchCompleteSeasonEpisodes(
+        sUrl: String,
+        sNum: Int,
+        pageUrl: String
+    ): List<ProviderEpisode>? {
+        val page1 = fetchSeasonDoc(sUrl, sNum, pageUrl, page = 1) ?: return null
+        val eps = parseEpisodeLinks(page1)[sNum].orEmpty().toMutableList()
+        val maxPage = maxSeasonPage(page1) ?: 1
+        if (maxPage > 1) {
+            val extra = coroutineScope {
+                (2..maxPage)
+                    .mapIndexed { i, page ->
+                        async(Dispatchers.IO) {
+                            if (i > 0) delay(Constants.SERIES_FETCH_STAGGER_MS * i)
+                            fetchSeasonDoc(paginatedSeasonUrl(sUrl, page), sNum, pageUrl, page)
+                                ?.let { parseEpisodeLinks(it)[sNum].orEmpty() }
+                        }
+                    }
+                    .awaitAll()
+                    .filterNotNull()
+                    .flatten()
+            }
+            eps.addAll(extra)
+        }
+        return eps.ifEmpty { null }
+    }
+
+    private suspend fun fetchSeasonDoc(
+        sUrl: String,
+        sNum: Int,
+        pageUrl: String,
+        page: Int
+    ): Document? = withTimeoutOrNull(Constants.PER_SEASON_FETCH_TIMEOUT_MS) {
+        try {
+            val sHtml = htmlHttpClient.getHtml(sUrl, pageUrl, skipRateLimitRetry = true)
+            if (sHtml == null) {
+                AppLogger.w("UAFLIX", "Failed to fetch season page S$sNum page $page")
+                null
+            } else {
+                Jsoup.parse(sHtml, sUrl)
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.w("UAFLIX", "Failed to fetch season page S$sNum page $page: ${e.message}")
+            null
+        }
+    }
+
+    private fun maxSeasonPage(doc: Document): Int? {
+        return doc.select("#bottom-nav .pagination a[href*='page=']").mapNotNull { link ->
+            Regex("""page=(\d+)""").find(link.attr("abs:href"))?.groupValues?.get(1)?.toIntOrNull()
+        }.maxOrNull()?.takeIf { it > 1 }
+    }
+
+    private fun paginatedSeasonUrl(sUrl: String, page: Int): String =
+        if (sUrl.contains("?")) "$sUrl&page=$page" else "$sUrl?page=$page"
+
+    /**
+     * Extracts the serial slug from either the canonical serial page
+     * (https://uafix.net/serials/{slug}/) or a nested season page (…/sezon-N/).
+     */
+    private fun serialSlugFromUrl(url: String): String? {
+        val path = url.trimEnd('/').replace(Regex("""/sezon-\d+$"""), "")
+        val segment = path.substringAfterLast('/')
+        if (segment.isEmpty() || segment.startsWith("sezon-") || segment.contains("-episode-") || segment.endsWith(".html")) return null
+        return segment
+    }
+
+    private fun episodeUrl(slug: String, season: Int, episode: Int): String =
+        "%s/serials/%s/season-%02d-episode-%02d/".format(baseUrl.trimEnd('/'), slug, season, episode)
 }

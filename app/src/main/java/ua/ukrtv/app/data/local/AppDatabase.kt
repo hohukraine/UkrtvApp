@@ -5,12 +5,14 @@ import androidx.room.RoomDatabase
 import ua.ukrtv.app.data.local.dao.CatalogIndexDao
 import ua.ukrtv.app.data.local.dao.HtmlCacheDao
 import ua.ukrtv.app.data.local.dao.SearchHistoryDao
+import ua.ukrtv.app.data.local.dao.SeriesIndexDao
 import ua.ukrtv.app.data.local.dao.SeriesStructureDao
 import ua.ukrtv.app.data.local.dao.WatchProgressDao
 import ua.ukrtv.app.data.local.dao.WatchlistDao
 import ua.ukrtv.app.data.local.entity.CatalogIndexEntity
 import ua.ukrtv.app.data.local.entity.HtmlCacheEntity
 import ua.ukrtv.app.data.local.entity.SearchHistoryEntity
+import ua.ukrtv.app.data.local.entity.SeriesIndexEntity
 import ua.ukrtv.app.data.local.entity.SeriesStructureEntity
 import ua.ukrtv.app.data.local.entity.WatchProgressEntity
 import ua.ukrtv.app.data.local.entity.WatchlistEntity
@@ -28,8 +30,9 @@ import ua.ukrtv.app.data.local.entity.TmdbTrendsCacheEntity
     CatalogIndexEntity::class,
     HomeCacheEntity::class,
     TmdbTrendsCacheEntity::class,
-    SeriesStructureEntity::class
-], version = 20, exportSchema = true)
+    SeriesStructureEntity::class,
+    SeriesIndexEntity::class
+], version = 21, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun searchHistoryDao(): SearchHistoryDao
     abstract fun htmlCacheDao(): HtmlCacheDao
@@ -39,4 +42,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun homeCacheDao(): HomeCacheDao
     abstract fun tmdbTrendsCacheDao(): TmdbTrendsCacheDao
     abstract fun seriesStructureDao(): SeriesStructureDao
+    abstract fun seriesIndexDao(): SeriesIndexDao
 }

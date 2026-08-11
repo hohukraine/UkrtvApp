@@ -179,6 +179,7 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
             // Significant delay for catalog update to reduce startup pressure
             delay(30000) 
             scheduleCatalogUpdate()
+            scheduleSeriesIndexUpdate()
             
             delay(10000)
             try {
@@ -208,6 +209,24 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
             catalogWork
         )
         AppLogger.i("UkrtvApplication", "Catalog update scheduled every 12 hours")
+    }
+
+    private fun scheduleSeriesIndexUpdate() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiresBatteryNotLow(true)
+            .build()
+
+        val indexWork = PeriodicWorkRequestBuilder<ua.ukrtv.app.worker.SeriesIndexUpdateWorker>(
+            24, TimeUnit.HOURS
+        ).setConstraints(constraints).build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "series_index_update",
+            ExistingPeriodicWorkPolicy.KEEP,
+            indexWork
+        )
+        AppLogger.i("UkrtvApplication", "Series index update scheduled every 24 hours")
     }
 
     private fun clearCaches() {

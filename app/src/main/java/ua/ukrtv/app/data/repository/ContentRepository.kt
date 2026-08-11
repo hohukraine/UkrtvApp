@@ -25,13 +25,14 @@ class ContentRepository @Inject constructor(
     private val streamResolver: StreamResolver,
     private val htmlCacheDao: ua.ukrtv.app.data.local.dao.HtmlCacheDao,
     private val seriesStructureDao: ua.ukrtv.app.data.local.dao.SeriesStructureDao,
+    private val seriesIndexRepository: SeriesIndexRepository,
     private val homeCacheRepository: HomeCacheRepository,
     private val catalogRepository: CatalogRepository,
     private val tmdbTrendsRepository: TmdbTrendsRepository
 ) {
     private val homeSource = HomeGridSource(homeCacheRepository)
     private val searchSource = SearchSource(providerManager, catalogRepository)
-    private val detailSource = DetailSource(providerManager, streamResolver, seriesStructureDao)
+    private val detailSource = DetailSource(providerManager, streamResolver, seriesStructureDao, seriesIndexRepository)
 
     private var cleanupJob: kotlinx.coroutines.Job? = null
 

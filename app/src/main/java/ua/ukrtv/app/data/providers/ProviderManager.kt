@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ua.ukrtv.app.data.network.HtmlHttpClient
 import ua.ukrtv.app.data.repository.CatalogRepository
+import ua.ukrtv.app.data.repository.SeriesIndexRepository
 import ua.ukrtv.app.data.repository.SessionRepository
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.HomePreferences
@@ -21,12 +22,13 @@ class ProviderManager @Inject constructor(
     private val htmlHttpClient: HtmlHttpClient,
     private val sessionRepository: SessionRepository,
     private val catalogRepository: CatalogRepository,
+    private val seriesIndexRepository: SeriesIndexRepository,
     private val homePreferences: HomePreferences
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val allProviders: List<MediaProvider> = listOf(
-        UaflixProvider(htmlHttpClient, sessionRepository, catalogRepository),
+        UaflixProvider(htmlHttpClient, sessionRepository, catalogRepository, seriesIndexRepository),
         UakinoProvider(htmlHttpClient, sessionRepository, catalogRepository)
     )
 

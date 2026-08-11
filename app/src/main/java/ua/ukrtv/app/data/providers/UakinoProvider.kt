@@ -107,6 +107,17 @@ class UakinoProvider(
                 }
             }
 
+        suspend fun fetchSeasonEpisodesByNewsId(newsId: String, seasonNum: Int): ProviderSeason? =
+            withTimeoutOrNull(Constants.PER_SEASON_FETCH_TIMEOUT_MS) {
+                val cacheKey = "season|newsid|$newsId|$seasonNum"
+                seasonCache.get(cacheKey)?.let { return@withTimeoutOrNull it }
+
+                val ajaxData = fetchAjaxPlaylist(newsId, pageUrl, skipRateLimitRetry = true) ?: return@withTimeoutOrNull null
+                ProviderSeason(seasonNum, ajaxData.first, voiceoverOptions = ajaxData.second).also {
+                    seasonCache.put(cacheKey, it)
+                }
+            }
+
         val ajaxData = fetchAjaxPlaylist(newsId, pageUrl) ?: return null
         val (curEps, cleanVoiceoverNames) = ajaxData
 
@@ -116,6 +127,11 @@ class UakinoProvider(
             allSeasons.add(ProviderSeason(currentSeasonNum, curEps, voiceoverOptions = cleanVoiceoverNames))
         }
 
+        // Other seasons are read from the serial page itself: each season link URL already
+        // carries its news_id ({newsId}-{slug}-{n}-sezon.html), so other seasons are fetched
+        // with a direct playlists.php POST per news_id — no per-season HTML round trip and no
+        // precomputed index. Seasons are matched by slug, so this works for series whose
+        // seasons share a news_id (ledi-bag) and for series with one news_id per season (druz).
         val otherSeasons = resolveOtherSeasons(doc, pageUrl)
         AppLogger.d("$name:AjaxSeasons", "Found ${otherSeasons.size} other seasons (current=$currentSeasonNum), total goal: ${otherSeasons.size + 1}")
 
@@ -134,11 +150,19 @@ class UakinoProvider(
             val seasonSemaphore = Semaphore(3) // Increase parallel limit for speed
             coroutineScope {
                 targetSeasons.filter { (sNum, _) -> allSeasons.none { it.number == sNum } }
-                    .mapIndexed { idx, (sNum, sUrl) ->
+                    .mapIndexed { idx, (sNum, newsIdOrUrl) ->
                         async(Dispatchers.IO) {
                             if (idx > 0) delay(Constants.SERIES_FETCH_STAGGER_MS * idx)
                             seasonSemaphore.withPermit {
-                                try { fetchSeasonEpisodes(sUrl, sNum) } catch (e: CancellationException) {
+                                try {
+                                    // A digit value is the news_id extracted from the season URL;
+                                    // anything else is a season URL that failed to parse (rare).
+                                    if (newsIdOrUrl.all { it.isDigit() }) {
+                                        fetchSeasonEpisodesByNewsId(newsIdOrUrl, sNum)
+                                    } else {
+                                        fetchSeasonEpisodes(newsIdOrUrl, sNum)
+                                    }
+                                } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {
                                     AppLogger.w("$name:AjaxSeasons", "Failed S$sNum: ${e.message}")

@@ -24,7 +24,7 @@ object DatabaseModule {
         return Room.databaseBuilder(context, AppDatabase::class.java, "ukrtv_db")
             .setQueryExecutor(Dispatchers.IO.asExecutor())
             .setTransactionExecutor(Dispatchers.IO.asExecutor())
-            .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+            .addMigrations(MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
             .build()
     }
 
@@ -51,6 +51,15 @@ object DatabaseModule {
 
     @Provides @Singleton
     fun provideSeriesStructureDao(database: AppDatabase): SeriesStructureDao = database.seriesStructureDao()
+
+    @Provides @Singleton
+    fun provideSeriesIndexDao(database: AppDatabase): SeriesIndexDao = database.seriesIndexDao()
+}
+
+private val MIGRATION_20_21 = object : Migration(20, 21) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `series_index` (`id` INTEGER NOT NULL, `indexJson` TEXT NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
+    }
 }
 
 private val MIGRATION_19_20 = object : Migration(19, 20) {

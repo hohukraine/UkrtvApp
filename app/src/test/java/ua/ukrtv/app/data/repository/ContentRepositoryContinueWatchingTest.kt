@@ -42,6 +42,7 @@ class ContentRepositoryContinueWatchingTest {
             streamResolver = mockk(relaxed = true),
             htmlCacheDao = mockk(relaxed = true),
             seriesStructureDao = mockk(relaxed = true),
+            seriesIndexRepository = mockk(relaxed = true),
             homeCacheRepository = mockk(relaxed = true),
             catalogRepository = mockk(relaxed = true),
             tmdbTrendsRepository = mockk(relaxed = true)
