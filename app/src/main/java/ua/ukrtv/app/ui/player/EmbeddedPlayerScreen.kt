@@ -354,7 +354,9 @@ fun EmbeddedPlayerScreen(
 
         if (showControls) {
             val pickerColumns = buildPickerColumns(uiState, player)
-            val pickerFocusedIndex = uiState.pickerFocusedIndex.coerceIn(0, pickerColumns.lastIndex)
+            val pickerFocusedIndex = if (pickerColumns.isNotEmpty()) {
+                uiState.pickerFocusedIndex.coerceIn(0, pickerColumns.lastIndex)
+            } else 0
             PlayerControlsOverlay(
                 visible = showControls,
                 title = title,
