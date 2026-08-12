@@ -19,7 +19,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +45,10 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.delay
 import ua.ukrtv.app.domain.model.StreamType
 import ua.ukrtv.app.player.EmbeddedPlayerFactory
+import ua.ukrtv.app.ui.player.PlayerControlsOverlay
+import ua.ukrtv.app.ui.player.PlayerPickerRow
+import ua.ukrtv.app.ui.player.SeekDirection
+import ua.ukrtv.app.ui.theme.BrandBlue
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.hasMediatekChipset
 
@@ -190,8 +197,75 @@ fun EmbeddedPlayerScreen(
     }
 
     var showPicker by remember { mutableStateOf(false) }
+    var showControls by remember { mutableStateOf(false) }
+    val playFocusRequester = remember { FocusRequester() }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+    var lastInteractionTime by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(showControls) {
+        if (showControls) {
+            lastInteractionTime = System.currentTimeMillis()
+            delay(150)
+            playFocusRequester.requestFocus()
+        }
+    }
+
+    LaunchedEffect(showControls) {
+        if (showControls) {
+            while (true) {
+                delay(1000)
+                if (System.currentTimeMillis() - lastInteractionTime >= 4000) {
+                    showControls = false
+                    break
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .onKeyEvent { event ->
+                val ke = event.nativeKeyEvent
+                when (ke.keyCode) {
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
+                            if (player.duration > 0) {
+                                player.seekTo(maxOf(0L, player.currentPosition - 10_000L))
+                            }
+                            showControls = true
+                            lastInteractionTime = System.currentTimeMillis()
+                            return@onKeyEvent true
+                        }
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
+                            if (player.duration > 0) {
+                                player.seekTo(minOf(player.duration, player.currentPosition + 10_000L))
+                            }
+                            showControls = true
+                            lastInteractionTime = System.currentTimeMillis()
+                            return@onKeyEvent true
+                        }
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                    android.view.KeyEvent.KEYCODE_ENTER -> {
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
+                        if (showControls) {
+                            showControls = false
+                        } else {
+                            showControls = true
+                            lastInteractionTime = System.currentTimeMillis()
+                        }
+                        true
+                    }
+                    else -> false
+                }
+            }
+    ) {
         key(surfaceType) {
             AndroidView(
                 factory = { ctx ->
@@ -277,11 +351,53 @@ fun EmbeddedPlayerScreen(
                 }
             )
         }
+
+        if (showControls) {
+            val pickerColumns = buildPickerColumns(uiState, player)
+            val pickerFocusedIndex = uiState.pickerFocusedIndex.coerceIn(0, pickerColumns.lastIndex)
+            PlayerControlsOverlay(
+                visible = showControls,
+                title = title,
+                isPlaying = player.isPlaying,
+                positionMs = player.currentPosition,
+                durationMs = player.duration,
+                bufferedPositionMs = player.bufferedPosition,
+                brandColor = BrandBlue,
+                hasNextEpisode = uiState.availableSeasons != null && viewModel.hasNextEpisode(),
+                pickerColumns = pickerColumns,
+                pickerFocusedIndex = pickerFocusedIndex,
+                onPlayPauseToggle = {
+                    if (player.isPlaying) player.pause() else player.play()
+                },
+                onSeekBackward = {
+                    if (player.duration > 0) player.seekTo(maxOf(0L, player.currentPosition - 10_000L))
+                },
+                onSeekForward = {
+                    if (player.duration > 0) player.seekTo(minOf(player.duration, player.currentPosition + 10_000L))
+                },
+                onNextEpisode = {
+                    viewModel.saveProgress(player.currentPosition, player.duration)
+                    viewModel.executePreparedNavigation()
+                },
+                onPickerColumnFocused = { viewModel.onPickerColumnFocused(it) },
+                onPickerValueChange = { direction ->
+                    val col = pickerColumns.getOrNull(pickerFocusedIndex) ?: return@PlayerControlsOverlay
+                    when (col.id) {
+                        "audio_track" -> cycleAudioTrack(player, direction)
+                        else -> viewModel.onPickerValueChange(direction)
+                    }
+                },
+                onPickerCommit = { viewModel.onPickerCommit() },
+                playFocusRequester = playFocusRequester
+            )
+        }
     }
 
     BackHandler {
         if (showPicker) {
             showPicker = false
+        } else if (showControls) {
+            showControls = false
         } else {
             viewModel.saveProgress(player.currentPosition, player.duration)
             onBack()
@@ -394,4 +510,45 @@ fun PickerOverlay(
 @dagger.hilt.InstallIn(SingletonComponent::class)
 interface EmbeddedPlayerEntryPoint {
     fun embeddedPlayerFactory(): EmbeddedPlayerFactory
+}
+
+private fun buildPickerColumns(
+    uiState: PlayerState,
+    player: Player
+): List<PickerColumn> {
+    val cols = uiState.pickerColumns.toMutableList()
+
+    val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+    val selectedAudio = audioGroups.firstOrNull { group ->
+        (0 until group.length).any { group.isTrackSelected(it) }
+    }
+
+    if (audioGroups.size > 1 && selectedAudio != null) {
+        val trackIndex = (0 until selectedAudio.length).firstOrNull { selectedAudio.isTrackSelected(it) } ?: 0
+        val track = selectedAudio.getTrackFormat(trackIndex)
+        val label = buildString {
+            track.language?.let { append(it.uppercase()) }
+            if (track.channelCount > 0) append(" ${track.channelCount}.0")
+        }
+        cols.add(PickerColumn(id = "audio_track", label = "АУДІО", value = label))
+    }
+
+    return cols
+}
+
+private fun cycleAudioTrack(player: Player, direction: Int) {
+    val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+    if (audioGroups.size <= 1) return
+
+    val currentGroup = audioGroups.firstOrNull { group ->
+        (0 until group.length).any { group.isTrackSelected(it) }
+    } ?: audioGroups.first()
+
+    val currentIndex = (0 until currentGroup.length).firstOrNull { currentGroup.isTrackSelected(it) } ?: 0
+    val newIndex = (currentIndex + direction).coerceIn(0, currentGroup.length - 1)
+
+    player.trackSelectionParameters = player.trackSelectionParameters
+        .buildUpon()
+        .setOverrideForType(TrackSelectionOverride(currentGroup.mediaTrackGroup, newIndex))
+        .build()
 }

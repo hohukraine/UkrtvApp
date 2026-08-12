@@ -712,6 +712,99 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun initPickerColumns() {
+        pendingSeason = this.season
+        pendingEpisode = this.episode
+        pendingVoiceover = this.voiceover
+        rebuildPickerColumns()
+    }
+
+    fun rebuildPickerColumns() {
+        val cols = mutableListOf<PickerColumn>()
+
+        val seasons = _state.value.availableSeasons
+        if (seasons != null && seasons.isNotEmpty()) {
+            val allEpisodesAreOne = seasons.all { season ->
+                season.episodes.all { it.number <= 1 }
+            }
+
+            if (pendingSeason == null) pendingSeason = this.season ?: seasons.first().number
+            val sNum = pendingSeason!!
+            val currentSeasonData = seasons.find { it.number == sNum } ?: seasons.first()
+            val eps = currentSeasonData.episodes.sortedBy { it.number }
+
+            if (pendingEpisode == null) pendingEpisode = this.episode ?: eps.firstOrNull()?.number ?: 1
+            val eNum = pendingEpisode!!
+
+            if (!allEpisodesAreOne) {
+                cols.add(PickerColumn(
+                    id = "season",
+                    label = "СЕЗОН",
+                    value = sNum.toString(),
+                    needsCommit = true
+                ))
+
+                cols.add(PickerColumn(
+                    id = "episode",
+                    label = "СЕРІЯ",
+                    value = eNum.toString(),
+                    needsCommit = true
+                ))
+            }
+        }
+
+        _state.update { it.copy(pickerColumns = cols, pickerFocusedIndex = 0) }
+    }
+
+    fun onPickerColumnFocused(index: Int) {
+        _state.update { it.copy(pickerFocusedIndex = index) }
+    }
+
+    fun onPickerValueChange(direction: Int) {
+        val idx = _state.value.pickerFocusedIndex
+        val col = _state.value.pickerColumns.getOrNull(idx) ?: return
+        when (col.id) {
+            "season" -> changePendingSeason(direction)
+            "episode" -> changePendingEpisode(direction)
+            "voiceover" -> changePendingVoiceover(direction)
+        }
+    }
+
+    fun onPickerCommit() {
+        val idx = _state.value.pickerFocusedIndex
+        val col = _state.value.pickerColumns.getOrNull(idx) ?: return
+        if (!col.needsCommit) return
+
+        val s = pendingSeason ?: this.season ?: return
+        val e = pendingEpisode ?: this.episode ?: return
+        onEpisodeSelected(s, e, pendingVoiceover)
+    }
+
+    private fun changePendingSeason(direction: Int) {
+        val seasons = _state.value.availableSeasons ?: return
+        val current = pendingSeason ?: this.season ?: seasons.first().number
+        val newIdx = (seasons.indexOfFirst { it.number == current } + direction).coerceIn(0, seasons.lastIndex)
+        val newSeasonData = seasons[newIdx]
+        pendingSeason = newSeasonData.number
+        pendingEpisode = newSeasonData.episodes.firstOrNull()?.number ?: 1
+        pendingVoiceover = null
+        rebuildPickerColumns()
+    }
+
+    private fun changePendingEpisode(direction: Int) {
+        val seasons = _state.value.availableSeasons ?: return
+        val sNum = pendingSeason ?: this.season ?: seasons.first().number
+        val currentSeasonData = seasons.find { it.number == sNum } ?: seasons.first()
+        val eps = currentSeasonData.episodes.sortedBy { it.number }
+        val current = pendingEpisode ?: this.episode ?: eps.firstOrNull()?.number ?: 1
+        val newIdx = (eps.indexOfFirst { it.number == current } + direction).coerceIn(0, eps.lastIndex)
+        pendingEpisode = eps[newIdx].number
+        rebuildPickerColumns()
+    }
+
+    private fun changePendingVoiceover(direction: Int) {
+    }
+
     override fun onCleared() {
         releaseEngine()
         super.onCleared()
