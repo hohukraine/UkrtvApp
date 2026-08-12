@@ -180,18 +180,6 @@ fun PlayerControlsOverlay(
 
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { -it }),
-            exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { -it })
-        ) {
-            PlayerControlsTitle(
-                brandColor = brandColor,
-                title = title,
-                modifier = Modifier.align(Alignment.TopStart)
-            )
-        }
-
-        AnimatedVisibility(
-            visible = visible,
             enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { it }),
             exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { it }),
             modifier = Modifier.align(Alignment.BottomCenter)
