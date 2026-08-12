@@ -22,12 +22,15 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,6 +93,8 @@ fun PlayerControlsOverlay(
     onPickerColumnFocused: (Int) -> Unit,
     onPickerValueChange: (Int) -> Unit,
     onPickerCommit: () -> Unit,
+    onBack: () -> Unit,
+    onTogglePicker: () -> Unit,
     playFocusRequester: FocusRequester = FocusRequester(),
     modifier: Modifier = Modifier
 ) {
@@ -114,6 +119,29 @@ fun PlayerControlsOverlay(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
+            }
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                modifier = Modifier.weight(1f)
+            )
+            IconButton(onClick = onTogglePicker) {
+                Icon(Icons.Default.Settings, contentDescription = "Налаштування", tint = Color.White)
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()

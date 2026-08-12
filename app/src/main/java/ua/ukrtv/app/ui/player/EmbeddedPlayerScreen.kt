@@ -313,32 +313,7 @@ fun EmbeddedPlayerScreen(
             }
         }
 
-        // Top bar: back + title (left), picker button (right)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = {
-                viewModel.saveProgress(player.currentPosition, player.duration)
-                onBack()
-            }) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
-            }
-            Text(
-                text = title,
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                modifier = Modifier.weight(1f)
-            )
-            IconButton(onClick = { showPicker = !showPicker }) {
-                Icon(Icons.Default.Settings, contentDescription = "Налаштування", tint = Color.White)
-            }
-        }
+        // Top bar moved into PlayerControlsOverlay
 
         if (showPicker) {
             PickerOverlay(
@@ -390,6 +365,11 @@ fun EmbeddedPlayerScreen(
                     }
                 },
                 onPickerCommit = { viewModel.onPickerCommit() },
+                onBack = {
+                    viewModel.saveProgress(player.currentPosition, player.duration)
+                    onBack()
+                },
+                onTogglePicker = { showPicker = !showPicker },
                 playFocusRequester = playFocusRequester
             )
         }

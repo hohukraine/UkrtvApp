@@ -173,6 +173,7 @@ class PlayerViewModel @Inject constructor(
                     withContext(Dispatchers.Main) {
                         seasons = restored
                         updateNavigationState()
+                        rebuildPickerColumns()
                     }
                 }
             }
@@ -189,6 +190,7 @@ class PlayerViewModel @Inject constructor(
         inferSeasonEpisodeFromUrl(pageUrl)
         
         updateNavigationState()
+        initPickerColumns()
         loadStream(pageUrl, if (this.season != null && this.episode != null) "S${this.season} E${this.episode}" else "", null)
     }
 
@@ -286,6 +288,7 @@ class PlayerViewModel @Inject constructor(
                 if (newSeasons != null && newSeasons.isNotEmpty()) {
                     this@PlayerViewModel.seasons = newSeasons
                     _state.update { it.copy(availableSeasons = newSeasons, deepResolutionPending = false) }
+                    rebuildPickerColumns()
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -329,6 +332,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun updateNavigationState() {
         _state.update { it.copy(currentSeason = this.season, currentEpisode = this.episode, currentVoiceover = this.voiceover, availableSeasons = this.seasons) }
+        rebuildPickerColumns()
     }
 
     private suspend fun getSavedPosition(): Long = withContext(Dispatchers.IO) { watchProgressRepository.getProgress(contentId, episodeId)?.positionMs ?: 0L }
