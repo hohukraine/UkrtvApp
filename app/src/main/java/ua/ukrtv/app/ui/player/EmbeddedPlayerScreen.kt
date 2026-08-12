@@ -9,6 +9,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Settings
@@ -395,6 +397,21 @@ fun PickerOverlay(
     onDismiss: () -> Unit,
     onEpisodeSelected: (Int, Int, String?) -> Unit
 ) {
+    var selectedAudioGroup by remember { mutableStateOf<androidx.media3.common.Tracks.Group?>(null) }
+    var selectedAudioIndex by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(player.currentTracks) {
+        val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+        val sel = groups.firstOrNull { g -> (0 until g.length).any { g.isTrackSelected(it) } }
+        if (sel != null) {
+            selectedAudioGroup = sel
+            selectedAudioIndex = (0 until sel.length).firstOrNull { sel.isTrackSelected(it) } ?: 0
+        } else if (groups.isNotEmpty()) {
+            selectedAudioGroup = groups.first()
+            selectedAudioIndex = 0
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -410,20 +427,35 @@ fun PickerOverlay(
                 .clickable { }
                 .padding(16.dp)
         ) {
-            Text("Налаштування", color = Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Налаштування", color = Color.White, fontWeight = FontWeight.Bold)
+                Box(
+                    modifier = Modifier
+                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                        .clickable { onDismiss() }
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) {
+                    Text("✕", color = Color.White, fontSize = 14.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Audio tracks
-            Text("Аудіо", color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
-            val tracks = player.currentTracks
-            LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                tracks.groups.asSequence()
-                    .filter { it.type == C.TRACK_TYPE_AUDIO }
-                    .forEach { group ->
+            val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
+            if (audioGroups.isNotEmpty()) {
+                Text("Аудіо", color = Color(0xFF999999), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
+                LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                    audioGroups.forEachIndexed { groupIndex, group ->
                         items(group.length) { trackIndex ->
                             val track = group.getTrackFormat(trackIndex)
                             val isSelected = group.isTrackSelected(trackIndex)
                             val label = buildString {
-                                track.language?.let { append(it) }
+                                track.language?.let { append(it.uppercase()) }
                                 track.label?.let {
                                     if (isNotEmpty()) append(" · ")
                                     append(it)
@@ -434,52 +466,90 @@ fun PickerOverlay(
                                 }
                                 if (isBlank()) append("Доріжка ${trackIndex + 1}")
                             }
-                            Text(
-                                text = label,
-                                color = if (isSelected) Color(0xFF8AB4F8) else Color.White,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            val isFocused = selectedAudioGroup == group && selectedAudioIndex == trackIndex
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .background(
+                                        when {
+                                            isSelected -> BrandBlue.copy(alpha = 0.3f)
+                                            isFocused -> Color.White.copy(alpha = 0.1f)
+                                            else -> Color.Transparent
+                                        },
+                                        RoundedCornerShape(8.dp)
+                                    )
                                     .clickable {
+                                        selectedAudioGroup = group
+                                        selectedAudioIndex = trackIndex
                                         player.trackSelectionParameters = player.trackSelectionParameters
                                             .buildUpon()
-                                            .setOverrideForType(
-                                                TrackSelectionOverride(group.mediaTrackGroup, trackIndex)
-                                            )
+                                            .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
                                             .build()
                                     }
-                                    .padding(8.dp)
-                            )
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) BrandBlue else Color.White,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp)
+                                                .background(BrandBlue, CircleShape)
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
+                }
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Seasons/Episodes if available
             if (uiState.availableSeasons != null) {
-                Text("Серії", color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
+                Text("Серії", color = Color(0xFF999999), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     uiState.availableSeasons.forEach { season ->
-                        item {
+                        stickyHeader {
                             Text(
                                 text = "Сезон ${season.number}",
                                 color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 12.sp,
                                 modifier = Modifier.padding(vertical = 4.dp)
                             )
                         }
                         items(season.episodes) { episode ->
                             val isCurrent = uiState.currentSeason == season.number && uiState.currentEpisode == episode.number
-                            Text(
-                                text = "Серія ${episode.number}${episode.title?.let { ": $it" } ?: ""}",
-                                color = if (isCurrent) Color(0xFF8AB4F8) else Color.White,
-                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .background(
+                                        when {
+                                            isCurrent -> BrandBlue.copy(alpha = 0.2f)
+                                            else -> Color.Transparent
+                                        },
+                                        RoundedCornerShape(8.dp)
+                                    )
                                     .clickable {
                                         onEpisodeSelected(season.number, episode.number, null)
                                         onDismiss()
                                     }
-                                    .padding(8.dp)
-                            )
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Text(
+                                    text = "Серія ${episode.number}${episode.title?.let { ": $it" } ?: ""}",
+                                    color = if (isCurrent) BrandBlue else Color.White,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                                    fontSize = 14.sp
+                                )
+                            }
                         }
                     }
                 }
