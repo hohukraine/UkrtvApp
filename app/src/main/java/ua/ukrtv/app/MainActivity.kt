@@ -25,6 +25,9 @@ import ua.ukrtv.app.ui.detail.DetailScreen
 import ua.ukrtv.app.ui.home.HomeScreen
 import ua.ukrtv.app.ui.search.SearchScreen
 import ua.ukrtv.app.ui.player.ExternalPlayerScreen
+import ua.ukrtv.app.ui.player.EmbeddedPlayerScreen
+import ua.ukrtv.app.ui.player.PlayerViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import ua.ukrtv.app.ui.settings.SettingsScreen
 import ua.ukrtv.app.ui.top200.Top200Screen
@@ -299,17 +302,32 @@ fun UkrtvTVApp(formFactor: FormFactor, onHomeContentReady: () -> Unit = {}) {
                 }
                 composable<Screen.Player> { backStackEntry ->
                     val player: Screen.Player = backStackEntry.toRoute()
+                    val viewModel: PlayerViewModel = hiltViewModel()
+                    val playerPkg by viewModel.playerPreferences.externalPlayerPackage.collectAsStateWithLifecycle()
 
-                    ExternalPlayerScreen(
-                        url = player.url,
-                        contentId = player.id,
-                        title = player.title,
-                        poster = player.poster,
-                        season = player.season,
-                        episode = player.episode,
-                        onBack = { navController.popBackStack() },
-                        viewModel = hiltViewModel()
-                    )
+                    if (playerPkg == "internal") {
+                        EmbeddedPlayerScreen(
+                            contentId = player.id,
+                            title = player.title,
+                            url = player.url,
+                            poster = player.poster,
+                            season = player.season,
+                            episode = player.episode,
+                            onBack = { navController.popBackStack() },
+                            viewModel = viewModel
+                        )
+                    } else {
+                        ExternalPlayerScreen(
+                            url = player.url,
+                            contentId = player.id,
+                            title = player.title,
+                            poster = player.poster,
+                            season = player.season,
+                            episode = player.episode,
+                            onBack = { navController.popBackStack() },
+                            viewModel = viewModel
+                        )
+                    }
                 }
             }
         }

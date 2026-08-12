@@ -18,8 +18,8 @@ class PlayerPreferences @Inject constructor(
     val externalPlayerPackage: StateFlow<String> = _externalPlayerPackage.asStateFlow()
 
     private fun readExternalPlayerPackage(): String {
-        return prefs.getString(KEY_EXTERNAL_PLAYER_PACKAGE, "org.videolan.vlc")
-            ?: "org.videolan.vlc"
+        return prefs.getString(KEY_EXTERNAL_PLAYER_PACKAGE, "internal")
+            ?: "internal"
     }
 
     fun setExternalPlayerPackage(packageName: String) {

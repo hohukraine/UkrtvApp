@@ -108,7 +108,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun refreshInstalledPlayers() {
-        _installedPlayers.value = externalPlayerLauncher.detectInstalledPlayers()
+        val internal = ExternalPlayerInfo(
+            packageName = "internal",
+            label = "Вбудований плеєр (BETA)",
+            supportsHeaders = true,
+            supportsSubtitles = true,
+            supportsResult = true
+        )
+        _installedPlayers.value = listOf(internal) + externalPlayerLauncher.detectInstalledPlayers()
     }
 
     fun setPerformanceProfile(profile: PerformanceProfile) {
