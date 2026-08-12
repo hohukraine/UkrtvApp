@@ -252,6 +252,32 @@ class PlayerViewModelTest {
     }
 
     @Test
+    fun `deep resolution failure does not crash the viewmodel`() = runTest {
+        val vm = createViewModel()
+        setField(vm, "pageUrl", "https://test/series")
+
+        val rawResolver = getField(vm, "streamResolver") as StreamResolver
+        coEvery { rawResolver.resolve("https://test/series", any(), any(), any(), any(), true) } throws
+            java.io.IOException("Simulated network failure")
+
+        val method = PlayerViewModel::class.java.getDeclaredMethod("launchDeepResolution")
+        method.isAccessible = true
+        method.invoke(vm)
+
+        kotlinx.coroutines.runBlocking {
+            vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.children?.forEach { it.join() }
+        }
+
+        val completedField = PlayerViewModel::class.java.getDeclaredField("_deepResolutionCompleted")
+        completedField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val completedFlow = completedField.get(vm) as MutableStateFlow<Boolean>
+        assertTrue("deepResolutionCompleted must be signalled even when resolution throws", completedFlow.value)
+
+        kotlinx.coroutines.runBlocking { vm.viewModelScope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin() }
+    }
+
+    @Test
     fun `finished playback on last episode does not advance`() = runTest {
         val vm = createViewModel()
         setField(vm, "seasons", listOf(season(1, ep(1)), season(2, ep(1), ep(2))))

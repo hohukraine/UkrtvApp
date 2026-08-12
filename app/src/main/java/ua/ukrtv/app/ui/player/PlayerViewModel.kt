@@ -287,6 +287,13 @@ class PlayerViewModel @Inject constructor(
                     this@PlayerViewModel.seasons = newSeasons
                     _state.update { it.copy(availableSeasons = newSeasons, deepResolutionPending = false) }
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Deep resolution is best-effort (episode list enrichment). Never let a network
+                // or provider exception escape the viewModelScope — it would crash the app right
+                // during the auto-advance to the next episode.
+                AppLogger.w("ExternalPlayer", "Deep resolution failed: ${e.message}")
             } finally {
                 _state.update { it.copy(deepResolutionPending = false) }
                 _deepResolutionCompleted.value = true
