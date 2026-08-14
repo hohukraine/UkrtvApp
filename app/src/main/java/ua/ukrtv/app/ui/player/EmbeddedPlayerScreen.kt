@@ -83,10 +83,7 @@ fun EmbeddedPlayerScreen(
 
     val player = remember { playerFactory.createPlayer() }
 
-    var surfaceType by remember { mutableIntStateOf(
-        if (hasMediatekChipset()) SURFACE_TYPE_TEXTURE_VIEW
-        else SURFACE_TYPE_SURFACE_VIEW
-    ) }
+    var surfaceType by remember { mutableIntStateOf(SURFACE_TYPE_SURFACE_VIEW) }
 
     val window = (context as? android.app.Activity)?.window
     DisposableEffect(Unit) {
