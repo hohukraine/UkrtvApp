@@ -49,38 +49,38 @@ class EmbeddedPlayerFactory @Inject constructor(
             .build()
 
         val renderersFactory = DefaultRenderersFactory(context)
-            .setMediaCodecSelector(hardwarePrioritySelector)
             .setEnableDecoderFallback(true)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setMediaCodecSelector(hardwarePrioritySelector)
 
         val bandwidthMeter = DefaultBandwidthMeter.Builder(context)
             .setInitialBitrateEstimate(
                 when (deviceClass) {
-                    ua.ukrtv.app.util.DeviceClass.LOW -> 10_000_000L
-                    ua.ukrtv.app.util.DeviceClass.MID -> 25_000_000L
-                    ua.ukrtv.app.util.DeviceClass.HIGH -> 40_000_000L
+                    ua.ukrtv.app.util.DeviceClass.LOW -> 20_000_000L
+                    ua.ukrtv.app.util.DeviceClass.MID -> 50_000_000L
+                    ua.ukrtv.app.util.DeviceClass.HIGH -> 100_000_000L
                 }
             )
             .build()
 
         val trackSelector = DefaultTrackSelector(context, AdaptiveTrackSelection.Factory(
-            /* minDurationForQualityIncreaseMs= */ 1000,
+            /* minDurationForQualityIncreaseMs= */ 1500,
             /* maxDurationForQualityDecreaseMs= */ 10000,
             /* minDurationToRetainAfterDiscardMs= */ 25000,
-            /* bandwidthFraction= */ 0.75f
+            /* bandwidthFraction= */ 0.85f
         ))
         trackSelector.setParameters(
             trackSelector.buildUponParameters()
                 .setMaxVideoSize(buffers.maxVideoSize, buffers.maxVideoSize)
                 .setMaxVideoBitrate(buffers.maxVideoBitrate)
+                .setForceHighestSupportedBitrate(true)
+                .setExceedVideoConstraintsIfNecessary(true)
+                .setExceedRendererCapabilitiesIfNecessary(true)
                 .setTunnelingEnabled(false)
+                .setAllowVideoNonSeamlessAdaptiveness(true)
+                .setAllowVideoMixedMimeTypeAdaptiveness(true)
                 .setPreferredAudioLanguage("ukr")
                 .also { applyThermalConstraints(it, thermalLevel) }
-                .apply {
-                    if (isMediatek) {
-                        setAllowVideoMixedMimeTypeAdaptiveness(false)
-                    }
-                    setExceedVideoConstraintsIfNecessary(true)
-                }
                 .build()
         )
 
@@ -137,27 +137,29 @@ class EmbeddedPlayerFactory @Inject constructor(
         val all = MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecureDecoder, tunneling)
 
         if (mimeType.startsWith("video/")) {
-            all.filter { info ->
-                val name = info.name.lowercase()
-                // OMX.MS.AVC.Decoder is a known problematic software-ish decoder on many MTK platforms
-                // that fails to render to SurfaceView properly (Black Screen).
-                !(name.contains("omx.ms.") && name.contains("avc"))
-            }.sortedByDescending { info ->
+            all.sortedByDescending { info ->
                 val name = info.name.lowercase()
                 var score = 0
                 
-                // Prioritize Hardware Vendors
-                val isVendor = name.contains("mtk") || name.contains("mediatek") || 
-                               name.contains("qcom") || name.contains("samsung") || 
-                               name.contains("exynos") || name.contains("hisi")
+                // Prioritize Hardware Vendors (MTK, QCOM, etc.)
+                if (name.contains("mtk") || name.contains("mediatek") || 
+                    name.contains("qcom") || name.contains("samsung") || 
+                    name.contains("exynos") || name.contains("amlogic") ||
+                    name.contains("hisi") || name.contains("broadcom")) {
+                    score += 1000
+                }
                 
-                if (isVendor) score += 100
+                // Codec2 is generally better on modern Android
+                if (name.startsWith("c2.")) score += 500
                 
-                // Prioritize modern Codec2 over legacy OMX
-                if (name.startsWith("c2.")) score += 50
+                // Prefer modern codecs
+                if (name.contains("hevc") || name.contains("h265") || name.contains("vp9")) score += 100
                 
-                // Software fallbacks should be last
-                if (name.contains("google") || name.contains("android")) score -= 200
+                // OMX.MS is usually a hardware wrapper on MTK, it's okay but give it a slight penalty relative to C2
+                if (name.contains("omx.ms.")) score -= 100
+                
+                // Pure software decoders should be the absolute last resort
+                if (name.contains("google") || name.contains("android") || name.contains("sw")) score -= 5000
                 
                 score
             }

@@ -1,6 +1,10 @@
 package ua.ukrtv.app.ui.player
 
+import android.graphics.PixelFormat
 import android.view.LayoutInflater
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import android.view.TextureView
 import android.view.WindowManager
 import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
@@ -88,8 +92,14 @@ fun EmbeddedPlayerScreen(
     val window = (context as? android.app.Activity)?.window
     DisposableEffect(Unit) {
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val originalFormat = window?.attributes?.format
+        window?.setFormat(PixelFormat.TRANSLUCENT)
+        
         onDispose {
             window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (originalFormat != null) {
+                window.setFormat(originalFormat)
+            }
             player.release()
         }
     }
@@ -152,10 +162,12 @@ fun EmbeddedPlayerScreen(
         onDispose { player.removeListener(playerListener) }
     }
 
+    val currentUrl = remember { mutableStateOf("") }
     LaunchedEffect(uiState.status) {
         autoAdvancing = false
         val status = uiState.status
-        if (status is PlayerStatus.Ready) {
+        if (status is PlayerStatus.Ready && status.url != currentUrl.value) {
+            currentUrl.value = status.url
             val mimeType = when (status.streamType) {
                 StreamType.HLS -> MimeTypes.APPLICATION_M3U8
                 StreamType.MPD -> MimeTypes.APPLICATION_MPD
@@ -170,6 +182,7 @@ fun EmbeddedPlayerScreen(
                 .apply { if (mimeType != null) setMimeType(mimeType) }
                 .build()
             player.setMediaItem(mediaItem)
+            player.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
             player.prepare()
             if (status.positionMs > 0) {
                 player.seekTo(status.positionMs)
@@ -355,7 +368,6 @@ fun EmbeddedPlayerScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black)
             .focusRequester(rootFocusRequester)
             .focusable()
             .onKeyEvent { event ->
@@ -437,24 +449,35 @@ fun EmbeddedPlayerScreen(
                 }
             }
     ) {
-        key(surfaceType) {
-            AndroidView(
-                factory = { ctx ->
-                    val layoutId = if (surfaceType == SURFACE_TYPE_TEXTURE_VIEW) {
-                        ua.ukrtv.app.R.layout.player_view_texture
-                    } else {
-                        ua.ukrtv.app.R.layout.player_view_surface
+    key(surfaceType) {
+        AndroidView(
+            factory = { ctx ->
+                val layoutId = if (surfaceType == SURFACE_TYPE_TEXTURE_VIEW) {
+                    ua.ukrtv.app.R.layout.player_view_texture
+                } else {
+                    ua.ukrtv.app.R.layout.player_view_surface
+                }
+                val view = LayoutInflater.from(ctx).inflate(layoutId, null) as PlayerView
+                view.player = player
+                view.useController = false
+                view.setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+                view.setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                
+                if (surfaceType == SURFACE_TYPE_SURFACE_VIEW) {
+                    (view.videoSurfaceView as? SurfaceView)?.apply {
+                        setZOrderMediaOverlay(true)
                     }
-                    (LayoutInflater.from(ctx).inflate(layoutId, null) as PlayerView).apply {
-                        this.player = player
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-                update = { view ->
+                }
+                view
+            },
+            modifier = Modifier.fillMaxSize(),
+            update = { view ->
+                if (view.player != player) {
                     view.player = player
                 }
-            )
-        }
+            }
+        )
+    }
 
         PlayerSeekIndicator(
             brandColor = BrandBlue,
@@ -565,6 +588,7 @@ private fun buildPickerColumns(
     return cols
 }
 
+@OptIn(UnstableApi::class)
 private fun buildPlayerStats(
     player: ExoPlayer,
     videoDecoder: String?,

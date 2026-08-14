@@ -104,52 +104,60 @@ fun PlayerControlsOverlay(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        ControlsTitle(
-            brandColor = brandColor,
-            title = title,
-            season = season,
-            episode = episode,
-            currentVoiceover = currentVoiceover,
-            modifier = Modifier.align(Alignment.TopStart)
-        )
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(300)),
+            exit = fadeOut(tween(300))
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .align(Alignment.TopCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Scrim, Color.Transparent)
+                            )
+                        )
+                )
 
-        if (stats.isNotBlank()) {
-            Text(
-                text = stats,
-                color = OnSurfaceVariant,
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 32.dp, end = 64.dp)
-                    .widthIn(max = 480.dp)
-            )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .align(Alignment.BottomCenter)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, Scrim)
+                            )
+                        )
+                )
+                
+                ControlsTitle(
+                    brandColor = brandColor,
+                    title = title,
+                    season = season,
+                    episode = episode,
+                    currentVoiceover = currentVoiceover,
+                    modifier = Modifier.align(Alignment.TopStart)
+                )
+
+                if (stats.isNotBlank()) {
+                    Text(
+                        text = stats,
+                        color = OnSurfaceVariant,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 32.dp, end = 64.dp)
+                            .widthIn(max = 480.dp)
+                    )
+                }
+            }
         }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(80.dp)
-                .align(Alignment.TopCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Scrim, Color.Transparent)
-                    )
-                )
-        )
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(140.dp)
-                .align(Alignment.BottomCenter)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color.Transparent, Scrim)
-                    )
-                )
-        )
 
         AnimatedVisibility(
             visible = visible,

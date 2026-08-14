@@ -1,5 +1,6 @@
 package ua.ukrtv.app
 
+import androidx.compose.foundation.background
 import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -54,6 +55,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         window.decorView.keepScreenOn = true
+        window.setBackgroundDrawable(null)
         super.onCreate(savedInstanceState)
 
         var isReady by mutableStateOf(false)
@@ -116,7 +118,7 @@ class MainActivity : ComponentActivity() {
                     forceDismiss = true
                 }
 
-                Box(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
                     if (showApp) {
                         UkrtvTVApp(formFactor, onHomeContentReady = { homeReady = true })
                     }
@@ -188,9 +190,8 @@ fun UkrtvTVApp(formFactor: FormFactor, onHomeContentReady: () -> Unit = {}) {
         { navController.navigate(Screen.Search()) { launchSingleTop = true } }
     }
 
-    Surface(
+    Box(
         modifier = Modifier.fillMaxSize(),
-        colors = SurfaceDefaults.colors(containerColor = Color.Transparent)
     ) {
         SharedTransitionLayout {
             NavHost(
