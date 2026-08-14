@@ -137,26 +137,29 @@ class EmbeddedPlayerFactory @Inject constructor(
         val all = MediaCodecSelector.DEFAULT.getDecoderInfos(mimeType, requiresSecureDecoder, tunneling)
 
         if (mimeType.startsWith("video/")) {
-            val filtered = all.filter { info ->
+            all.filter { info ->
                 val name = info.name.lowercase()
-                val passesHealth = !(name.contains("omx.ms.") && name.contains("avc") && !isMediatek)
-                passesHealth
-            }
-
-            if (filtered.isNotEmpty()) {
-                filtered.sortedByDescending { info ->
-                    val name = info.name.lowercase()
-                    val codecType = when {
-                        name.contains("hevc") || name.contains("h265") -> 10
-                        name.contains("vp9") -> 9
-                        name.contains("avc") || name.contains("h264") -> 8
-                        else -> 0
-                    }
-                    val omxBonus = if (name.contains("omx.")) 1 else 0
-                    codecType + omxBonus
-                }
-            } else {
-                all
+                // OMX.MS.AVC.Decoder is a known problematic software-ish decoder on many MTK platforms
+                // that fails to render to SurfaceView properly (Black Screen).
+                !(name.contains("omx.ms.") && name.contains("avc"))
+            }.sortedByDescending { info ->
+                val name = info.name.lowercase()
+                var score = 0
+                
+                // Prioritize Hardware Vendors
+                val isVendor = name.contains("mtk") || name.contains("mediatek") || 
+                               name.contains("qcom") || name.contains("samsung") || 
+                               name.contains("exynos") || name.contains("hisi")
+                
+                if (isVendor) score += 100
+                
+                // Prioritize modern Codec2 over legacy OMX
+                if (name.startsWith("c2.")) score += 50
+                
+                // Software fallbacks should be last
+                if (name.contains("google") || name.contains("android")) score -= 200
+                
+                score
             }
         } else {
             all
