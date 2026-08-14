@@ -20,25 +20,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,7 +52,6 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Surface
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
-import kotlinx.coroutines.delay
 import ua.ukrtv.app.domain.model.Episode
 import ua.ukrtv.app.ui.theme.BrandBlue
 import ua.ukrtv.app.ui.theme.OnSurface
@@ -69,13 +63,15 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 
-enum class SeekDirection { Forward, Backward }
-
 @OptIn(ExperimentalTvMaterial3Api::class)
 @Composable
 fun PlayerControlsOverlay(
     visible: Boolean,
     title: String,
+    season: Int? = null,
+    episode: Int? = null,
+    currentVoiceover: String? = null,
+    stats: String = "",
     isPlaying: Boolean,
     positionMs: Long,
     durationMs: Long,
@@ -93,8 +89,6 @@ fun PlayerControlsOverlay(
     onPickerColumnFocused: (Int) -> Unit,
     onPickerValueChange: (Int) -> Unit,
     onPickerCommit: () -> Unit,
-    onBack: () -> Unit,
-    onTogglePicker: () -> Unit,
     playFocusRequester: FocusRequester = FocusRequester(),
     modifier: Modifier = Modifier
 ) {
@@ -109,37 +103,28 @@ fun PlayerControlsOverlay(
         }
     }
 
-    var seekDirection by remember { mutableStateOf<SeekDirection?>(null) }
-
-    LaunchedEffect(positionMs) {
-        if (seekDirection != null) {
-            delay(600)
-            seekDirection = null
-        }
-    }
-
     Box(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(Color.Black.copy(alpha = 0.5f))
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад", tint = Color.White)
-            }
+        ControlsTitle(
+            brandColor = brandColor,
+            title = title,
+            season = season,
+            episode = episode,
+            currentVoiceover = currentVoiceover,
+            modifier = Modifier.align(Alignment.TopStart)
+        )
+
+        if (stats.isNotBlank()) {
             Text(
-                text = title,
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
+                text = stats,
+                color = OnSurfaceVariant,
+                fontSize = 12.sp,
                 maxLines = 1,
-                modifier = Modifier.weight(1f)
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 32.dp, end = 64.dp)
+                    .widthIn(max = 480.dp)
             )
-            IconButton(onClick = onTogglePicker) {
-                Icon(Icons.Default.Settings, contentDescription = "Налаштування", tint = Color.White)
-            }
         }
 
         Box(
@@ -168,18 +153,6 @@ fun PlayerControlsOverlay(
 
         AnimatedVisibility(
             visible = visible,
-            enter = fadeIn(tween(300, easing = LinearEasing)),
-            exit = fadeOut(tween(300, easing = LinearEasing))
-        ) {
-            SeekIndicator(
-                brandColor = brandColor,
-                direction = seekDirection,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        }
-
-        AnimatedVisibility(
-            visible = visible,
             enter = fadeIn(tween(300, easing = LinearEasing)) + slideInVertically(tween(300, easing = LinearEasing), initialOffsetY = { it }),
             exit = fadeOut(tween(300, easing = LinearEasing)) + slideOutVertically(tween(300, easing = LinearEasing), targetOffsetY = { it }),
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -197,8 +170,8 @@ fun PlayerControlsOverlay(
                 onNextEpisode = onNextEpisode,
                 playFocusRequester = playFocusRequester,
                 onPlayPauseToggle = onPlayPauseToggle,
-                onSeekBackward = { onSeekBackward(); seekDirection = SeekDirection.Backward },
-                onSeekForward = { onSeekForward(); seekDirection = SeekDirection.Forward },
+                onSeekBackward = onSeekBackward,
+                onSeekForward = onSeekForward,
                 pickerColumns = pickerColumns,
                 pickerFocusedIndex = pickerFocusedIndex,
                 onPickerColumnFocused = onPickerColumnFocused,
@@ -210,21 +183,71 @@ fun PlayerControlsOverlay(
 }
 
 @Composable
-private fun PlayerControlsTitle(
+private fun ControlsTitle(
     brandColor: Color,
     title: String,
+    season: Int?,
+    episode: Int?,
+    currentVoiceover: String?,
     modifier: Modifier = Modifier
 ) {
-    Text(
-        text = title,
-        color = OnSurface,
-        fontSize = 18.sp,
-        fontWeight = FontWeight.Light,
-        letterSpacing = 0.5.sp,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
+    Column(
         modifier = modifier.padding(start = 64.dp, top = 28.dp)
+    ) {
+        Text(
+            text = title,
+            color = OnSurface,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Light,
+            letterSpacing = 0.5.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (season != null && episode != null || !currentVoiceover.isNullOrEmpty()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                if (season != null && episode != null) {
+                    SeasonEpisodeBadge(season = season, episode = episode, brandColor = brandColor)
+                }
+                if (!currentVoiceover.isNullOrEmpty()) {
+                    VoiceoverBadge(voiceover = currentVoiceover, brandColor = brandColor)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SeasonEpisodeBadge(season: Int, episode: Int, brandColor: Color) {
+    Text(
+        text = "S$season · E$episode",
+        color = brandColor.copy(alpha = 0.8f),
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Normal,
+        letterSpacing = 1.sp
     )
+}
+
+@Composable
+private fun VoiceoverBadge(voiceover: String, brandColor: Color) {
+    Box(
+        modifier = Modifier
+            .background(brandColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = voiceover.uppercase(),
+            color = brandColor,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.5.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
 }
 
 @Composable
@@ -373,13 +396,13 @@ private fun NextEpisodeCountdown(
 }
 
 @Composable
-private fun SeekIndicator(
+internal fun PlayerSeekIndicator(
     brandColor: Color,
-    direction: SeekDirection?,
+    deltaMs: Long,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
-        visible = direction != null,
+        visible = deltaMs != 0L,
         enter = fadeIn(tween(200)),
         exit = fadeOut(tween(400))
     ) {
@@ -390,11 +413,7 @@ private fun SeekIndicator(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = when (direction) {
-                    SeekDirection.Forward -> "+10"
-                    SeekDirection.Backward -> "-10"
-                    null -> ""
-                },
+                text = formatSeekDelta(deltaMs),
                 color = brandColor,
                 fontSize = 48.sp,
                 fontWeight = FontWeight.Bold,
@@ -402,6 +421,15 @@ private fun SeekIndicator(
             )
         }
     }
+}
+
+private fun formatSeekDelta(ms: Long): String {
+    val sign = if (ms >= 0) "+" else "-"
+    val totalSeconds = kotlin.math.abs(ms) / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return if (minutes > 0) "$sign$minutes:${seconds.toString().padStart(2, '0')}"
+    else "$sign$totalSeconds"
 }
 
 @Composable

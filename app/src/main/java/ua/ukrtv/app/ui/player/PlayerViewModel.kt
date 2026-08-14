@@ -214,6 +214,7 @@ class PlayerViewModel @Inject constructor(
                         status = PlayerStatus.Ready(cached.streamUrl, displayTitle, subtitle, pos, cached.durationMs, cached.referer, safeStreamType(cached.streamType, cached.streamUrl)),
                         availableSeasons = this@PlayerViewModel.seasons
                     ) }
+                    updateNavigationState()
                     isResolving = false
                     launchDeepResolution()
                     preResolveNextEpisode()
@@ -275,6 +276,7 @@ class PlayerViewModel @Inject constructor(
             status = PlayerStatus.Ready(res.streamUrl, displayTitle, subtitle, pos, 0L, res.referer, res.streamType),
             availableSeasons = seasons
         ) }
+        updateNavigationState()
         launchDeepResolution()
     }
 
@@ -381,13 +383,31 @@ class PlayerViewModel @Inject constructor(
         return true
     }
 
+    /**
+     * Best-effort fetch of the season/episode list when it hasn't arrived yet (deep resolution
+     * still pending or failed). Used before falling back to exiting when an episode ends.
+     */
+    suspend fun ensureSeasons(): Boolean {
+        if (seasons.isNotEmpty()) return true
+        val resolved = withContext(Dispatchers.IO) {
+            runCatching { streamResolver.resolve(pageUrl, isDeep = true) }.getOrNull()
+        }
+        val newSeasons = resolved?.seasons
+        if (newSeasons == null || newSeasons.isEmpty()) return false
+        this.seasons = newSeasons
+        _state.update { it.copy(availableSeasons = newSeasons, deepResolutionPending = false) }
+        rebuildPickerColumns()
+        return true
+    }
+
     fun executePreparedNavigation() {
-        if (isAutoAdvancing) return
-        isAutoAdvancing = true
         val s = preparedSeason ?: return
         val e = preparedEpisode ?: return
+        if (isAutoAdvancing) return
+        isAutoAdvancing = true
         preparedSeason = null; preparedEpisode = null
         this.season = s; this.episode = e; this.episodeId = "s${s}e${e}"
+        pendingSeason = s; pendingEpisode = e
         savedStateHandle[KEY_SEASON] = s; savedStateHandle[KEY_EPISODE] = e
         loadStream(pageUrl, "S$s E$e", null)
         updateNavigationState()
@@ -401,6 +421,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun applyEpisodeNavigation(season: Int, episode: Int) {
         this.season = season; this.episode = episode; this.episodeId = "s${season}e${episode}"
+        pendingSeason = season; pendingEpisode = episode
         loadStream(pageUrl, "S$season E$episode", null)
         updateNavigationState()
     }
@@ -740,6 +761,11 @@ class PlayerViewModel @Inject constructor(
             if (pendingEpisode == null) pendingEpisode = this.episode ?: eps.firstOrNull()?.number ?: 1
             val eNum = pendingEpisode!!
 
+            val voOptions = currentSeasonData.voiceoverOptions.filter { it.isNotBlank() }
+            if (pendingVoiceover == null) {
+                pendingVoiceover = this.voiceover.takeIf { it != null && voOptions.contains(it) } ?: voOptions.firstOrNull()
+            }
+
             if (!allEpisodesAreOne) {
                 cols.add(PickerColumn(
                     id = "season",
@@ -755,13 +781,29 @@ class PlayerViewModel @Inject constructor(
                     needsCommit = true
                 ))
             }
+
+            if (voOptions.size > 1) {
+                cols.add(PickerColumn(
+                    id = "voiceover",
+                    label = "ОЗВУЧКА",
+                    value = pendingVoiceover ?: voOptions.first(),
+                    needsCommit = true
+                ))
+            }
         }
 
-        _state.update { it.copy(pickerColumns = cols, pickerFocusedIndex = 0) }
+        val prevIndex = _state.value.pickerFocusedIndex
+        _state.update { it.copy(pickerColumns = cols) }
+        val coercedIndex = prevIndex.coerceIn(0, cols.lastIndex.coerceAtLeast(0))
+        if (coercedIndex != prevIndex) _state.update { it.copy(pickerFocusedIndex = coercedIndex) }
     }
 
     fun onPickerColumnFocused(index: Int) {
         _state.update { it.copy(pickerFocusedIndex = index) }
+    }
+
+    fun cycleAudioMode(direction: Int) {
+        _state.update { it.copy(audioMode = it.audioMode.cycle(direction)) }
     }
 
     fun onPickerValueChange(direction: Int) {
@@ -807,6 +849,17 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun changePendingVoiceover(direction: Int) {
+        val seasons = _state.value.availableSeasons ?: return
+        val sNum = pendingSeason ?: this.season ?: seasons.first().number
+        val season = seasons.find { it.number == sNum } ?: return
+        val options = season.voiceoverOptions.filter { it.isNotBlank() }
+        if (options.size < 2) return
+        val current = pendingVoiceover ?: this.voiceover ?: options.first()
+        val idx = options.indexOf(current)
+        if (idx == -1) return
+        val newIdx = (idx + direction + options.size) % options.size
+        pendingVoiceover = options[newIdx]
+        rebuildPickerColumns()
     }
 
     override fun onCleared() {

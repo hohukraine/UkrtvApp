@@ -6,17 +6,9 @@ import androidx.activity.compose.BackHandler
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,20 +31,21 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
-import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.ui.PlayerView
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import ua.ukrtv.app.domain.model.StreamType
 import ua.ukrtv.app.player.EmbeddedPlayerFactory
-import ua.ukrtv.app.ui.player.PlayerControlsOverlay
-import ua.ukrtv.app.ui.player.PlayerPickerRow
-import ua.ukrtv.app.ui.player.SeekDirection
 import ua.ukrtv.app.ui.theme.BrandBlue
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.util.hasMediatekChipset
+import java.util.Locale
 
 private const val SURFACE_TYPE_SURFACE_VIEW = 1
 private const val SURFACE_TYPE_TEXTURE_VIEW = 2
@@ -81,6 +74,13 @@ fun EmbeddedPlayerScreen(
         ).embeddedPlayerFactory()
     }
 
+    val thermalMonitor = remember {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            EmbeddedPlayerEntryPoint::class.java
+        ).thermalMonitor()
+    }
+
     val player = remember { playerFactory.createPlayer() }
 
     var surfaceType by remember { mutableIntStateOf(
@@ -101,6 +101,29 @@ fun EmbeddedPlayerScreen(
         viewModel.initialize(contentId, title, url, season, episode, poster)
     }
 
+    var autoAdvancing by remember { mutableStateOf(false) }
+    var videoQualityCount by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+
+    val advanceToNextEpisode: (exitIfNoNext: Boolean) -> Unit by rememberUpdatedState { exitIfNoNext ->
+        if (autoAdvancing) return@rememberUpdatedState
+        autoAdvancing = true
+        viewModel.saveProgress(player.currentPosition, player.duration)
+        if (viewModel.prepareNextEpisode()) {
+            viewModel.executePreparedNavigation()
+        } else {
+            scope.launch {
+                val ok = viewModel.ensureSeasons() && viewModel.prepareNextEpisode()
+                if (ok) {
+                    viewModel.executePreparedNavigation()
+                } else if (exitIfNoNext) {
+                    onBack()
+                }
+                autoAdvancing = false
+            }
+        }
+    }
+
     val playerListener = remember {
         object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
@@ -108,11 +131,20 @@ fun EmbeddedPlayerScreen(
                     val dur = player.duration
                     val effectiveDur = if (dur > 0) dur else 0L
                     viewModel.saveProgress(if (effectiveDur > 0) effectiveDur else player.currentPosition, effectiveDur)
-                    if (viewModel.prepareNextEpisode()) {
-                        viewModel.executePreparedNavigation()
-                    } else {
-                        onBack()
-                    }
+                    advanceToNextEpisode(true)
+                }
+            }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                val count = tracks.groups
+                    .filter { it.type == C.TRACK_TYPE_VIDEO }
+                    .sumOf { it.length }
+                if (count != videoQualityCount) {
+                    videoQualityCount = count
+                    AppLogger.d(
+                        "EmbeddedPlayer",
+                        "Manifest video renditions: $count | ${player.currentMediaItem?.localConfiguration?.uri}"
+                    )
                 }
             }
         }
@@ -124,6 +156,7 @@ fun EmbeddedPlayerScreen(
     }
 
     LaunchedEffect(uiState.status) {
+        autoAdvancing = false
         val status = uiState.status
         if (status is PlayerStatus.Ready) {
             val mimeType = when (status.streamType) {
@@ -149,11 +182,32 @@ fun EmbeddedPlayerScreen(
     }
 
     LaunchedEffect(player) {
+        var stallTicks = 0
         while (true) {
             delay(10_000)
             if (player.isPlaying) {
                 viewModel.saveProgress(player.currentPosition, player.duration)
+                stallTicks = 0
+            } else if (player.playbackState == Player.STATE_READY) {
+                val dur = player.duration
+                val atEnd = dur > 0 && player.currentPosition >= dur - 3_000
+                stallTicks = if (atEnd) stallTicks + 1 else 0
+            } else {
+                stallTicks = 0
             }
+            if (stallTicks >= 2 && uiState.status is PlayerStatus.Ready) {
+                stallTicks = 0
+                advanceToNextEpisode(true)
+            }
+        }
+    }
+
+    LaunchedEffect(player) {
+        thermalMonitor.thermalStatus.collect { status ->
+            playerFactory.applyThermalToPlayer(
+                player,
+                thermalMonitor.getQualityLevel(status)
+            )
         }
     }
 
@@ -198,17 +252,94 @@ fun EmbeddedPlayerScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    var showPicker by remember { mutableStateOf(false) }
-    var showControls by remember { mutableStateOf(false) }
-    val playFocusRequester = remember { FocusRequester() }
+    val rootFocusRequester = remember { FocusRequester() }
+    val playButtonFocusRequester = remember { FocusRequester() }
+
+    var showControls by remember { mutableStateOf(true) }
+
+    var seekAccumMs by remember { mutableStateOf(0L) }
+    var seekTrigger by remember { mutableStateOf(0L) }
+    var playerStats by remember { mutableStateOf("") }
+
+    fun performSeek(forward: Boolean, stepMs: Long) {
+        if (player.duration > 0) {
+            val delta = if (forward) stepMs else -stepMs
+            player.seekTo((player.currentPosition + delta).coerceIn(0L, player.duration))
+            seekAccumMs += delta
+        }
+        seekTrigger++
+    }
+
+    var decoderNames by remember { mutableStateOf<Pair<String?, String?>>(null to null) }
+    val analyticsListener = remember {
+        object : AnalyticsListener {
+            override fun onVideoDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializationDurationMs: Long
+            ) {
+                decoderNames = decoderNames.copy(first = decoderName)
+            }
+
+            override fun onAudioDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializationDurationMs: Long
+            ) {
+                decoderNames = decoderNames.copy(second = decoderName)
+            }
+        }
+    }
+    DisposableEffect(player) {
+        player.addAnalyticsListener(analyticsListener)
+        onDispose { player.removeAnalyticsListener(analyticsListener) }
+    }
+
+    LaunchedEffect(seekTrigger) {
+        if (seekAccumMs != 0L) {
+            delay(700)
+            seekAccumMs = 0L
+        }
+    }
+
+    LaunchedEffect(uiState.audioMode) {
+        player.volume = uiState.audioMode.volume
+    }
+
+    LaunchedEffect(uiState.status, player, videoQualityCount) {
+        while (uiState.status is PlayerStatus.Ready) {
+            playerStats = buildPlayerStats(player, decoderNames.first, decoderNames.second, videoQualityCount)
+            delay(1000)
+        }
+        playerStats = ""
+    }
 
     var lastInteractionTime by remember { mutableStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(uiState.status, showControls) {
+        if (uiState.status is PlayerStatus.Ready && showControls) {
+            lastInteractionTime = System.currentTimeMillis()
+            delay(150)
+            try {
+                playButtonFocusRequester.requestFocus()
+                AppLogger.d("EmbeddedPlayer", "Play button focus requested")
+            } catch (e: Exception) {
+                AppLogger.w("EmbeddedPlayer", "Play button focus failed: ${e.message}")
+            }
+        }
+    }
 
     LaunchedEffect(showControls) {
         if (showControls) {
             lastInteractionTime = System.currentTimeMillis()
             delay(150)
-            playFocusRequester.requestFocus()
+            try {
+                playButtonFocusRequester.requestFocus()
+            } catch (_: Exception) {}
+        } else {
+            try {
+                rootFocusRequester.requestFocus()
+            } catch (_: Exception) {}
         }
     }
 
@@ -228,40 +359,81 @@ fun EmbeddedPlayerScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
+            .focusRequester(rootFocusRequester)
+            .focusable()
             .onKeyEvent { event ->
                 val ke = event.nativeKeyEvent
                 when (ke.keyCode) {
                     android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
-                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
-                            if (player.duration > 0) {
-                                player.seekTo(maxOf(0L, player.currentPosition - 10_000L))
-                            }
-                            showControls = true
+                        if (showControls) {
                             lastInteractionTime = System.currentTimeMillis()
+                            return@onKeyEvent false
+                        }
+                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
+                            performSeek(forward = false, stepMs = seekStepForRepeat(ke.repeatCount))
                             return@onKeyEvent true
                         }
                         true
                     }
                     android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
-                            if (player.duration > 0) {
-                                player.seekTo(minOf(player.duration, player.currentPosition + 10_000L))
-                            }
-                            showControls = true
+                        if (showControls) {
                             lastInteractionTime = System.currentTimeMillis()
+                            return@onKeyEvent false
+                        }
+                        if (ke.action == android.view.KeyEvent.ACTION_DOWN) {
+                            performSeek(forward = true, stepMs = seekStepForRepeat(ke.repeatCount))
                             return@onKeyEvent true
                         }
                         true
                     }
+                    android.view.KeyEvent.KEYCODE_DPAD_UP,
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                        if (showControls) {
+                            lastInteractionTime = System.currentTimeMillis()
+                        }
+                        return@onKeyEvent false
+                    }
                     android.view.KeyEvent.KEYCODE_DPAD_CENTER,
                     android.view.KeyEvent.KEYCODE_ENTER -> {
                         if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
-                        if (showControls) {
-                            showControls = false
-                        } else {
-                            showControls = true
-                            lastInteractionTime = System.currentTimeMillis()
-                        }
+                        if (showControls) return@onKeyEvent false
+                        showControls = true
+                        lastInteractionTime = System.currentTimeMillis()
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+                    android.view.KeyEvent.KEYCODE_MEDIA_PLAY,
+                    android.view.KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
+                        if (player.isPlaying) player.pause() else player.play()
+                        lastInteractionTime = System.currentTimeMillis()
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_NEXT,
+                    android.view.KeyEvent.KEYCODE_MEDIA_SKIP_FORWARD -> {
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
+                        if (!viewModel.hasNextEpisode()) return@onKeyEvent false
+                        advanceToNextEpisode(false)
+                        lastInteractionTime = System.currentTimeMillis()
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_PREVIOUS,
+                    android.view.KeyEvent.KEYCODE_MEDIA_SKIP_BACKWARD -> {
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
+                        if (!viewModel.hasPreviousEpisode()) return@onKeyEvent false
+                        viewModel.saveProgress(player.currentPosition, player.duration)
+                        viewModel.navigateToPreviousEpisode()
+                        lastInteractionTime = System.currentTimeMillis()
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
+                        performSeek(forward = true, stepMs = seekStepForRepeat(ke.repeatCount))
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                        if (ke.action != android.view.KeyEvent.ACTION_DOWN) return@onKeyEvent false
+                        performSeek(forward = false, stepMs = seekStepForRepeat(ke.repeatCount))
                         true
                     }
                     else -> false
@@ -286,6 +458,12 @@ fun EmbeddedPlayerScreen(
                 }
             )
         }
+
+        PlayerSeekIndicator(
+            brandColor = BrandBlue,
+            deltaMs = seekAccumMs,
+            modifier = Modifier.align(Alignment.Center)
+        )
 
         if (uiState.status is PlayerStatus.Loading) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -317,26 +495,18 @@ fun EmbeddedPlayerScreen(
 
         // Top bar moved into PlayerControlsOverlay
 
-        if (showPicker) {
-            PickerOverlay(
-                player = player,
-                uiState = uiState,
-                onDismiss = { showPicker = false },
-                onEpisodeSelected = { s, e, v ->
-                    viewModel.saveProgress(player.currentPosition, player.duration)
-                    viewModel.onEpisodeSelected(s, e, v)
-                }
-            )
-        }
-
         if (showControls) {
-            val pickerColumns = buildPickerColumns(uiState, player)
+            val pickerColumns = buildPickerColumns(uiState)
             val pickerFocusedIndex = if (pickerColumns.isNotEmpty()) {
                 uiState.pickerFocusedIndex.coerceIn(0, pickerColumns.lastIndex)
             } else 0
             PlayerControlsOverlay(
                 visible = showControls,
                 title = title,
+                season = uiState.currentSeason,
+                episode = uiState.currentEpisode,
+                currentVoiceover = uiState.currentVoiceover,
+                stats = playerStats,
                 isPlaying = player.isPlaying,
                 positionMs = player.currentPosition,
                 durationMs = player.duration,
@@ -349,38 +519,30 @@ fun EmbeddedPlayerScreen(
                     if (player.isPlaying) player.pause() else player.play()
                 },
                 onSeekBackward = {
-                    if (player.duration > 0) player.seekTo(maxOf(0L, player.currentPosition - 10_000L))
+                    performSeek(forward = false, stepMs = 10_000L)
                 },
                 onSeekForward = {
-                    if (player.duration > 0) player.seekTo(minOf(player.duration, player.currentPosition + 10_000L))
+                    performSeek(forward = true, stepMs = 10_000L)
                 },
                 onNextEpisode = {
-                    viewModel.saveProgress(player.currentPosition, player.duration)
-                    viewModel.executePreparedNavigation()
+                    advanceToNextEpisode(false)
                 },
                 onPickerColumnFocused = { viewModel.onPickerColumnFocused(it) },
                 onPickerValueChange = { direction ->
                     val col = pickerColumns.getOrNull(pickerFocusedIndex) ?: return@PlayerControlsOverlay
                     when (col.id) {
-                        "audio_track" -> cycleAudioTrack(player, direction)
+                        "audio_mode" -> viewModel.cycleAudioMode(direction)
                         else -> viewModel.onPickerValueChange(direction)
                     }
                 },
                 onPickerCommit = { viewModel.onPickerCommit() },
-                onBack = {
-                    viewModel.saveProgress(player.currentPosition, player.duration)
-                    onBack()
-                },
-                onTogglePicker = { showPicker = !showPicker },
-                playFocusRequester = playFocusRequester
+                playFocusRequester = playButtonFocusRequester
             )
         }
     }
 
     BackHandler {
-        if (showPicker) {
-            showPicker = false
-        } else if (showControls) {
+        if (showControls) {
             showControls = false
         } else {
             viewModel.saveProgress(player.currentPosition, player.duration)
@@ -389,218 +551,68 @@ fun EmbeddedPlayerScreen(
     }
 }
 
-@OptIn(UnstableApi::class)
-@Composable
-fun PickerOverlay(
-    player: Player,
-    uiState: PlayerState,
-    onDismiss: () -> Unit,
-    onEpisodeSelected: (Int, Int, String?) -> Unit
-) {
-    var selectedAudioGroup by remember { mutableStateOf<androidx.media3.common.Tracks.Group?>(null) }
-    var selectedAudioIndex by remember { mutableIntStateOf(0) }
-
-    LaunchedEffect(player.currentTracks) {
-        val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
-        val sel = groups.firstOrNull { g -> (0 until g.length).any { g.isTrackSelected(it) } }
-        if (sel != null) {
-            selectedAudioGroup = sel
-            selectedAudioIndex = (0 until sel.length).firstOrNull { sel.isTrackSelected(it) } ?: 0
-        } else if (groups.isNotEmpty()) {
-            selectedAudioGroup = groups.first()
-            selectedAudioIndex = 0
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.7f))
-            .clickable { onDismiss() },
-        contentAlignment = Alignment.CenterEnd
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(300.dp)
-                .background(Color(0xFF1A1A1A))
-                .clickable { }
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Налаштування", color = Color.White, fontWeight = FontWeight.Bold)
-                Box(
-                    modifier = Modifier
-                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
-                        .clickable { onDismiss() }
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text("✕", color = Color.White, fontSize = 14.sp)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Audio tracks
-            val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
-            if (audioGroups.isNotEmpty()) {
-                Text("Аудіо", color = Color(0xFF999999), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
-                LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
-                    audioGroups.forEachIndexed { groupIndex, group ->
-                        items(group.length) { trackIndex ->
-                            val track = group.getTrackFormat(trackIndex)
-                            val isSelected = group.isTrackSelected(trackIndex)
-                            val label = buildString {
-                                track.language?.let { append(it.uppercase()) }
-                                track.label?.let {
-                                    if (isNotEmpty()) append(" · ")
-                                    append(it)
-                                }
-                                if (track.channelCount > 0) {
-                                    if (isNotEmpty()) append(" · ")
-                                    append("${track.channelCount}.0")
-                                }
-                                if (isBlank()) append("Доріжка ${trackIndex + 1}")
-                            }
-                            val isFocused = selectedAudioGroup == group && selectedAudioIndex == trackIndex
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        when {
-                                            isSelected -> BrandBlue.copy(alpha = 0.3f)
-                                            isFocused -> Color.White.copy(alpha = 0.1f)
-                                            else -> Color.Transparent
-                                        },
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable {
-                                        selectedAudioGroup = group
-                                        selectedAudioIndex = trackIndex
-                                        player.trackSelectionParameters = player.trackSelectionParameters
-                                            .buildUpon()
-                                            .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, trackIndex))
-                                            .build()
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = label,
-                                        color = if (isSelected) BrandBlue else Color.White,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        fontSize = 14.sp,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    if (isSelected) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(6.dp)
-                                                .background(BrandBlue, CircleShape)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Seasons/Episodes if available
-            if (uiState.availableSeasons != null) {
-                Text("Серії", color = Color(0xFF999999), fontSize = 12.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp, modifier = Modifier.padding(bottom = 8.dp))
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    uiState.availableSeasons.forEach { season ->
-                        stickyHeader {
-                            Text(
-                                text = "Сезон ${season.number}",
-                                color = Color.White.copy(alpha = 0.5f),
-                                fontSize = 12.sp,
-                                modifier = Modifier.padding(vertical = 4.dp)
-                            )
-                        }
-                        items(season.episodes) { episode ->
-                            val isCurrent = uiState.currentSeason == season.number && uiState.currentEpisode == episode.number
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .background(
-                                        when {
-                                            isCurrent -> BrandBlue.copy(alpha = 0.2f)
-                                            else -> Color.Transparent
-                                        },
-                                        RoundedCornerShape(8.dp)
-                                    )
-                                    .clickable {
-                                        onEpisodeSelected(season.number, episode.number, null)
-                                        onDismiss()
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 10.dp)
-                            ) {
-                                Text(
-                                    text = "Серія ${episode.number}${episode.title?.let { ": $it" } ?: ""}",
-                                    color = if (isCurrent) BrandBlue else Color.White,
-                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 14.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
 @dagger.hilt.EntryPoint
 @dagger.hilt.InstallIn(SingletonComponent::class)
 interface EmbeddedPlayerEntryPoint {
     fun embeddedPlayerFactory(): EmbeddedPlayerFactory
+    fun thermalMonitor(): ua.ukrtv.app.player.ThermalMonitor
 }
 
 private fun buildPickerColumns(
-    uiState: PlayerState,
-    player: Player
+    uiState: PlayerState
 ): List<PickerColumn> {
     val cols = uiState.pickerColumns.toMutableList()
 
-    val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
-    val selectedAudio = audioGroups.firstOrNull { group ->
-        (0 until group.length).any { group.isTrackSelected(it) }
-    }
-
-    if (audioGroups.size > 1 && selectedAudio != null) {
-        val trackIndex = (0 until selectedAudio.length).firstOrNull { selectedAudio.isTrackSelected(it) } ?: 0
-        val track = selectedAudio.getTrackFormat(trackIndex)
-        val label = buildString {
-            track.language?.let { append(it.uppercase()) }
-            if (track.channelCount > 0) append(" ${track.channelCount}.0")
-        }
-        cols.add(PickerColumn(id = "audio_track", label = "АУДІО", value = label))
-    }
+    cols.add(PickerColumn(id = "audio_mode", label = "АУДІО", value = uiState.audioMode.label))
 
     return cols
 }
 
-private fun cycleAudioTrack(player: Player, direction: Int) {
-    val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
-    if (audioGroups.size <= 1) return
+private fun buildPlayerStats(
+    player: ExoPlayer,
+    videoDecoder: String?,
+    audioDecoder: String?,
+    videoQualityCount: Int
+): String {
+    val parts = mutableListOf<String>()
+    val fmt = player.videoFormat
+    if (fmt != null && (fmt.width ?: 0) > 0 && (fmt.height ?: 0) > 0) {
+        parts += "${fmt.width}x${fmt.height}"
+        if (fmt.bitrate > 0) parts += String.format(Locale.US, "%.1f Мбіт/с", fmt.bitrate / 1_000_000f)
+        (fmt.frameRate ?: 0f).takeIf { it > 0f }?.let { parts += "${it.toInt()}fps" }
+    }
+    friendlyCodec(fmt?.codecs, fmt?.sampleMimeType)?.let { parts += it }
+    if (videoQualityCount > 0) parts += "$videoQualityCount якостей"
+    videoDecoder?.let { parts += shortDecoderName(it) }
+    audioDecoder?.let { parts += shortDecoderName(it) }
+    return parts.joinToString(" \u00b7 ")
+}
 
-    val currentGroup = audioGroups.firstOrNull { group ->
-        (0 until group.length).any { group.isTrackSelected(it) }
-    } ?: audioGroups.first()
+private fun friendlyCodec(codecs: String?, mime: String?): String? {
+    val code = codecs?.substringBefore(".")?.lowercase()
+    val mimeCode = mime?.substringAfterLast("/", "")?.lowercase()
+    val short = code ?: mimeCode
+    return when {
+        short == "avc1" || mimeCode == "avc" -> "H.264"
+        short == "hev1" || short == "hvc1" || mimeCode == "hevc" -> "HEVC"
+        short == "vp9" || mimeCode == "vp9" -> "VP9"
+        short == "av01" || mimeCode == "av1" -> "AV1"
+        short == "mp4a" || short == "aac" -> "AAC"
+        short == "opus" || mimeCode == "opus" -> "Opus"
+        else -> short?.uppercase()
+    }
+}
 
-    val currentIndex = (0 until currentGroup.length).firstOrNull { currentGroup.isTrackSelected(it) } ?: 0
-    val newIndex = (currentIndex + direction).coerceIn(0, currentGroup.length - 1)
+private fun shortDecoderName(name: String): String {
+    var n = name
+    listOf("c2.android.", "c2.google.", "c2.ms.", "c2.mtk.", "OMX.google.", "OMX.qcom.", "OMX.mtk.", "OMX.").forEach {
+        if (n.startsWith(it)) n = n.removePrefix(it)
+    }
+    return n
+}
 
-    player.trackSelectionParameters = player.trackSelectionParameters
-        .buildUpon()
-        .setOverrideForType(TrackSelectionOverride(currentGroup.mediaTrackGroup, newIndex))
-        .build()
+private fun seekStepForRepeat(repeatCount: Int): Long = when {
+    repeatCount <= 0 -> 10_000L
+    repeatCount < 3 -> 30_000L
+    else -> 60_000L
 }

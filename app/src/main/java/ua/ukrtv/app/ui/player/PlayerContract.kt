@@ -15,6 +15,18 @@ enum class ScaleMode(val label: String) {
     ORIGINAL("1:1")
 }
 
+enum class AudioMode(val label: String, val volume: Float) {
+    NORMAL("Баланс", 1.0f),
+    NIGHT("Ніч", 0.5f),
+    SITCOM("Ситком", 0.8f);
+
+    fun cycle(direction: Int): AudioMode {
+        val entries = entries
+        val next = (ordinal + direction).mod(entries.size)
+        return entries[next]
+    }
+}
+
 @Stable
 data class PlayerState(
     val status: PlayerStatus = PlayerStatus.Idle,
@@ -33,6 +45,7 @@ data class PlayerState(
     val currentVoiceover: String? = null,
     val pickerColumns: List<PickerColumn> = emptyList(),
     val pickerFocusedIndex: Int = 0,
+    val audioMode: AudioMode = AudioMode.NORMAL,
     val currentCodecDisplay: String = "",
     val availableCodecs: List<CodecInfo> = emptyList(),
     val deepResolutionPending: Boolean = false
