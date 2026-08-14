@@ -62,11 +62,17 @@ class EmbeddedPlayerFactory @Inject constructor(
             )
             .build()
 
-        val trackSelector = DefaultTrackSelector(context, AdaptiveTrackSelection.Factory())
+        val trackSelector = DefaultTrackSelector(context, AdaptiveTrackSelection.Factory(
+            /* minDurationForQualityIncreaseMs= */ 1000,
+            /* maxDurationForQualityDecreaseMs= */ 10000,
+            /* minDurationToRetainAfterDiscardMs= */ 25000,
+            /* bandwidthFraction= */ 0.75f
+        ))
         trackSelector.setParameters(
             trackSelector.buildUponParameters()
-                .setMaxVideoSize(1920, 1080)
+                .setMaxVideoSize(buffers.maxVideoSize, buffers.maxVideoSize)
                 .setMaxVideoBitrate(buffers.maxVideoBitrate)
+                .setTunnelingEnabled(true)
                 .setPreferredAudioLanguage("ukr")
                 .also { applyThermalConstraints(it, thermalLevel) }
                 .apply {
@@ -113,12 +119,12 @@ class EmbeddedPlayerFactory @Inject constructor(
                 builder.setMaxVideoBitrate(800_000)
             }
             ThermalMonitor.QualityLevel.LOW -> {
-                builder.setMaxVideoSize(854, 480)
-                builder.setMaxVideoBitrate(1_500_000)
+                builder.setMaxVideoSize(1280, 720)
+                builder.setMaxVideoBitrate(3_000_000)
             }
             ThermalMonitor.QualityLevel.MEDIUM -> {
-                builder.setMaxVideoSize(1280, 720)
-                builder.setMaxVideoBitrate(4_000_000)
+                builder.setMaxVideoSize(1920, 1080)
+                builder.setMaxVideoBitrate(8_000_000)
             }
             ThermalMonitor.QualityLevel.HIGH -> {
                 builder.clearVideoSizeConstraints()
@@ -141,9 +147,9 @@ class EmbeddedPlayerFactory @Inject constructor(
                 filtered.sortedByDescending { info ->
                     val name = info.name.lowercase()
                     val codecType = when {
-                        name.contains("avc") || name.contains("h264") -> 10
-                        name.contains("hevc") || name.contains("h265") -> 9
-                        name.contains("vp9") -> 8
+                        name.contains("hevc") || name.contains("h265") -> 10
+                        name.contains("vp9") -> 9
+                        name.contains("avc") || name.contains("h264") -> 8
                         else -> 0
                     }
                     val omxBonus = if (name.contains("omx.")) 1 else 0
