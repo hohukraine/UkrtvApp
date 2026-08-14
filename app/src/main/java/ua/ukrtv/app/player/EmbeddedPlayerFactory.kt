@@ -145,21 +145,25 @@ class EmbeddedPlayerFactory @Inject constructor(
                 if (name.contains("mtk") || name.contains("mediatek") || 
                     name.contains("qcom") || name.contains("samsung") || 
                     name.contains("exynos") || name.contains("amlogic") ||
-                    name.contains("hisi") || name.contains("broadcom")) {
-                    score += 1000
+                    name.contains("nvidia") || name.contains("hisi")) {
+                    score += 2000
                 }
                 
-                // Codec2 is generally better on modern Android
-                if (name.startsWith("c2.")) score += 500
+                // Codec2 is modern
+                if (name.startsWith("c2.")) score += 1000
                 
-                // Prefer modern codecs
-                if (name.contains("hevc") || name.contains("h265") || name.contains("vp9")) score += 100
+                // OMX.MS is usually the primary HW decoder on these MTK boards
+                if (name.contains("omx.ms.")) score += 1500
                 
-                // OMX.MS is usually a hardware wrapper on MTK, it's okay but give it a slight penalty relative to C2
-                if (name.contains("omx.ms.")) score -= 100
+                // Prefer high-efficiency codecs
+                if (name.contains("hevc") || name.contains("h265") || name.contains("vp9")) {
+                    score += 500
+                }
                 
-                // Pure software decoders should be the absolute last resort
-                if (name.contains("google") || name.contains("android") || name.contains("sw")) score -= 5000
+                // Software decoders are the absolute last resort
+                if (name.contains("google") || name.contains("android") || name.contains("sw")) {
+                    score -= 5000
+                }
                 
                 score
             }
