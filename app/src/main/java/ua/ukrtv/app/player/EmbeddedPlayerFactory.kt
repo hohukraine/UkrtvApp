@@ -72,7 +72,7 @@ class EmbeddedPlayerFactory @Inject constructor(
             trackSelector.buildUponParameters()
                 .setMaxVideoSize(buffers.maxVideoSize, buffers.maxVideoSize)
                 .setMaxVideoBitrate(buffers.maxVideoBitrate)
-                .setTunnelingEnabled(true)
+                .setTunnelingEnabled(false)
                 .setPreferredAudioLanguage("ukr")
                 .also { applyThermalConstraints(it, thermalLevel) }
                 .apply {
