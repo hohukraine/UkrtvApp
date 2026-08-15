@@ -38,7 +38,8 @@ class HomeViewModel @Inject constructor(
     private val providerManager: ProviderManager,
     private val top200Repository: Top200Repository,
     private val watchlistRepository: WatchlistRepository,
-    private val homePreferences: HomePreferences
+    private val homePreferences: HomePreferences,
+    private val updateRepository: ua.ukrtv.app.data.repository.UpdateRepository
 ) : ViewModel() {
 
     data class HomeMainState(
@@ -99,6 +100,9 @@ class HomeViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(true)
     private val _isCategoriesLoading = MutableStateFlow(true)
     private val _bannerTop200 = MutableStateFlow<List<Top200Movie>>(emptyList())
+    
+    private val _newUpdate = MutableStateFlow<ua.ukrtv.app.domain.model.UpdateInfo?>(null)
+    val newUpdate = _newUpdate.asStateFlow()
 
     init {
         _bannerTop200.value = top200Repository.getRandom5()
@@ -107,6 +111,27 @@ class HomeViewModel @Inject constructor(
                 _bannerTop200.value = top200Repository.getRandom5()
             }
         }
+        checkUpdate()
+    }
+
+    private fun checkUpdate() {
+        viewModelScope.launch {
+            try {
+                val info = updateRepository.checkUpdate()
+                if (info != null && info.versionCode > ua.ukrtv.app.BuildConfig.VERSION_CODE) {
+                    if (info.versionCode != homePreferences.getSkippedVersion()) {
+                        _newUpdate.value = info
+                    }
+                }
+            } catch (e: Exception) {
+                AppLogger.w("HomeVM", "Update check failed: ${e.message}")
+            }
+        }
+    }
+
+    fun skipUpdate(versionCode: Int) {
+        homePreferences.skipVersion(versionCode)
+        _newUpdate.value = null
     }
 
     private val _navigateToDetail = MutableSharedFlow<Movie>()

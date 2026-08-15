@@ -160,6 +160,7 @@ private fun TvHomeScreen(
     val configState by viewModel.configState.collectAsStateWithLifecycle()
     val focusColor by viewModel.focusColor.collectAsStateWithLifecycle()
     val focusedMovie by viewModel.focusedMovie.collectAsStateWithLifecycle()
+    val newUpdate by viewModel.newUpdate.collectAsStateWithLifecycle()
 
     val deviceClass = LocalDeviceClass.current
     val maxItems = deviceClass.maxPostersPerRow()
@@ -251,6 +252,40 @@ private fun TvHomeScreen(
                 restoreMovie = focusedMovie,
                 sharedTransitionScope = sharedTransitionScope,
                 animatedContentScope = animatedContentScope
+            )
+        }
+
+        newUpdate?.let { info ->
+            AlertDialog(
+                onDismissRequest = { viewModel.skipUpdate(info.versionCode) },
+                title = { Text("Доступна нова версія ${info.versionName}") },
+                text = {
+                    Column {
+                        Text(info.changelog)
+                        if (info.versionCode > ua.ukrtv.app.BuildConfig.VERSION_CODE + 5) {
+                            Spacer(Modifier.height(8.dp))
+                            Text("Рекомендується термінове оновлення!", color = Color.Red, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = { onSettingsClick() },
+                        colors = ButtonDefaults.buttonColors(containerColor = providerColor)
+                    ) {
+                        Text("Оновити")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { viewModel.skipUpdate(info.versionCode) }) {
+                        Text("Пізніше", color = Color.White.copy(alpha = 0.6f))
+                    }
+                },
+                containerColor = Background,
+                titleContentColor = Color.White,
+                textContentColor = Color.White.copy(alpha = 0.8f),
+                properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+                modifier = Modifier.widthIn(max = 500.dp)
             )
         }
     }
@@ -561,6 +596,7 @@ private fun PhoneHomeScreen(
     val categoriesState by viewModel.categoriesState.collectAsStateWithLifecycle()
     val heroState by viewModel.heroState.collectAsStateWithLifecycle()
     val configState by viewModel.configState.collectAsStateWithLifecycle()
+    val newUpdate by viewModel.newUpdate.collectAsStateWithLifecycle()
 
     var readyNotified by remember { mutableStateOf(false) }
     val mainReady = !mainState.isLoading || mainState.gridError != null
@@ -611,295 +647,321 @@ private fun PhoneHomeScreen(
         },
         containerColor = Background
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = padding.calculateBottomPadding())
-                .background(Background)
-                .statusBarsPadding()
-        ) {
-            // TopBar dock: UKRTV logo + provider chip + Search (settings live in bottom nav)
-            Box(
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .fillMaxSize()
+                    .padding(bottom = padding.calculateBottomPadding())
                     .background(Background)
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .statusBarsPadding()
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                // TopBar dock: UKRTV logo + provider chip + Search (settings live in bottom nav)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Background)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    LogoLockup(brandColor = providerColor, fontSize = 18.dp)
-                    Spacer(Modifier.width(10.dp))
-                    ProviderChip(
-                        providerName = configState.currentProviderId,
-                        brandColor = providerColor,
-                        fontSize = 11.dp,
-                        compact = true
-                    )
-                    Spacer(Modifier.weight(1f))
-                    SearchAction(
-                        brandColor = providerColor,
-                        onClick = onSearchClick,
-                        compact = true
-                    )
-                }
-            }
-
-            val pullRefreshState = rememberPullToRefreshState()
-            PullToRefreshBox(
-                state = pullRefreshState,
-                isRefreshing = mainState.isLoading,
-                onRefresh = { viewModel.retryGrid() },
-                modifier = Modifier.weight(1f)
-            ) {
-                // Scrollable content — fills remaining space below header
-                LazyColumn(
-                    state = gridState,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // Hero section (Top 200 carousel)
-                    item(key = "hero", contentType = "hero") {
-                        if (heroState.top200Banners.isNotEmpty()) {
-                            PhoneHeroSection(
-                                items = heroState.top200Banners,
-                                brandColor = providerColor,
-                                onItemClick = { movie -> onSearchQueryClick(movie.title) },
-                                onActiveMovieChange = { activeTop200Movie = it },
-                                scrollFraction = { scrollFraction },
-                                screenHeightDp = screenHeightDp.toFloat()
-                            )
-                        }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LogoLockup(brandColor = providerColor, fontSize = 18.dp)
+                        Spacer(Modifier.width(10.dp))
+                        ProviderChip(
+                            providerName = configState.currentProviderId,
+                            brandColor = providerColor,
+                            fontSize = 11.dp,
+                            compact = true
+                        )
+                        Spacer(Modifier.weight(1f))
+                        SearchAction(
+                            brandColor = providerColor,
+                            onClick = onSearchClick,
+                            compact = true
+                        )
                     }
+                }
 
-                    if (!configState.isOnline) {
-                        item(key = "offline", contentType = "banner") {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().background(Color(0xFFE53935)).padding(8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("\u26A0 Немає підключення", color = Color.White, fontSize = 13.sp)
+                val pullRefreshState = rememberPullToRefreshState()
+                PullToRefreshBox(
+                    state = pullRefreshState,
+                    isRefreshing = mainState.isLoading,
+                    onRefresh = { viewModel.retryGrid() },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Scrollable content — fills remaining space below header
+                    LazyColumn(
+                        state = gridState,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        // Hero section (Top 200 carousel)
+                        item(key = "hero", contentType = "hero") {
+                            if (heroState.top200Banners.isNotEmpty()) {
+                                PhoneHeroSection(
+                                    items = heroState.top200Banners,
+                                    brandColor = providerColor,
+                                    onItemClick = { movie -> onSearchQueryClick(movie.title) },
+                                    onActiveMovieChange = { activeTop200Movie = it },
+                                    scrollFraction = { scrollFraction },
+                                    screenHeightDp = screenHeightDp.toFloat()
+                                )
                             }
                         }
-                    }
 
-                    // Content rows
-                    if (configState.homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || mainState.isLoading)) {
-                        item(key = "continue", contentType = "content_row") {
-                            ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, isLoading = mainState.isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = configState.currentProviderId)
+                        if (!configState.isOnline) {
+                            item(key = "offline", contentType = "banner") {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().background(Color(0xFFE53935)).padding(8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text("⚠ Немає підключення", color = Color.White, fontSize = 13.sp)
+                                }
+                            }
                         }
-                    }
 
-                    if (configState.homeLayout.showWatchlist && (watchlist.isNotEmpty() || mainState.isLoading)) {
-                        item(key = "watchlist", contentType = "content_row") {
-                            ContentRow("Мій список", watchlist, providerColor, onMovieClick, isLoading = mainState.isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = configState.currentProviderId)
+                        // Content rows
+                        if (configState.homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || mainState.isLoading)) {
+                            item(key = "continue", contentType = "content_row") {
+                                ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, isLoading = mainState.isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = configState.currentProviderId)
+                            }
                         }
-                    }
 
-                    if (configState.homeLayout.showTrends && (homeTrending.isNotEmpty() || mainState.isLoading)) {
-                        item(key = "trending", contentType = "content_row") {
-                            val provider = homeTrending.firstOrNull()?.provider ?: configState.currentProviderId
-                            val posterStyle = PosterStyle.forProvider(provider)
-                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
-                            
-                            ContentRow(
-                                configState.trendingLabel,
-                                homeTrending,
-                                providerColor,
-                                onMovieClick,
-                                useLargeCards = true,
-                                isLoading = mainState.isLoading,
-                                sharedTransitionScope = sharedTransitionScope,
-                                animatedContentScope = animatedContentScope,
-                                providerHint = configState.currentProviderId,
-                                trailingContent = {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(phoneDims.width)
-                                            .height(phoneDims.height)
-                                            .clip(Shapes.card)
-                                            .background(Color.White.copy(alpha = 0.08f))
-                                            .clickable { onSeeAllTrendsClick() },
-                                        contentAlignment = Alignment.Center
-                                    ) {
+                        if (configState.homeLayout.showWatchlist && (watchlist.isNotEmpty() || mainState.isLoading)) {
+                            item(key = "watchlist", contentType = "content_row") {
+                                ContentRow("Мій список", watchlist, providerColor, onMovieClick, isLoading = mainState.isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = configState.currentProviderId)
+                            }
+                        }
+
+                        if (configState.homeLayout.showTrends && (homeTrending.isNotEmpty() || mainState.isLoading)) {
+                            item(key = "trending", contentType = "content_row") {
+                                val provider = homeTrending.firstOrNull()?.provider ?: configState.currentProviderId
+                                val posterStyle = PosterStyle.forProvider(provider)
+                                val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                                
+                                ContentRow(
+                                    configState.trendingLabel,
+                                    homeTrending,
+                                    providerColor,
+                                    onMovieClick,
+                                    useLargeCards = true,
+                                    isLoading = mainState.isLoading,
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedContentScope = animatedContentScope,
+                                    providerHint = configState.currentProviderId,
+                                    trailingContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(phoneDims.width)
+                                                .height(phoneDims.height)
+                                                .clip(Shapes.card)
+                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .clickable { onSeeAllTrendsClick() },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                contentDescription = "Усі тренди",
+                                                tint = Color.White.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(28.dp)
+                                            )
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        if (configState.homeLayout.showMovies && (categoryMovies.isNotEmpty() || categoriesState.isLoading)) {
+                            item(key = "cat_movies", contentType = "content_row") {
+                                val provider = categoryMovies.firstOrNull()?.provider ?: configState.currentProviderId
+                                val posterStyle = PosterStyle.forProvider(provider)
+                                val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                                
+                                ContentRow(
+                                    "Фільми", categoryMovies, providerColor, onMovieClick,
+                                    isLoading = categoriesState.isLoading,
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedContentScope = animatedContentScope,
+                                    providerHint = configState.currentProviderId,
+                                    trailingContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(phoneDims.width)
+                                                .height(phoneDims.height)
+                                                .clip(Shapes.card)
+                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .clickable { onSeeAllCategoryClick("movies") },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі фільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        if (configState.homeLayout.showSeries && (categorySeries.isNotEmpty() || categoriesState.isLoading)) {
+                            item(key = "cat_series", contentType = "content_row") {
+                                val provider = categorySeries.firstOrNull()?.provider ?: configState.currentProviderId
+                                val posterStyle = PosterStyle.forProvider(provider)
+                                val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                                
+                                ContentRow(
+                                    "Серіали", categorySeries, providerColor, onMovieClick,
+                                    isLoading = categoriesState.isLoading,
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedContentScope = animatedContentScope,
+                                    providerHint = configState.currentProviderId,
+                                    trailingContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(phoneDims.width)
+                                                .height(phoneDims.height)
+                                                .clip(Shapes.card)
+                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .clickable { onSeeAllCategoryClick("series") },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі серіали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        if (configState.homeLayout.showAnime && (categoryAnime.isNotEmpty() || categoriesState.isLoading)) {
+                            item(key = "cat_anime", contentType = "content_row") {
+                                val provider = categoryAnime.firstOrNull()?.provider ?: configState.currentProviderId
+                                val posterStyle = PosterStyle.forProvider(provider)
+                                val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                                
+                                ContentRow(
+                                    "Аніме", categoryAnime, providerColor, onMovieClick,
+                                    isLoading = categoriesState.isLoading,
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedContentScope = animatedContentScope,
+                                    providerHint = configState.currentProviderId,
+                                    trailingContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(phoneDims.width)
+                                                .height(phoneDims.height)
+                                                .clip(Shapes.card)
+                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .clickable { onSeeAllCategoryClick("anime") },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усе аніме", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        if (configState.homeLayout.showCartoons && (categoryCartoons.isNotEmpty() || categoriesState.isLoading)) {
+                            item(key = "cat_cartoons", contentType = "content_row") {
+                                val provider = categoryCartoons.firstOrNull()?.provider ?: configState.currentProviderId
+                                val posterStyle = PosterStyle.forProvider(provider)
+                                val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                                
+                                ContentRow(
+                                    "Мультфільми", categoryCartoons, providerColor, onMovieClick,
+                                    isLoading = categoriesState.isLoading,
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedContentScope = animatedContentScope,
+                                    providerHint = configState.currentProviderId,
+                                    trailingContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(phoneDims.width)
+                                                .height(phoneDims.height)
+                                                .clip(Shapes.card)
+                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .clickable { onSeeAllCategoryClick("cartoons") },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультфільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        if (configState.homeLayout.showCartoonSeries && (categoryCartoonSeries.isNotEmpty() || categoriesState.isLoading)) {
+                            item(key = "cat_cartoon_series", contentType = "content_row") {
+                                val provider = categoryCartoonSeries.firstOrNull()?.provider ?: configState.currentProviderId
+                                val posterStyle = PosterStyle.forProvider(provider)
+                                val phoneDims = ProviderSizes.phoneCard(posterStyle)
+                                
+                                ContentRow(
+                                    "Мультсеріали", categoryCartoonSeries, providerColor, onMovieClick,
+                                    isLoading = categoriesState.isLoading,
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedContentScope = animatedContentScope,
+                                    providerHint = configState.currentProviderId,
+                                    trailingContent = {
+                                        Box(
+                                            modifier = Modifier
+                                                .width(phoneDims.width)
+                                                .height(phoneDims.height)
+                                                .clip(Shapes.card)
+                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .clickable { onSeeAllCategoryClick("cartoon_series") },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультсеріали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+
+                        if (!mainState.isLoading && continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
+                            item(contentType = "empty") {
+                                Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                         Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                            contentDescription = "Усі тренди",
-                                            tint = Color.White.copy(alpha = 0.6f),
-                                            modifier = Modifier.size(28.dp)
+                                            imageVector = Icons.Outlined.BrokenImage,
+                                            contentDescription = null,
+                                            tint = Color.White.copy(alpha = 0.3f),
+                                            modifier = Modifier.size(64.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Text(
+                                            text = "Нічого не знайдено",
+                                            color = Color.White.copy(alpha = 0.5f),
+                                            fontSize = 14.sp
                                         )
                                     }
                                 }
-                            )
-                        }
-                    }
-
-                    if (configState.homeLayout.showMovies && (categoryMovies.isNotEmpty() || categoriesState.isLoading)) {
-                        item(key = "cat_movies", contentType = "content_row") {
-                            val provider = categoryMovies.firstOrNull()?.provider ?: configState.currentProviderId
-                            val posterStyle = PosterStyle.forProvider(provider)
-                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
-                            
-                            ContentRow(
-                                "Фільми", categoryMovies, providerColor, onMovieClick,
-                                isLoading = categoriesState.isLoading,
-                                sharedTransitionScope = sharedTransitionScope,
-                                animatedContentScope = animatedContentScope,
-                                providerHint = configState.currentProviderId,
-                                trailingContent = {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(phoneDims.width)
-                                            .height(phoneDims.height)
-                                            .clip(Shapes.card)
-                                            .background(Color.White.copy(alpha = 0.08f))
-                                            .clickable { onSeeAllCategoryClick("movies") },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі фільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                                    }
-                                }
-                            )
-                        }
-                    }
-
-                    if (configState.homeLayout.showSeries && (categorySeries.isNotEmpty() || categoriesState.isLoading)) {
-                        item(key = "cat_series", contentType = "content_row") {
-                            val provider = categorySeries.firstOrNull()?.provider ?: configState.currentProviderId
-                            val posterStyle = PosterStyle.forProvider(provider)
-                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
-                            
-                            ContentRow(
-                                "Серіали", categorySeries, providerColor, onMovieClick,
-                                isLoading = categoriesState.isLoading,
-                                sharedTransitionScope = sharedTransitionScope,
-                                animatedContentScope = animatedContentScope,
-                                providerHint = configState.currentProviderId,
-                                trailingContent = {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(phoneDims.width)
-                                            .height(phoneDims.height)
-                                            .clip(Shapes.card)
-                                            .background(Color.White.copy(alpha = 0.08f))
-                                            .clickable { onSeeAllCategoryClick("series") },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі серіали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                                    }
-                                }
-                            )
-                        }
-                    }
-
-                    if (configState.homeLayout.showAnime && (categoryAnime.isNotEmpty() || categoriesState.isLoading)) {
-                        item(key = "cat_anime", contentType = "content_row") {
-                            val provider = categoryAnime.firstOrNull()?.provider ?: configState.currentProviderId
-                            val posterStyle = PosterStyle.forProvider(provider)
-                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
-                            
-                            ContentRow(
-                                "Аніме", categoryAnime, providerColor, onMovieClick,
-                                isLoading = categoriesState.isLoading,
-                                sharedTransitionScope = sharedTransitionScope,
-                                animatedContentScope = animatedContentScope,
-                                providerHint = configState.currentProviderId,
-                                trailingContent = {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(phoneDims.width)
-                                            .height(phoneDims.height)
-                                            .clip(Shapes.card)
-                                            .background(Color.White.copy(alpha = 0.08f))
-                                            .clickable { onSeeAllCategoryClick("anime") },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усе аніме", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                                    }
-                                }
-                            )
-                        }
-                    }
-
-                    if (configState.homeLayout.showCartoons && (categoryCartoons.isNotEmpty() || categoriesState.isLoading)) {
-                        item(key = "cat_cartoons", contentType = "content_row") {
-                            val provider = categoryCartoons.firstOrNull()?.provider ?: configState.currentProviderId
-                            val posterStyle = PosterStyle.forProvider(provider)
-                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
-                            
-                            ContentRow(
-                                "Мультфільми", categoryCartoons, providerColor, onMovieClick,
-                                isLoading = categoriesState.isLoading,
-                                sharedTransitionScope = sharedTransitionScope,
-                                animatedContentScope = animatedContentScope,
-                                providerHint = configState.currentProviderId,
-                                trailingContent = {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(phoneDims.width)
-                                            .height(phoneDims.height)
-                                            .clip(Shapes.card)
-                                            .background(Color.White.copy(alpha = 0.08f))
-                                            .clickable { onSeeAllCategoryClick("cartoons") },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультфільми", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                                    }
-                                }
-                            )
-                        }
-                    }
-
-                    if (configState.homeLayout.showCartoonSeries && (categoryCartoonSeries.isNotEmpty() || categoriesState.isLoading)) {
-                        item(key = "cat_cartoon_series", contentType = "content_row") {
-                            val provider = categoryCartoonSeries.firstOrNull()?.provider ?: configState.currentProviderId
-                            val posterStyle = PosterStyle.forProvider(provider)
-                            val phoneDims = ProviderSizes.phoneCard(posterStyle)
-                            
-                            ContentRow(
-                                "Мультсеріали", categoryCartoonSeries, providerColor, onMovieClick,
-                                isLoading = categoriesState.isLoading,
-                                sharedTransitionScope = sharedTransitionScope,
-                                animatedContentScope = animatedContentScope,
-                                providerHint = configState.currentProviderId,
-                                trailingContent = {
-                                    Box(
-                                        modifier = Modifier
-                                            .width(phoneDims.width)
-                                            .height(phoneDims.height)
-                                            .clip(Shapes.card)
-                                            .background(Color.White.copy(alpha = 0.08f))
-                                            .clickable { onSeeAllCategoryClick("cartoon_series") },
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Усі мультсеріали", tint = Color.White.copy(alpha = 0.6f), modifier = Modifier.size(28.dp))
-                                    }
-                                }
-                            )
-                        }
-                    }
-
-                    if (!mainState.isLoading && continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
-                        item(contentType = "empty") {
-                            Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.BrokenImage,
-                                        contentDescription = null,
-                                        tint = Color.White.copy(alpha = 0.3f),
-                                        modifier = Modifier.size(64.dp)
-                                    )
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Text(
-                                        text = "Нічого не знайдено",
-                                        color = Color.White.copy(alpha = 0.5f),
-                                        fontSize = 14.sp
-                                    )
-                                }
                             }
                         }
                     }
                 }
+            }
+
+            newUpdate?.let { info ->
+                AlertDialog(
+                    onDismissRequest = { viewModel.skipUpdate(info.versionCode) },
+                    title = { Text("Оновлення ${info.versionName}") },
+                    text = { Text(info.changelog) },
+                    confirmButton = {
+                        Button(
+                            onClick = { onSettingsClick() },
+                            colors = ButtonDefaults.buttonColors(containerColor = providerColor)
+                        ) {
+                            Text("Оновити")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { viewModel.skipUpdate(info.versionCode) }) {
+                            Text("Пропустити")
+                        }
+                    },
+                    containerColor = Background,
+                    titleContentColor = Color.White,
+                    textContentColor = Color.White.copy(alpha = 0.8f)
+                )
             }
         }
     }

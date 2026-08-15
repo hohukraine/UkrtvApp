@@ -56,6 +56,12 @@ class HomePreferences @Inject constructor(
         _defaultProvider.value = providerId
     }
 
+    fun getSkippedVersion(): Int = prefs.getInt(KEY_SKIPPED_VERSION, 0)
+
+    fun skipVersion(versionCode: Int) {
+        prefs.edit().putInt(KEY_SKIPPED_VERSION, versionCode).apply()
+    }
+
     private fun readLayout(): HomeLayout {
         return HomeLayout(
             showContinueWatching = prefs.getBoolean(KEY_CONTINUE_WATCHING, true),
@@ -83,5 +89,6 @@ class HomePreferences @Inject constructor(
         private const val KEY_ANIME = "show_anime"
         private const val KEY_CARTOONS = "show_cartoons"
         private const val KEY_CARTOON_SERIES = "show_cartoon_series"
+        private const val KEY_SKIPPED_VERSION = "skipped_version"
     }
 }
