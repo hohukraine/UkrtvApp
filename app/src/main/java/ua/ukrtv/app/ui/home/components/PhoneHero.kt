@@ -4,8 +4,9 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -19,6 +20,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -80,13 +82,21 @@ fun PhoneHeroSection(
                 translationY = -f * h * 0.15f
                 alpha = (1f - f).coerceIn(0f, 1f)
             }
+            // Track user interaction to pause auto-scroll WITHOUT consuming pointer events.
+            // A plain detectDragGestures here would consume vertical drags and block the
+            // parent LazyColumn from scrolling over the hero (70% of the screen).
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { isUserInteracting = true },
-                    onDragEnd = { isUserInteracting = false },
-                    onDragCancel = { isUserInteracting = false },
-                    onDrag = { _, _ -> }
-                )
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false)
+                    isUserInteracting = true
+                    try {
+                        while (true) {
+                            if (awaitPointerEvent().type == PointerEventType.Release) break
+                        }
+                    } finally {
+                        isUserInteracting = false
+                    }
+                }
             }
     ) {
         HorizontalPager(

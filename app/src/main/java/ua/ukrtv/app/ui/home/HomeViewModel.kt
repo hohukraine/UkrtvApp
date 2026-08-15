@@ -166,7 +166,7 @@ class HomeViewModel @Inject constructor(
                     emit(emptyList())
                 }
         }
-        .onEach { if (it.isNotEmpty()) _isLoading.value = false }
+        .onEach { _isLoading.value = false }
 
     private var stableTrending: List<Movie> = emptyList()
     private var stableTrendingIds: Set<String> = emptySet()

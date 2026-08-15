@@ -43,8 +43,13 @@ internal class HomeGridSource(
                 provider.name,
                 listOf(HomeSection("Main", freshItems))
             )
-        } else if (freshItems != null || cached.isNullOrEmpty()) {
+        } else if (freshItems != null) {
+            // Provider returned no content — the home has nothing to show (terminal).
             emit(emptyList())
+        } else if (cached.isNullOrEmpty()) {
+            // Fresh fetch failed and there is no cache to fall back on; let the
+            // ViewModel surface the error state instead of spinning forever.
+            throw java.io.IOException("Не вдалося завантажити контент")
         }
     }.flowOn(Dispatchers.IO)
 

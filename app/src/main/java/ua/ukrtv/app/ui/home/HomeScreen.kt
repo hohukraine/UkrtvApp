@@ -919,7 +919,37 @@ private fun PhoneHomeScreen(
                             }
                         }
 
-                        if (!mainState.isLoading && continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
+                        if (!mainState.isLoading && mainState.gridError != null) {
+                            item(key = "grid_error", contentType = "error") {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.BrokenImage,
+                                        contentDescription = null,
+                                        tint = Color.White.copy(alpha = 0.3f),
+                                        modifier = Modifier.size(80.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    Text(
+                                        text = "Помилка завантаження:\n${mainState.gridError}",
+                                        color = Color.White.copy(alpha = 0.6f),
+                                        textAlign = TextAlign.Center,
+                                        fontSize = 15.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(32.dp))
+                                    Button(
+                                        onClick = { viewModel.retryGrid() },
+                                        colors = ButtonDefaults.buttonColors(containerColor = providerColor)
+                                    ) {
+                                        Text("Спробувати знову", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!mainState.isLoading && mainState.gridError == null && continueWatching.isEmpty() && watchlist.isEmpty() && homeTrending.isEmpty()) {
                             item(contentType = "empty") {
                                 Box(modifier = Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
