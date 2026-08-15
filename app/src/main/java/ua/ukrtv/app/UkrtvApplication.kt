@@ -89,8 +89,13 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
             .setWorkerFactory(workerFactory.get())
             .build()
 
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     override fun onCreate() {
         super.onCreate()
+        
+        // Mute Media3 logging noise
+        androidx.media3.common.util.Log.setLogLevel(androidx.media3.common.util.Log.LOG_LEVEL_ERROR)
+
         cachedMemoryClass = (getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass
         AppLogger.init(this)
         AppLogger.d("UkrtvApplication", "onCreate")

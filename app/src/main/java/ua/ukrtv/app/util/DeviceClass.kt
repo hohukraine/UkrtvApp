@@ -97,19 +97,19 @@ object PlayerBufferConfig {
                 maxVideoSize = 1280,
             )
             DeviceClass.MID -> BufferParams(
-                minBufferMs = 60_000,
-                maxBufferMs = 180_000,
+                minBufferMs = 80_000,
+                maxBufferMs = 240_000,
                 bufferForPlaybackMs = 2_000,
                 bufferForPlaybackAfterRebufferMs = 5_000,
-                maxVideoBitrate = 25_000_000,
+                maxVideoBitrate = 50_000_000,
                 maxVideoSize = 1920,
             )
             DeviceClass.HIGH -> BufferParams(
                 minBufferMs = 120_000,
-                maxBufferMs = 500_000,
-                bufferForPlaybackMs = 2_000,
+                maxBufferMs = 600_000,
+                bufferForPlaybackMs = 2_500,
                 bufferForPlaybackAfterRebufferMs = 5_000,
-                maxVideoBitrate = 100_000_000,
+                maxVideoBitrate = Int.MAX_VALUE,
                 maxVideoSize = 3840,
             )
         }

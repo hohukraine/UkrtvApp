@@ -110,6 +110,7 @@ fun EmbeddedPlayerScreen(
 
     var autoAdvancing by remember { mutableStateOf(false) }
     var videoQualityCount by remember { mutableIntStateOf(0) }
+    var currentVideoSize by remember { mutableStateOf<androidx.media3.common.VideoSize?>(null) }
     val scope = rememberCoroutineScope()
 
     val advanceToNextEpisode: (exitIfNoNext: Boolean) -> Unit by rememberUpdatedState { exitIfNoNext ->
@@ -139,6 +140,13 @@ fun EmbeddedPlayerScreen(
                     val effectiveDur = if (dur > 0) dur else 0L
                     viewModel.saveProgress(if (effectiveDur > 0) effectiveDur else player.currentPosition, effectiveDur)
                     advanceToNextEpisode(true)
+                }
+            }
+
+            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    currentVideoSize = videoSize
+                    AppLogger.d("EmbeddedPlayer", "Video size changed: ${videoSize.width}x${videoSize.height}")
                 }
             }
 
@@ -182,7 +190,7 @@ fun EmbeddedPlayerScreen(
                 .apply { if (mimeType != null) setMimeType(mimeType) }
                 .build()
             player.setMediaItem(mediaItem)
-            player.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
+            player.videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING
             player.prepare()
             if (status.positionMs > 0) {
                 player.seekTo(status.positionMs)
@@ -474,6 +482,13 @@ fun EmbeddedPlayerScreen(
             update = { view ->
                 if (view.player != player) {
                     view.player = player
+                }
+                
+                val vs = currentVideoSize
+                if (vs != null && vs.width > 0 && vs.height > 0) {
+                    if (view is PlayerView) {
+                        (view.videoSurfaceView as? SurfaceView)?.holder?.setFixedSize(vs.width, vs.height)
+                    }
                 }
             }
         )

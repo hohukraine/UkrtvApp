@@ -56,23 +56,23 @@ class EmbeddedPlayerFactory @Inject constructor(
         val bandwidthMeter = DefaultBandwidthMeter.Builder(context)
             .setInitialBitrateEstimate(
                 when (deviceClass) {
-                    ua.ukrtv.app.util.DeviceClass.LOW -> 20_000_000L
-                    ua.ukrtv.app.util.DeviceClass.MID -> 50_000_000L
-                    ua.ukrtv.app.util.DeviceClass.HIGH -> 100_000_000L
+                    ua.ukrtv.app.util.DeviceClass.LOW -> 50_000_000L
+                    ua.ukrtv.app.util.DeviceClass.MID -> 100_000_000L
+                    ua.ukrtv.app.util.DeviceClass.HIGH -> 200_000_000L
                 }
             )
             .build()
 
         val trackSelector = DefaultTrackSelector(context, AdaptiveTrackSelection.Factory(
-            /* minDurationForQualityIncreaseMs= */ 1500,
-            /* maxDurationForQualityDecreaseMs= */ 10000,
+            /* minDurationForQualityIncreaseMs= */ 500,
+            /* maxDurationForQualityDecreaseMs= */ 15000,
             /* minDurationToRetainAfterDiscardMs= */ 25000,
-            /* bandwidthFraction= */ 0.85f
+            /* bandwidthFraction= */ 0.98f
         ))
         trackSelector.setParameters(
             trackSelector.buildUponParameters()
                 .setMaxVideoSize(buffers.maxVideoSize, buffers.maxVideoSize)
-                .setMaxVideoBitrate(buffers.maxVideoBitrate)
+                .setMaxVideoBitrate(Int.MAX_VALUE)
                 .setForceHighestSupportedBitrate(true)
                 .setExceedVideoConstraintsIfNecessary(true)
                 .setExceedRendererCapabilitiesIfNecessary(true)

@@ -104,7 +104,7 @@ object NetworkModule {
     }
 
     private val permissiveHostMarkers = listOf(
-        "ashdi", "hdvb", "vidmoly", "mcloud", "uakino", "uaflix", "uafix"
+        "ashdi", "hdvb", "vidmoly", "mcloud", "uakino", "uaflix", "uafix", "themoviedb"
     )
 
     private fun isPermissiveTrustedCert(chain: Array<X509Certificate>): Boolean {
