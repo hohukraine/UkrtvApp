@@ -127,13 +127,14 @@ fun HomeScreen(
     onSeeAllTrendsClick: () -> Unit,
     onSeeAllCategoryClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
+    onUpdateClick: () -> Unit = onSettingsClick,
     onHomeContentReady: () -> Unit = {}
 ) {
     val formFactor = LocalFormFactor.current
     if (formFactor == FormFactor.PHONE) {
-        PhoneHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onSettingsClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onHomeContentReady)
+        PhoneHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onSettingsClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onHomeContentReady, onUpdateClick)
     } else {
-        TvHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onTop200ItemClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onSettingsClick, onHomeContentReady)
+        TvHomeScreen(viewModel, sharedTransitionScope, animatedContentScope, onMovieClick, onContinueWatchingClick, onSearchClick, onSearchQueryClick, onTop200Click, onTop200ItemClick, onSeeAllTrendsClick, onSeeAllCategoryClick, onSettingsClick, onHomeContentReady, onUpdateClick)
     }
 }
 
@@ -152,7 +153,8 @@ private fun TvHomeScreen(
     onSeeAllTrendsClick: () -> Unit,
     onSeeAllCategoryClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
-    onHomeContentReady: () -> Unit = {}
+    onHomeContentReady: () -> Unit = {},
+    onUpdateClick: () -> Unit = onSettingsClick
 ) {
     val mainState by viewModel.mainContentState.collectAsStateWithLifecycle()
     val categoriesState by viewModel.categoriesState.collectAsStateWithLifecycle()
@@ -270,7 +272,7 @@ private fun TvHomeScreen(
                 },
                 confirmButton = {
                     Button(
-                        onClick = { onSettingsClick() },
+                        onClick = { onUpdateClick() },
                         colors = ButtonDefaults.buttonColors(containerColor = providerColor)
                     ) {
                         Text("Оновити")
@@ -588,7 +590,8 @@ private fun PhoneHomeScreen(
     onSettingsClick: () -> Unit = {},
     onSeeAllTrendsClick: () -> Unit = {},
     onSeeAllCategoryClick: (String) -> Unit = {},
-    onHomeContentReady: () -> Unit = {}
+    onHomeContentReady: () -> Unit = {},
+    onUpdateClick: () -> Unit = onSettingsClick
 ) {
     val gridState = rememberLazyListState()
     val density = LocalDensity.current
@@ -947,7 +950,7 @@ private fun PhoneHomeScreen(
                     text = { Text(info.changelog) },
                     confirmButton = {
                         Button(
-                            onClick = { onSettingsClick() },
+                            onClick = { onUpdateClick() },
                             colors = ButtonDefaults.buttonColors(containerColor = providerColor)
                         ) {
                             Text("Оновити")

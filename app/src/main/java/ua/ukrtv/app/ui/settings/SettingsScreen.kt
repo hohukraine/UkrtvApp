@@ -48,12 +48,13 @@ import androidx.compose.ui.platform.testTag
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    autoCheckUpdate: Boolean = false
 ) {
     val formFactor = LocalFormFactor.current
     when (formFactor) {
-        FormFactor.TV -> TvSettingsScreen(viewModel, onBack)
-        FormFactor.PHONE, FormFactor.TABLET -> PhoneSettingsScreen(viewModel, onBack)
+        FormFactor.TV -> TvSettingsScreen(viewModel, onBack, autoCheckUpdate)
+        FormFactor.PHONE, FormFactor.TABLET -> PhoneSettingsScreen(viewModel, onBack, autoCheckUpdate)
     }
 }
 
@@ -61,11 +62,16 @@ fun SettingsScreen(
 @Composable
 private fun TvSettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    autoCheckUpdate: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val hardwareClass = remember { getDeviceClass(context) }
+
+    LaunchedEffect(autoCheckUpdate) {
+        if (autoCheckUpdate) viewModel.checkForUpdates(autoDownload = true)
+    }
     
     val resolvedDevices by remember(uiState.performanceProfile) {
         derivedStateOf {
@@ -515,12 +521,17 @@ private fun TvSettingsScreen(
 @Composable
 private fun PhoneSettingsScreen(
     viewModel: SettingsViewModel = hiltViewModel(),
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    autoCheckUpdate: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val hardwareClass = remember { getDeviceClass(context) }
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(autoCheckUpdate) {
+        if (autoCheckUpdate) viewModel.checkForUpdates(autoDownload = true)
+    }
 
     Column(
         modifier = Modifier

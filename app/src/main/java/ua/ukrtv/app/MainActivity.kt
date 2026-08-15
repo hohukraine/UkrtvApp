@@ -240,7 +240,8 @@ fun UkrtvTVApp(formFactor: FormFactor, onHomeContentReady: () -> Unit = {}) {
                         },
                         onSeeAllTrendsClick = { navController.navigate(Screen.TrendsGrid) { launchSingleTop = true } },
                         onSeeAllCategoryClick = { categoryKey -> navController.navigate(Screen.CategoryGrid(categoryKey)) { launchSingleTop = true } },
-                        onSettingsClick = { navController.navigate(Screen.Settings) { launchSingleTop = true } },
+                        onSettingsClick = { navController.navigate(Screen.Settings()) { launchSingleTop = true } },
+                        onUpdateClick = { navController.navigate(Screen.Settings(checkForUpdate = true)) { launchSingleTop = true } },
                         onHomeContentReady = onHomeContentReady
                     )
                 }
@@ -298,8 +299,12 @@ fun UkrtvTVApp(formFactor: FormFactor, onHomeContentReady: () -> Unit = {}) {
                         onBack = { navController.popBackStack() }
                     )
                 }
-                composable<Screen.Settings> {
-                    SettingsScreen(onBack = { navController.popBackStack() })
+                composable<Screen.Settings> { backStackEntry ->
+                    val settings = backStackEntry.toRoute<Screen.Settings>()
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        autoCheckUpdate = settings.checkForUpdate
+                    )
                 }
                 composable<Screen.Player> { backStackEntry ->
                     val player: Screen.Player = backStackEntry.toRoute()

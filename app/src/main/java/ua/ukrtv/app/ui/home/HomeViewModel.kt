@@ -112,6 +112,11 @@ class HomeViewModel @Inject constructor(
             }
         }
         checkUpdate()
+        viewModelScope.launch {
+            isOnline.drop(1).collect { online ->
+                if (online && _newUpdate.value == null) checkUpdate()
+            }
+        }
     }
 
     private fun checkUpdate() {

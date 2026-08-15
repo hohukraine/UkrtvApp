@@ -135,13 +135,14 @@ class SettingsViewModel @Inject constructor(
         providerManager.setActiveProvider(providerId)
     }
 
-    fun checkForUpdates() {
+    fun checkForUpdates(autoDownload: Boolean = false) {
         viewModelScope.launch {
             _updateState.value = UpdateState.Checking
             val info = updateRepository.checkUpdate()
             if (info != null) {
                 if (info.versionCode > BuildConfig.VERSION_CODE) {
                     _updateState.value = UpdateState.NewVersionAvailable(info)
+                    if (autoDownload) downloadAndInstallUpdate(info)
                 } else {
                     _updateState.value = UpdateState.UpToDate
                 }

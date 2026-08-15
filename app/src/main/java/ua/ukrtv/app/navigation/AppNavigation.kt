@@ -23,7 +23,7 @@ sealed interface Screen {
         val poster: String = "",
         val brandColor: String? = null
     ) : Screen
-    @Serializable data object Settings : Screen
+    @Serializable data class Settings(val checkForUpdate: Boolean = false) : Screen
     @Serializable data class CategoryGrid(val category: String) : Screen
 }
 
