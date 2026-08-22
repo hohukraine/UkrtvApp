@@ -18,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -57,7 +58,11 @@ import androidx.tv.material3.Text as TvText
 import androidx.tv.material3.Button as TvButton
 import androidx.tv.material3.ButtonDefaults as TvButtonDefaults
 import ua.ukrtv.app.ui.home.components.ContentRow
-import ua.ukrtv.app.ui.home.components.HeroCarousel
+import ua.ukrtv.app.ui.home.components.HomeSectionUi
+import ua.ukrtv.app.ui.home.components.MainSectionRow
+import ua.ukrtv.app.ui.home.components.YouTvFocusInfoPanel
+import ua.ukrtv.app.ui.home.components.YouTvMovieHero
+import ua.ukrtv.app.ui.home.components.YouTvTop200Hero
 import ua.ukrtv.app.ui.home.components.PhoneHeroSection
 import ua.ukrtv.app.ui.home.components.Top200SignatureHero
 import ua.ukrtv.app.ui.home.components.TopBar
@@ -71,47 +76,6 @@ import ua.ukrtv.app.ui.theme.ProviderSizes
 import ua.ukrtv.app.ui.home.components.TrendsTrailingButton
 import ua.ukrtv.app.util.HomeLayout
 private const val FOCUS_RESTORE_WINDOW_MS = 1500L
-
-@Stable
-private data class HomeScreenState(
-    val isLoading: Boolean,
-    val isCategoriesLoading: Boolean,
-    val gridError: String?,
-    val isOnline: Boolean,
-    val top200Banners: List<Top200Movie>,
-    val bannerMovies: List<Movie>,
-    val continueWatching: List<Movie>,
-    val watchlist: List<Movie>,
-    val homeTrending: List<Movie>,
-    val trendingLabel: String,
-    val homeLayout: HomeLayout,
-    val categoryMovies: List<Movie>,
-    val categorySeries: List<Movie>,
-    val categoryAnime: List<Movie>,
-    val categoryCartoons: List<Movie>,
-    val categoryCartoonSeries: List<Movie>,
-    val activeBannerMovie: Top200Movie?,
-    val providerColor: Color,
-    val focusColor: Color,
-    val bannerFocusRequester: FocusRequester,
-    val currentProviderId: String
-)
-
-private data class HomeScreenActions(
-    val onRetryGrid: () -> Unit,
-    val onSearchClick: () -> Unit,
-    val onMovieClick: (Movie) -> Unit,
-    val onContinueWatchingClick: (Movie) -> Unit,
-    val onTop200ItemClick: (Top200Movie) -> Unit,
-    val onTop200Click: () -> Unit,
-    val onMovieFocused: (Movie) -> Unit,
-    val onActiveColorChange: (Color) -> Unit,
-    val onDismissItem: (Movie) -> Unit,
-    val onActiveMovieChange: (Top200Movie) -> Unit,
-    val onSeeAllTrendsClick: () -> Unit,
-    val onSeeAllCategoryClick: (String) -> Unit,
-    val onSettingsClick: () -> Unit
-)
 
 @Composable
 fun HomeScreen(
@@ -142,8 +106,8 @@ fun HomeScreen(
 @Composable
 private fun TvHomeScreen(
     viewModel: HomeViewModel,
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedContentScope: AnimatedContentScope? = null,
+    sharedTransitionScope: SharedTransitionScope?,
+    animatedContentScope: AnimatedContentScope?,
     onMovieClick: (Movie) -> Unit,
     onContinueWatchingClick: (Movie) -> Unit,
     onSearchClick: () -> Unit,
@@ -153,8 +117,8 @@ private fun TvHomeScreen(
     onSeeAllTrendsClick: () -> Unit,
     onSeeAllCategoryClick: (String) -> Unit,
     onSettingsClick: () -> Unit,
-    onHomeContentReady: () -> Unit = {},
-    onUpdateClick: () -> Unit = onSettingsClick
+    onHomeContentReady: () -> Unit,
+    onUpdateClick: () -> Unit
 ) {
     val mainState by viewModel.mainContentState.collectAsStateWithLifecycle()
     val categoriesState by viewModel.categoriesState.collectAsStateWithLifecycle()
@@ -175,86 +139,270 @@ private fun TvHomeScreen(
             onHomeContentReady()
         }
     }
-    
+
     val providerColor = remember(configState.brandColor) { Color(configState.brandColor) }
     val bannerFocusRequester = remember { FocusRequester() }
     val context = LocalContext.current
-    
-    var activeBannerMovie by remember(heroState.top200Banners) { 
-        mutableStateOf(heroState.top200Banners.firstOrNull()) 
+
+    var activeBannerMovie by remember(heroState.top200Banners) {
+        mutableStateOf(heroState.top200Banners.firstOrNull())
     }
-    val scrollState = rememberLazyListState()
-    
-    val scrollFraction by remember {
-        derivedStateOf {
-            if (scrollState.firstVisibleItemIndex > 0) 1f
-            else (scrollState.firstVisibleItemScrollOffset / 1000f).coerceIn(0f, 1f)
+
+    // YouTV-style home: fixed hero on top, a single section row below that swaps content on ↑/↓.
+    val sections = remember(mainState, categoriesState, configState, maxItems) {
+        buildList {
+            if (configState.homeLayout.showContinueWatching && (mainState.continueWatching.isNotEmpty() || mainState.isLoading)) {
+                add(
+                    HomeSectionUi(
+                        id = "continue_watching",
+                        title = "Продовжити перегляд",
+                        items = mainState.continueWatching.take(maxItems),
+                        isLoading = mainState.isLoading,
+                        dismissable = true
+                    )
+                )
+            }
+            if (configState.homeLayout.showWatchlist && (mainState.watchlist.isNotEmpty() || mainState.isLoading)) {
+                add(
+                    HomeSectionUi(
+                        id = "watchlist",
+                        title = "Мій список",
+                        items = mainState.watchlist.take(maxItems),
+                        isLoading = mainState.isLoading
+                    )
+                )
+            }
+            if (configState.homeLayout.showTrends && (mainState.homeTrending.isNotEmpty() || mainState.isLoading)) {
+                add(
+                    HomeSectionUi(
+                        id = "trending",
+                        title = configState.trendingLabel,
+                        items = mainState.homeTrending,
+                        isLoading = mainState.isLoading,
+                        useLargeCards = true
+                    )
+                )
+            }
+            if (configState.homeLayout.showMovies && (categoriesState.categoryMovies.isNotEmpty() || categoriesState.isLoading)) {
+                add(
+                    HomeSectionUi(
+                        id = "category_movies",
+                        title = "Фільми",
+                        items = categoriesState.categoryMovies.take(maxItems),
+                        isLoading = categoriesState.isLoading,
+                        categoryKey = "movies"
+                    )
+                )
+            }
+            if (configState.homeLayout.showSeries && (categoriesState.categorySeries.isNotEmpty() || categoriesState.isLoading)) {
+                add(
+                    HomeSectionUi(
+                        id = "category_series",
+                        title = "Серіали",
+                        items = categoriesState.categorySeries.take(maxItems),
+                        isLoading = categoriesState.isLoading,
+                        categoryKey = "series"
+                    )
+                )
+            }
+            if (configState.homeLayout.showAnime && (categoriesState.categoryAnime.isNotEmpty() || categoriesState.isLoading)) {
+                add(
+                    HomeSectionUi(
+                        id = "category_anime",
+                        title = "Аніме",
+                        items = categoriesState.categoryAnime.take(maxItems),
+                        isLoading = categoriesState.isLoading,
+                        categoryKey = "anime"
+                    )
+                )
+            }
+            if (configState.homeLayout.showCartoons && (categoriesState.categoryCartoons.isNotEmpty() || categoriesState.isLoading)) {
+                add(
+                    HomeSectionUi(
+                        id = "category_cartoons",
+                        title = "Мультфільми",
+                        items = categoriesState.categoryCartoons.take(maxItems),
+                        isLoading = categoriesState.isLoading,
+                        categoryKey = "cartoons"
+                    )
+                )
+            }
+            if (configState.homeLayout.showCartoonSeries && (categoriesState.categoryCartoonSeries.isNotEmpty() || categoriesState.isLoading)) {
+                add(
+                    HomeSectionUi(
+                        id = "category_cartoon_series",
+                        title = "Мультсеріали",
+                        items = categoriesState.categoryCartoonSeries.take(maxItems),
+                        isLoading = categoriesState.isLoading,
+                        categoryKey = "cartoon_series"
+                    )
+                )
+            }
         }
     }
 
-    // Once scrolled past the hero, the background follows the focused poster (Netflix-style).
-    val pastHero by remember {
-        derivedStateOf { scrollFraction > 0.25f }
+    // Focus restore after returning from another screen: preselect the section holding it.
+    val restoreTarget = remember { focusedMovie }
+    var restoreWindowOpen by remember { mutableStateOf(true) }
+    LaunchedEffect(Unit) {
+        delay(FOCUS_RESTORE_WINDOW_MS)
+        restoreWindowOpen = false
     }
-    val heroBackdropColor = activeBannerMovie?.accentColor?.let { try { Color(android.graphics.Color.parseColor(it)) } catch(_: Exception) { Color.Unspecified } } ?: Color.Unspecified
 
-    val homeState = HomeScreenState(
-        isLoading = mainState.isLoading,
-        isCategoriesLoading = categoriesState.isLoading,
-        gridError = mainState.gridError,
-        isOnline = configState.isOnline,
-        top200Banners = heroState.top200Banners,
-        bannerMovies = heroState.bannerMovies,
-        continueWatching = mainState.continueWatching.take(maxItems),
-        watchlist = mainState.watchlist.take(maxItems),
-        homeTrending = mainState.homeTrending.take(maxItems),
-        trendingLabel = configState.trendingLabel,
-        homeLayout = configState.homeLayout,
-        categoryMovies = categoriesState.categoryMovies.take(maxItems),
-        categorySeries = categoriesState.categorySeries.take(maxItems),
-        categoryAnime = categoriesState.categoryAnime.take(maxItems),
-        categoryCartoons = categoriesState.categoryCartoons.take(maxItems),
-        categoryCartoonSeries = categoriesState.categoryCartoonSeries.take(maxItems),
-        activeBannerMovie = activeBannerMovie,
-        providerColor = providerColor,
-        focusColor = focusColor,
-        bannerFocusRequester = bannerFocusRequester,
-        currentProviderId = configState.currentProviderId
-    )
+    var activeIndex by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(sections) {
+        if (sections.isEmpty()) return@LaunchedEffect
+        if (activeIndex < 0 || activeIndex > sections.lastIndex) {
+            val target = restoreTarget?.let { t ->
+                sections.indexOfFirst { s -> s.items.any { m -> m.pageUrl == t.pageUrl } }
+            } ?: -1
+            activeIndex = if (target >= 0) target else 0
+        }
+    }
 
-    val actions = HomeScreenActions(
-        onRetryGrid = { viewModel.retryGrid() },
-        onSearchClick = onSearchClick,
-        onMovieClick = onMovieClick,
-        onContinueWatchingClick = onContinueWatchingClick,
-        onTop200ItemClick = onTop200ItemClick,
-        onTop200Click = onTop200Click,
-        onMovieFocused = { viewModel.onMovieFocused(it, context) },
-        onActiveColorChange = { viewModel.provideFocusColor(it) },
-        onDismissItem = { viewModel.dismissContinueWatching(it) },
-        onActiveMovieChange = { activeBannerMovie = it },
-        onSeeAllTrendsClick = onSeeAllTrendsClick,
-        onSeeAllCategoryClick = onSeeAllCategoryClick,
-        onSettingsClick = onSettingsClick
+    var rowHasFocus by remember { mutableStateOf(false) }
+    // YouTV transition: once a section row takes focus the banner fades away entirely and
+    // the background becomes the focused poster's full-bleed backdrop.
+    val heroAlpha by animateFloatAsState(
+        targetValue = if (rowHasFocus) 0f else 1f,
+        animationSpec = tween(250),
+        label = "heroFade"
     )
+    val heroBackdropColor = activeBannerMovie?.accentColor?.let {
+        try { Color(android.graphics.Color.parseColor(it)) } catch (_: Exception) { Color.Unspecified }
+    } ?: Color.Unspecified
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
         HomeBackground(
             focusedColor = focusColor,
             brandColor = providerColor,
-            backdropColor = if (pastHero) focusColor else heroBackdropColor,
-            backdropUrl = if (pastHero) focusedMovie?.poster else activeBannerMovie?.backdropUrl,
-            backdropBlur = if (pastHero && deviceClass == DeviceClass.HIGH) 28.dp else 0.dp,
-            scrollFraction = { scrollFraction }
+            backdropColor = if (rowHasFocus) focusColor else heroBackdropColor,
+            backdropUrl = if (rowHasFocus) focusedMovie?.poster else activeBannerMovie?.backdropUrl,
+            backdropBlur = if (rowHasFocus && deviceClass == DeviceClass.HIGH) 28.dp else 0.dp,
+            immersive = !rowHasFocus,
+            scrollFraction = { 0f }
         ) {
-            HomeScreenContent(
-                state = homeState,
-                actions = actions,
-                scrollState = scrollState,
-                restoreMovie = focusedMovie,
-                sharedTransitionScope = sharedTransitionScope,
-                animatedContentScope = animatedContentScope
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                TopBar(
+                    currentProviderId = configState.currentProviderId,
+                    brandColor = providerColor,
+                    onSearchClick = onSearchClick,
+                    onSettingsClick = onSettingsClick
+                )
+
+                if (!configState.isOnline) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = GridDefaults.horizontalPadding, vertical = 16.dp)
+                            .background(Color(0xFFE53935).copy(alpha = 0.8f), Shapes.card)
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        TvText(
+                            "Відсутнє підключення до мережі. Відображення кешованих даних.",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .clipToBounds()
+                        .padding(top = 12.dp)
+                ) {
+                    if (heroState.top200Banners.isNotEmpty()) {
+                        YouTvTop200Hero(
+                            items = heroState.top200Banners,
+                            brandColor = providerColor,
+                            onItemClick = onTop200ItemClick,
+                            onActiveMovieChange = { activeBannerMovie = it },
+                            modifier = Modifier
+                                .focusRequester(bannerFocusRequester)
+                                .graphicsLayer { alpha = heroAlpha }
+                        )
+                    } else if (heroState.bannerMovies.isNotEmpty()) {
+                        YouTvMovieHero(
+                            items = heroState.bannerMovies,
+                            brandColor = providerColor,
+                            onWatchClick = onMovieClick,
+                            onActiveColorChange = { viewModel.provideFocusColor(Color(it)) },
+                            modifier = Modifier
+                                .focusRequester(bannerFocusRequester)
+                                .graphicsLayer { alpha = heroAlpha }
+                        )
+                    }
+
+                    // YouTV keeps its info widget visible while a row is focused — it just
+                    // repoints at the focused card (title/pill/meta/description, no button).
+                    // Fallback to the section's first item so the spot is never empty.
+                    val infoPanelMovie = focusedMovie
+                        ?: sections.getOrNull(activeIndex.coerceIn(0, sections.lastIndex))?.items?.firstOrNull()
+                    infoPanelMovie?.let { movie ->
+                        YouTvFocusInfoPanel(
+                            movie = movie,
+                            brandColor = providerColor,
+                            modifier = Modifier.graphicsLayer { alpha = 1f - heroAlpha }
+                        )
+                    }
+                }
+
+                if (!mainState.isLoading && mainState.gridError != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = GridDefaults.horizontalPadding, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TvText(
+                            "Помилка завантаження:\n${mainState.gridError}",
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+                        TvButton(
+                            onClick = { viewModel.retryGrid() },
+                            colors = TvButtonDefaults.colors(
+                                containerColor = providerColor,
+                                contentColor = Color.White
+                            )
+                        ) {
+                            TvText("Спробувати знову", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                if (sections.isNotEmpty() && activeIndex >= 0) {
+                    MainSectionRow(
+                        sections = sections,
+                        activeIndex = activeIndex,
+                        onSectionChange = { activeIndex = it },
+                        brandColor = providerColor,
+                        providerHint = configState.currentProviderId,
+                        onMovieClick = { movie ->
+                            if (movie.watchProgress != null) onContinueWatchingClick(movie) else onMovieClick(movie)
+                        },
+                        onItemDismiss = { viewModel.dismissContinueWatching(it) },
+                        onItemFocused = { viewModel.onMovieFocused(it, context) },
+                        onSeeAllClick = { section ->
+                            when {
+                                section.id == "trending" -> onSeeAllTrendsClick()
+                                section.id == "watchlist" -> onSeeAllCategoryClick("watchlist")
+                                section.categoryKey != null -> onSeeAllCategoryClick(section.categoryKey)
+                            }
+                        },
+                        restoreMovie = restoreTarget,
+                        restoreWindowOpen = { restoreWindowOpen },
+                        onRestoreHandled = { restoreWindowOpen = false },
+                        onRowFocusChange = { rowHasFocus = it },
+                        sharedTransitionScope = sharedTransitionScope,
+                        animatedContentScope = animatedContentScope
+                    )
+                }
+            }
         }
 
         newUpdate?.let { info ->
@@ -292,289 +440,6 @@ private fun TvHomeScreen(
         }
     }
 }
-
-@OptIn(ExperimentalTvMaterial3Api::class)
-@Composable
-private fun HomeScreenContent(
-    state: HomeScreenState,
-    actions: HomeScreenActions,
-    scrollState: LazyListState = rememberLazyListState(),
-    restoreMovie: Movie? = null,
-    sharedTransitionScope: SharedTransitionScope? = null,
-    animatedContentScope: AnimatedContentScope? = null
-) {
-    val (isLoading, isCategoriesLoading, gridError, isOnline, top200Banners, bannerMovies, continueWatching, watchlist, homeTrending, trendingLabel, homeLayout, categoryMovies, categorySeries, categoryAnime, categoryCartoons, categoryCartoonSeries, activeBannerMovie, providerColor, focusColor, bannerFocusRequester, currentProviderId) = state
-    val (onRetryGrid, onSearchClick, onMovieClick, onContinueWatchingClick, onTop200ItemClick, onTop200Click, onMovieFocused, onActiveColorChange, onDismissItem, onActiveMovieChange, onSeeAllTrendsClick, onSeeAllCategoryClick, onSettingsClick) = actions
-
-    val restoreTarget = remember { restoreMovie }
-    var restoreWindowOpen by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        delay(FOCUS_RESTORE_WINDOW_MS)
-        restoreWindowOpen = false
-    }
-
-    // Rail Fade: track which row currently owns focus so the others can dim.
-    var focusedRowId by remember { mutableStateOf<String?>(null) }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        state = scrollState,
-        contentPadding = PaddingValues(bottom = GridDefaults.contentBottomPadding)
-    ) {
-        item(key = "top_bar") {
-            Box(modifier = Modifier.onFocusChanged { if (it.isFocused) focusedRowId = null }) {
-                TopBar(
-                    currentProviderId = currentProviderId,
-                    brandColor = providerColor,
-                    onSearchClick = onSearchClick,
-                    onSettingsClick = onSettingsClick
-                )
-            }
-        }
-
-        if (!isOnline) {
-            item(key = "offline_banner") {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = GridDefaults.horizontalPadding, vertical = 16.dp)
-                        .background(Color(0xFFE53935).copy(alpha = 0.8f), Shapes.card)
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    TvText("Відсутнє підключення до мережі. Відображення кешованих даних.", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        }
-
-        item(key = "hero_carousel") {
-            Box(modifier = Modifier.fillMaxWidth().padding(top = 12.dp).onFocusChanged { if (it.isFocused) focusedRowId = null }) {
-                if (top200Banners.isNotEmpty()) {
-                    Top200SignatureHero(
-                        items = top200Banners,
-                        brandColor = providerColor,
-                        onItemClick = onTop200ItemClick,
-                        onItemLongClick = { onTop200Click() },
-                        onActiveMovieChange = onActiveMovieChange,
-                        modifier = Modifier.focusRequester(bannerFocusRequester)
-                    )
-                } else if (bannerMovies.isNotEmpty()) {
-                    HeroCarousel(
-                        items = bannerMovies,
-                        brandColor = providerColor,
-                        onWatchClick = onMovieClick,
-                        onActiveColorChange = onActiveColorChange,
-                        modifier = Modifier.focusRequester(bannerFocusRequester)
-                    )
-                }
-            }
-        }
-
-        if (homeLayout.showContinueWatching && (continueWatching.isNotEmpty() || isLoading)) {
-            item(key = "continue_watching", contentType = "content_row") {
-                ContentRow("Продовжити перегляд", continueWatching, providerColor, onContinueWatchingClick, onDismissItem, onMovieFocused, isLoading = isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = currentProviderId, restoreMovie = restoreTarget, restoreWindowOpen = { restoreWindowOpen }, onRestoreHandled = { restoreWindowOpen = false }, rowId = "continue_watching", focusedRowId = focusedRowId, onRowFocused = { focusedRowId = "continue_watching" })
-            }
-        }
-
-        if (homeLayout.showWatchlist && (watchlist.isNotEmpty() || isLoading)) {
-            item(key = "watchlist", contentType = "content_row") {
-                ContentRow("Мій список", watchlist, providerColor, onMovieClick, null, onMovieFocused, isLoading = isLoading, sharedTransitionScope = sharedTransitionScope, animatedContentScope = animatedContentScope, providerHint = currentProviderId, restoreMovie = restoreTarget, restoreWindowOpen = { restoreWindowOpen }, onRestoreHandled = { restoreWindowOpen = false }, rowId = "watchlist", focusedRowId = focusedRowId, onRowFocused = { focusedRowId = "watchlist" })
-            }
-        }
-
-        if (homeLayout.showTrends && (homeTrending.isNotEmpty() || isLoading)) {
-            item(key = "trending", contentType = "content_row") {
-                ContentRow(
-                    title = trendingLabel,
-                    items = homeTrending,
-                    brandColor = providerColor,
-                    onItemClick = onMovieClick,
-                    onItemDismiss = null,
-                    onItemFocused = onMovieFocused,
-                    useLargeCards = true,
-                    isLoading = isLoading,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    providerHint = currentProviderId,
-                    restoreMovie = restoreTarget,
-                    restoreWindowOpen = { restoreWindowOpen },
-                    onRestoreHandled = { restoreWindowOpen = false },
-                    rowId = "trending", focusedRowId = focusedRowId, onRowFocused = { focusedRowId = "trending" },
-                    trailingContent = {
-                        val provider = homeTrending.firstOrNull()?.provider ?: currentProviderId
-                        TrendsTrailingButton(
-                            brandColor = providerColor,
-                            onClick = onSeeAllTrendsClick,
-                            useLargeCards = true,
-                            provider = provider
-                        )
-                    }
-                )
-            }
-        }
-
-        if (homeLayout.showMovies && (categoryMovies.isNotEmpty() || isCategoriesLoading)) {
-            item(key = "category_movies", contentType = "content_row") {
-                ContentRow(
-                    title = "Фільми",
-                    items = categoryMovies,
-                    brandColor = providerColor,
-                    onItemClick = onMovieClick,
-                    onItemDismiss = null,
-                    onItemFocused = onMovieFocused,
-                    isLoading = isCategoriesLoading,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    providerHint = currentProviderId,
-                    restoreMovie = restoreTarget,
-                    restoreWindowOpen = { restoreWindowOpen },
-                    onRestoreHandled = { restoreWindowOpen = false },
-                    rowId = "category_movies", focusedRowId = focusedRowId, onRowFocused = { focusedRowId = "category_movies" },
-                    trailingContent = {
-                        val provider = categoryMovies.firstOrNull()?.provider ?: currentProviderId
-                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("movies") }, provider = provider)
-                    }
-                )
-            }
-        }
-
-        if (homeLayout.showSeries && (categorySeries.isNotEmpty() || isCategoriesLoading)) {
-            item(key = "category_series", contentType = "content_row") {
-                ContentRow(
-                    title = "Серіали",
-                    items = categorySeries,
-                    brandColor = providerColor,
-                    onItemClick = onMovieClick,
-                    onItemDismiss = null,
-                    onItemFocused = onMovieFocused,
-                    isLoading = isCategoriesLoading,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    providerHint = currentProviderId,
-                    restoreMovie = restoreTarget,
-                    restoreWindowOpen = { restoreWindowOpen },
-                    onRestoreHandled = { restoreWindowOpen = false },
-                    rowId = "category_series", focusedRowId = focusedRowId, onRowFocused = { focusedRowId = "category_series" },
-                    trailingContent = {
-                        val provider = categorySeries.firstOrNull()?.provider ?: currentProviderId
-                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("series") }, provider = provider)
-                    }
-                )
-            }
-        }
-
-        if (homeLayout.showAnime && (categoryAnime.isNotEmpty() || isCategoriesLoading)) {
-            item(key = "category_anime", contentType = "content_row") {
-                ContentRow(
-                    title = "Аніме",
-                    items = categoryAnime,
-                    brandColor = providerColor,
-                    onItemClick = onMovieClick,
-                    onItemDismiss = null,
-                    onItemFocused = onMovieFocused,
-                    isLoading = isCategoriesLoading,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    providerHint = currentProviderId,
-                    restoreMovie = restoreTarget,
-                    restoreWindowOpen = { restoreWindowOpen },
-                    onRestoreHandled = { restoreWindowOpen = false },
-                    rowId = "category_anime", focusedRowId = focusedRowId, onRowFocused = { focusedRowId = "category_anime" },
-                    trailingContent = {
-                        val provider = categoryAnime.firstOrNull()?.provider ?: currentProviderId
-                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("anime") }, provider = provider)
-                    }
-                )
-            }
-        }
-
-        if (homeLayout.showCartoons && (categoryCartoons.isNotEmpty() || isCategoriesLoading)) {
-            item(key = "category_cartoons", contentType = "content_row") {
-                ContentRow(
-                    title = "Мультфільми",
-                    items = categoryCartoons,
-                    brandColor = providerColor,
-                    onItemClick = onMovieClick,
-                    onItemDismiss = null,
-                    onItemFocused = onMovieFocused,
-                    isLoading = isCategoriesLoading,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    providerHint = currentProviderId,
-                    restoreMovie = restoreTarget,
-                    restoreWindowOpen = { restoreWindowOpen },
-                    onRestoreHandled = { restoreWindowOpen = false },
-                    rowId = "category_cartoons", focusedRowId = focusedRowId, onRowFocused = { focusedRowId = "category_cartoons" },
-                    trailingContent = {
-                        val provider = categoryCartoons.firstOrNull()?.provider ?: currentProviderId
-                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoons") }, provider = provider)
-                    }
-                )
-            }
-        }
-
-        if (homeLayout.showCartoonSeries && (categoryCartoonSeries.isNotEmpty() || isCategoriesLoading)) {
-            item(key = "category_cartoon_series", contentType = "content_row") {
-                ContentRow(
-                    title = "Мультсеріали",
-                    items = categoryCartoonSeries,
-                    brandColor = providerColor,
-                    onItemClick = onMovieClick,
-                    onItemDismiss = null,
-                    onItemFocused = onMovieFocused,
-                    isLoading = isCategoriesLoading,
-                    sharedTransitionScope = sharedTransitionScope,
-                    animatedContentScope = animatedContentScope,
-                    providerHint = currentProviderId,
-                    restoreMovie = restoreTarget,
-                    restoreWindowOpen = { restoreWindowOpen },
-                    onRestoreHandled = { restoreWindowOpen = false },
-                    rowId = "category_cartoon_series", focusedRowId = focusedRowId, onRowFocused = { focusedRowId = "category_cartoon_series" },
-                    trailingContent = {
-                        val provider = categoryCartoonSeries.firstOrNull()?.provider ?: currentProviderId
-                        TrendsTrailingButton(brandColor = providerColor, onClick = { onSeeAllCategoryClick("cartoon_series") }, provider = provider)
-                    }
-                )
-            }
-        }
-
-        if (!isLoading && gridError != null) {
-            item(key = "grid_error", contentType = "error") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 80.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.BrokenImage,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.3f),
-                        modifier = Modifier.size(80.dp)
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    TvText(
-                        text = "Помилка завантаження:\n$gridError",
-                        color = Color.White.copy(alpha = 0.6f),
-                        textAlign = TextAlign.Center,
-                        fontSize = 18.sp
-                    )
-                    Spacer(modifier = Modifier.height(32.dp))
-                    TvButton(
-                        onClick = onRetryGrid,
-                        colors = TvButtonDefaults.colors(
-                            containerColor = providerColor,
-                            contentColor = Color.White
-                        )
-                    ) {
-                        TvText("Спробувати знову", fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable

@@ -73,9 +73,10 @@ fun FullCategoryGridScreen(
 ) {
     val items by viewModel.items.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
     val error by viewModel.error.collectAsStateWithLifecycle()
     val brandColorLong by viewModel.brandColor.collectAsStateWithLifecycle()
-    
+
     MediaGridScreen(
         title = viewModel.categoryTitle,
         items = items,
@@ -84,6 +85,8 @@ fun FullCategoryGridScreen(
         brandColor = Color(brandColorLong),
         onMovieClick = onMovieClick,
         onBack = onBack,
-        onRetry = { viewModel.retry() }
+        onRetry = { viewModel.retry() },
+        isLoadingMore = isLoadingMore,
+        onLoadMore = { viewModel.loadMore() }
     )
 }

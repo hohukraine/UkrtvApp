@@ -55,11 +55,13 @@ fun MediaGridScreen(
     brandColor: Color,
     onMovieClick: (Movie) -> Unit,
     onBack: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    isLoadingMore: Boolean = false,
+    onLoadMore: (() -> Unit)? = null
 ) {
     val formFactor = LocalFormFactor.current
     if (formFactor == FormFactor.TV) {
-        TvMediaGridScreen(title, items, isLoading, error, brandColor, onMovieClick, onBack, onRetry)
+        TvMediaGridScreen(title, items, isLoading, error, brandColor, onMovieClick, onBack, onRetry, isLoadingMore, onLoadMore)
     } else {
         PhoneMediaGridScreen(title, items, isLoading, error, brandColor, onMovieClick, onBack, onRetry)
     }
@@ -75,11 +77,23 @@ private fun TvMediaGridScreen(
     brandColor: Color,
     onMovieClick: (Movie) -> Unit,
     onBack: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    isLoadingMore: Boolean,
+    onLoadMore: (() -> Unit)?
 ) {
     val deviceClass = LocalDeviceClass.current
     val gridFocusRequester = remember { FocusRequester() }
     val gridState = rememberLazyGridState()
+    var focusedMovie by remember { mutableStateOf<Movie?>(null) }
+
+    // Lazy pagination: fetch more when the focus/viewport approaches the end of loaded items.
+    LaunchedEffect(items.size, onLoadMore) {
+        if (onLoadMore == null) return@LaunchedEffect
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1 }
+            .collect { lastVisible ->
+                if (items.isNotEmpty() && lastVisible >= items.size - 12) onLoadMore()
+            }
+    }
 
     var entranceTrigger by remember { mutableStateOf(0L) }
     LaunchedEffect(isLoading) {
@@ -142,6 +156,9 @@ private fun TvMediaGridScreen(
                 }
             }
 
+            // YouTV-style info line: shows the currently focused grid item.
+            GridFocusInfoPanel(movie = focusedMovie, brandColor = brandColor)
+
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Adaptive(180.dp),
@@ -165,7 +182,25 @@ private fun TvMediaGridScreen(
                     }
                 }
                 itemsIndexed(items, key = { _, movie -> movie.id }, contentType = { _, _ -> "movie" }) { index, movie ->
-                    CompactMediaCard(movie, { onMovieClick(movie) }, index, entranceTrigger, deviceClass, gridState)
+                    CompactMediaCard(
+                        movie,
+                        { onMovieClick(movie) },
+                        index,
+                        entranceTrigger,
+                        deviceClass,
+                        gridState,
+                        onFocused = { focusedMovie = it }
+                    )
+                }
+                if (isLoadingMore) {
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "loading_more") {
+                        Box(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = brandColor, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+                        }
+                    }
                 }
             }
         }
@@ -180,12 +215,17 @@ private fun CompactMediaCard(
     entranceIndex: Int,
     entranceTrigger: Long,
     deviceClass: DeviceClass,
-    gridState: LazyGridState
+    gridState: LazyGridState,
+    onFocused: ((Movie) -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
     val isMediatek = LocalIsMediatek.current
-    
+
+    LaunchedEffect(isFocused) {
+        if (isFocused) onFocused?.invoke(movie)
+    }
+
     var itemVisible by remember(entranceTrigger, entranceIndex) { mutableStateOf(deviceClass == DeviceClass.LOW) }
     LaunchedEffect(entranceTrigger, entranceIndex) {
         if (deviceClass != DeviceClass.LOW) {
@@ -232,6 +272,52 @@ private fun CompactMediaCard(
             }
         }
         Text(movie.title, color = Color.White.copy(0.8f), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+    }
+}
+
+@Composable
+private fun GridFocusInfoPanel(movie: Movie?, brandColor: Color) {
+    // Fixed height so the grid does not jump when focus info appears/disappears.
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+    ) {
+        if (movie != null) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = movie.title,
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    val meta = buildList {
+                        movie.year?.let { add(it.toString()) }
+                        movie.contentType?.let { add(it) }
+                        movie.rating?.let { add("★ $it") }
+                    }.joinToString("  •  ")
+                    if (meta.isNotEmpty()) {
+                        Spacer(Modifier.width(10.dp))
+                        Text(text = meta, color = Color.White.copy(alpha = 0.55f), fontSize = 13.sp, maxLines = 1)
+                    }
+                }
+                movie.description?.takeIf { it.isNotBlank() }?.let { desc ->
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = desc,
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
     }
 }
 

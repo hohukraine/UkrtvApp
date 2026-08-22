@@ -48,8 +48,16 @@ class FullCategoryGridViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading
 
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore
+
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
+
+    // Lazy pagination state (main-thread confined).
+    private var nextPage = 1
+    private val knownUrls = linkedSetOf<String>()
+    private var endReached = false
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val brandColor: StateFlow<Long> = providerManager.activeProvider
@@ -66,21 +74,22 @@ class FullCategoryGridViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0xFF6E85B7)
 
     init {
-        loadCategory()
+        loadInitial()
     }
 
-    private fun loadCategory() {
+    private fun loadInitial() {
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
             try {
-                val result = withContext(Dispatchers.IO) {
+                val fetched = withContext(Dispatchers.IO) {
                     val provider = providerManager.activeProvider.value
-                    val pages = (1..4).map { page ->
+                    (1..2).map { page ->
                         async { provider.getMoviesByCategory(category, page) }
                     }.awaitAll().flatten()
-                    pages.distinctBy { it.pageUrl }.take(100)
                 }
+                val result = fetched.filter { knownUrls.add(it.pageUrl) }
+                nextPage = 3
                 _items.value = result
             } catch (e: Exception) {
                 _error.value = e.message ?: "Помилка завантаження"
@@ -90,5 +99,28 @@ class FullCategoryGridViewModel @Inject constructor(
         }
     }
 
-    fun retry() = loadCategory()
+    fun loadMore() {
+        if (_isLoading.value || _isLoadingMore.value || endReached) return
+        viewModelScope.launch {
+            _isLoadingMore.value = true
+            try {
+                val fetched = withContext(Dispatchers.IO) {
+                    providerManager.activeProvider.value.getMoviesByCategory(category, nextPage)
+                }
+                val fresh = fetched.filter { knownUrls.add(it.pageUrl) }
+                if (fresh.isEmpty()) {
+                    endReached = true
+                } else {
+                    nextPage++
+                    _items.value = _items.value + fresh
+                }
+            } catch (_: Exception) {
+                // Pagination errors are non-fatal; user can scroll to retry.
+            } finally {
+                _isLoadingMore.value = false
+            }
+        }
+    }
+
+    fun retry() = loadInitial()
 }

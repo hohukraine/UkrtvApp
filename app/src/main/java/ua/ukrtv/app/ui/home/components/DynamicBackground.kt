@@ -36,6 +36,9 @@ fun HomeBackground(
     backdropUrl: String? = null,
     backdropBlur: Dp = 0.dp,
     scrollFraction: () -> Float = { 0f },
+    // Netflix/Apple TV banner mode: full-bleed image, no blur, no color cast —
+    // only soft black scrims for text readability.
+    immersive: Boolean = false,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
@@ -73,9 +76,9 @@ fun HomeBackground(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .fillMaxHeight(0.9f)
+                    .fillMaxHeight(if (immersive) 1f else 0.9f)
                     .then(
-                        if (backdropBlur > 0.dp && deviceClass == DeviceClass.HIGH && !isMediatek) {
+                        if (!immersive && backdropBlur > 0.dp && deviceClass == DeviceClass.HIGH && !isMediatek) {
                             Modifier.blur(backdropBlur)
                         } else Modifier
                     )
@@ -95,6 +98,51 @@ fun HomeBackground(
                     val scroll = scrollFraction()
                     val s = size
                     val color = animatedPrimaryColor
+
+                    if (immersive) {
+                        // No processed backdrop on this device (e.g. "Швидкість" preset):
+                        // fill the whole page — TopBar zone included — with the accent gradient.
+                        val hasImage = !backdropUrl.isNullOrEmpty() && deviceClass != DeviceClass.LOW
+                        if (!hasImage) {
+                            drawRect(
+                                brush = Brush.verticalGradient(
+                                    colors = listOf(
+                                        color.copy(alpha = 0.9f),
+                                        color.copy(alpha = 0.55f),
+                                        color.copy(alpha = 0.25f),
+                                        Background
+                                    )
+                                )
+                            )
+                            return@drawBehind
+                        }
+                        // Netflix/Apple TV scrims: subtle left + bottom darkening, no tint.
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.45f),
+                                    Color.Black.copy(alpha = 0.15f),
+                                    Color.Transparent
+                                ),
+                                startX = 0f,
+                                endX = s.width * 0.7f
+                            ),
+                            alpha = (1f - scroll * 0.4f).coerceIn(0f, 1f)
+                        )
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.25f),
+                                    Color.Transparent,
+                                    Background.copy(alpha = 0.6f),
+                                    Background
+                                ),
+                                startY = s.height * 0.55f,
+                                endY = s.height
+                            )
+                        )
+                        return@drawBehind
+                    }
 
                     // Dim the blurred poster backdrop so rows stay readable
                     if (backdropBlur > 0.dp) {

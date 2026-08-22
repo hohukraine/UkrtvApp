@@ -26,6 +26,7 @@ sealed class DetailState {
     data class Success(
         val detail: MovieDetail,
         val watchProgress: Long = 0L,
+        val watchPercent: Int = 0
     ) : DetailState()
     data class Error(val error: AppError) : DetailState()
 }
@@ -34,7 +35,8 @@ data class DetailUiState(
     val detailState: DetailState = DetailState.Loading,
     val launchState: MediaLaunchState = MediaLaunchState.Idle,
     val isInWatchlist: Boolean = false,
-    val performanceProfile: PerformanceProfile = PerformanceProfile.BALANCED
+    val performanceProfile: PerformanceProfile = PerformanceProfile.BALANCED,
+    val related: List<Movie> = emptyList()
 )
 
 @HiltViewModel
@@ -53,15 +55,17 @@ class DetailViewModel @Inject constructor(
     private val _state = MutableStateFlow<DetailState>(DetailState.Loading)
     private val _launchState = MutableStateFlow<MediaLaunchState>(MediaLaunchState.Idle)
     private val _isInWatchlist = MutableStateFlow(false)
+    private val _related = MutableStateFlow<List<Movie>>(emptyList())
     private val performanceProfile = performancePreferences.profile
 
     val uiState: StateFlow<DetailUiState> = combine(
         _state,
         _launchState,
         _isInWatchlist,
-        performanceProfile
-    ) { state, launchState, isInWatchlist, performanceProfile ->
-        DetailUiState(state, launchState, isInWatchlist, performanceProfile)
+        performanceProfile,
+        _related
+    ) { state, launchState, isInWatchlist, performanceProfile, related ->
+        DetailUiState(state, launchState, isInWatchlist, performanceProfile, related)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), DetailUiState())
 
     private var currentDetail: MovieDetail? = null
@@ -105,8 +109,10 @@ class DetailViewModel @Inject constructor(
                 _isInWatchlist.value = watchlistRepository.isInWatchlist(detail.id)
                 _state.value = DetailState.Success(
                     detail = detail,
-                    watchProgress = progress?.positionMs ?: 0L
+                    watchProgress = progress?.positionMs ?: 0L,
+                    watchPercent = progress?.progressPercentage ?: 0
                 )
+                loadRelated(detail)
 
                 if (detail.seasons.isNullOrEmpty()) {
                     viewModelScope.launch {
@@ -121,8 +127,10 @@ class DetailViewModel @Inject constructor(
                             if (hasRealEpisodes) {
                                 _state.value = DetailState.Success(
                                     detail = enriched,
-                                    watchProgress = progress?.positionMs ?: 0L
+                                    watchProgress = progress?.positionMs ?: 0L,
+                                    watchPercent = progress?.progressPercentage ?: 0
                                 )
+                                loadRelated(enriched)
                             }
                             preWarmStream(enriched, progress?.episodeId?.let { parseSeasonEpisode(it) })
                         }
@@ -169,6 +177,25 @@ class DetailViewModel @Inject constructor(
                     isDeep = !isSeries
                 )
             } catch (_: Exception) { }
+        }
+    }
+
+    private fun loadRelated(detail: MovieDetail) {
+        viewModelScope.launch {
+            val query = detail.genres.firstOrNull()
+            var list = if (!query.isNullOrBlank()) {
+                runCatching { mediaRepository.search(query).first().getOrDefault(emptyList()) }
+                    .getOrDefault(emptyList())
+            } else emptyList()
+            if (list.size < 4) {
+                list = runCatching {
+                    mediaRepository.getTmdbTrendsCached(providerManager.activeProvider.value)
+                }.getOrDefault(emptyList())
+            }
+            _related.value = list
+                .filter { it.id != detail.id && it.pageUrl != detail.pageUrl }
+                .distinctBy { it.pageUrl }
+                .take(12)
         }
     }
 
