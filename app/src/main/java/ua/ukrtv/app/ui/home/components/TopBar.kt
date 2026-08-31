@@ -54,10 +54,10 @@ fun TopBar(
                 onDrawBehind {
                     val f = scrollDensity.value
                     val topAlpha: Float
-                    when (deviceClass) {
-                        DeviceClass.LOW -> topAlpha = 0.05f
-                        DeviceClass.MID -> topAlpha = 0.10f
-                        DeviceClass.HIGH -> topAlpha = (0.08f + 0.25f * f).coerceIn(0f, 0.33f)
+                    if (deviceClass == DeviceClass.HIGH) {
+                        topAlpha = (0.08f + 0.25f * f).coerceIn(0f, 0.33f)
+                    } else {
+                        topAlpha = 0.05f
                     }
                     drawRect(
                         brush = Brush.verticalGradient(

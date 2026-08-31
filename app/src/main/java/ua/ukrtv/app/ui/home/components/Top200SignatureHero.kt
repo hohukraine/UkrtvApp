@@ -145,7 +145,7 @@ private fun HeroPage(
                         )
                     )
                 ) {
-                    val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 200 to 300; DeviceClass.MID -> 400 to 600; DeviceClass.HIGH -> 600 to 900 }
+                    val (iw, ih) = if (deviceClass == DeviceClass.HIGH) 600 to 900 else 200 to 300
                     AsyncImage(
                         model = ImageRequest.Builder(context)
                             .data(movie.posterUrl)

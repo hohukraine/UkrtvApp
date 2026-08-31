@@ -145,11 +145,7 @@ private fun TvTop200Screen(
                     val context = LocalContext.current
                     val deviceClass = LocalDeviceClass.current
                     val isMediatek = LocalIsMediatek.current
-                    val (iw, ih) = when (deviceClass) {
-                        DeviceClass.LOW -> 120 to 180
-                        DeviceClass.MID -> 180 to 270
-                        DeviceClass.HIGH -> 300 to 450
-                    }
+                    val (iw, ih) = if (deviceClass == DeviceClass.HIGH) 300 to 450 else 120 to 180
                     val imageRequest = remember(movie.posterUrl, deviceClass) {
                         ImageRequest.Builder(context)
                             .data(movie.posterUrl.ifEmpty { null })

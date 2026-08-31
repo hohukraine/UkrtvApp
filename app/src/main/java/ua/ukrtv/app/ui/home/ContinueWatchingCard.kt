@@ -94,24 +94,20 @@ fun ContinueWatchingCard(
         }
     }
 
-    val targetScale = when (deviceClass) {
-        DeviceClass.LOW -> 1.05f
-        DeviceClass.MID -> 1.08f
-        DeviceClass.HIGH -> 1.1f
-    }
+    val targetScale = if (deviceClass == DeviceClass.HIGH) 1.25f else 1.08f
     val scale by animateFloatAsState(
         targetValue = if (isFocused && !deleteMode) targetScale else 1f,
         animationSpec = spring(
-            dampingRatio = 0.7f,
+            dampingRatio = 0.65f,
             stiffness = Spring.StiffnessMediumLow
         ),
         label = "cardScale"
     )
 
     val translateY by animateFloatAsState(
-        targetValue = if (isFocused && !deleteMode && deviceClass == DeviceClass.HIGH) (-6f) else 0f,
+        targetValue = if (isFocused && !deleteMode && isTv) (-14f) else 0f,
         animationSpec = spring(
-            dampingRatio = 0.8f,
+            dampingRatio = 0.75f,
             stiffness = Spring.StiffnessLow
         ),
         label = "cardTranslateY"
@@ -119,7 +115,7 @@ fun ContinueWatchingCard(
 
     val playIconAlpha by animateFloatAsState(
         targetValue = if (isFocused && !deleteMode && isTv) 1f else 0f,
-        animationSpec = tween(200),
+        animationSpec = tween(250),
         label = "playIconAlpha"
     )
 
@@ -127,6 +123,12 @@ fun ContinueWatchingCard(
         targetValue = if (isFocused || !isTv) 1f else 0f,
         animationSpec = tween(300),
         label = "contentAlpha"
+    )
+
+    val glowIntensity by animateFloatAsState(
+        targetValue = if (isFocused && isTv) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+        label = "glowIntensity"
     )
 
     val posterStyle = remember(movie.provider) {
@@ -148,16 +150,8 @@ fun ContinueWatchingCard(
         } else posterStyle
 
         val (iw, ih) = when (styleForImage) {
-            PosterStyle.WIDE -> when (deviceClass) {
-                DeviceClass.LOW -> 240 to 135
-                DeviceClass.MID -> 320 to 180
-                DeviceClass.HIGH -> 480 to 270
-            }
-            PosterStyle.VERTICAL -> when (deviceClass) {
-                DeviceClass.LOW -> 180 to 270
-                DeviceClass.MID -> 240 to 360
-                DeviceClass.HIGH -> 360 to 540
-            }
+            PosterStyle.WIDE -> if (deviceClass == DeviceClass.HIGH) 480 to 270 else 240 to 135
+            PosterStyle.VERTICAL -> if (deviceClass == DeviceClass.HIGH) 360 to 540 else 180 to 270
         }
         ImageRequest.Builder(ctx)
             .data(movie.poster)
@@ -171,13 +165,7 @@ fun ContinueWatchingCard(
         } else null
     }
 
-    val cardScale = remember(deviceClass) {
-        when (deviceClass) {
-            DeviceClass.LOW -> 0.75f
-            DeviceClass.MID -> 1.0f
-            DeviceClass.HIGH -> 1.0f
-        }
-    }
+    val cardScale = 1.0f
 
     val showPanel = showFocusPanel && isTv
     val labelHeight = if (showPanel) CardDefaults.focusPanelHeight else 0.dp
@@ -220,9 +208,11 @@ fun ContinueWatchingCard(
                 .height(cardDims.height * (if (height != null) 1f else cardScale))
                 .graphicsLayer {
                     if (isFocused && !deleteMode) {
-                        shadowElevation = if (deviceClass == DeviceClass.HIGH) 26.dp.toPx() else 10.dp.toPx()
-                        spotShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.35f else 0.2f)
-                        ambientShadowColor = accentColor.copy(alpha = if (deviceClass == DeviceClass.HIGH) 0.45f else 0.25f)
+                        shadowElevation = 30.dp.toPx() * glowIntensity
+                        spotShadowColor = accentColor.copy(alpha = 0.5f * glowIntensity)
+                        ambientShadowColor = accentColor.copy(alpha = 0.6f * glowIntensity)
+                    } else {
+                        shadowElevation = 0f
                     }
                     clip = true
                     shape = tileShape
@@ -257,10 +247,10 @@ fun ContinueWatchingCard(
                 }
                 .then(
                     if (isFocused && !deleteMode) {
-                        val borderColor = when {
-                            deviceClass == DeviceClass.HIGH -> accentColor.copy(alpha = 0.6f)
-                            deviceClass == DeviceClass.MID -> accentColor.copy(alpha = 0.9f)
-                            else -> Color.White.copy(alpha = 0.8f)
+                        val borderColor = if (deviceClass == DeviceClass.HIGH) {
+                            accentColor.copy(alpha = 0.6f)
+                        } else {
+                            Color.White.copy(alpha = 0.8f)
                         }
                         Modifier.border(BorderStroke(2.dp, borderColor), tileShape)
                     } else Modifier
@@ -280,19 +270,19 @@ fun ContinueWatchingCard(
                     .align(Alignment.Center)
                     .graphicsLayer {
                         alpha = playIconAlpha
-                        val s = 0.8f + (playIconAlpha * 0.2f)
+                        val s = 0.6f + (playIconAlpha * 0.4f)
                         scaleX = s
                         scaleY = s
                     }
-                    .size(40.dp)
-                    .background(brandColor.copy(alpha = 0.9f), CircleShape),
+                    .size(52.dp)
+                    .background(brandColor.copy(alpha = 0.92f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.PlayArrow,
                     contentDescription = null,
                     tint = Color.White,
-                    modifier = Modifier.size(26.dp)
+                    modifier = Modifier.size(32.dp)
                 )
             }
 
@@ -413,22 +403,35 @@ fun ContinueWatchingCard(
                             .align(Alignment.TopCenter)
                             .fillMaxWidth()
                             .height(2.dp)
-                            .background(accentColor.copy(alpha = 0.6f))
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color.Transparent,
+                                        accentColor.copy(alpha = 0.8f),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
                     )
                     Column(
                         modifier = Modifier
                             .align(Alignment.CenterStart)
                             .padding(horizontal = 12.dp, vertical = 6.dp)
+                            .graphicsLayer {
+                                val s = 0.95f + (panelProgress * 0.05f)
+                                scaleX = s
+                                scaleY = s
+                            }
                     ) {
                         Text(
                             text = movie.title,
                             color = Color.White,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.ExtraBold,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             letterSpacing = 0.2.sp,
-                            lineHeight = 16.sp
+                            lineHeight = 17.sp
                         )
                         Row(
                             verticalAlignment = Alignment.CenterVertically,

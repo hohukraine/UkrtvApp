@@ -151,16 +151,8 @@ fun UkrtvTVApp(formFactor: FormFactor, onHomeContentReady: () -> Unit = {}) {
     val navController = rememberNavController()
 
     val deviceClass = LocalDeviceClass.current
-    val navEnterDur = when (deviceClass) {
-        DeviceClass.LOW -> 0
-        DeviceClass.MID -> 200
-        DeviceClass.HIGH -> 400
-    }
-    val navExitDur = when (deviceClass) {
-        DeviceClass.LOW -> 0
-        DeviceClass.MID -> 200
-        DeviceClass.HIGH -> 300
-    }
+    val navEnterDur = if (deviceClass == DeviceClass.HIGH) 400 else 0
+    val navExitDur = if (deviceClass == DeviceClass.HIGH) 300 else 0
 
     val onMovieClick = remember(navController) {
         { movie: ua.ukrtv.app.domain.model.Movie ->

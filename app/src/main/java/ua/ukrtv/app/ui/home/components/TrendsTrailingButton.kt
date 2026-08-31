@@ -24,7 +24,7 @@ import androidx.tv.material3.Surface
 import ua.ukrtv.app.ui.theme.CardDefaults
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.PosterStyle
-import ua.ukrtv.app.ui.theme.ProviderSizes
+import ua.ukrtv.app.ui.theme.YouTv
 import ua.ukrtv.app.util.DeviceClass
 
 @OptIn(ExperimentalTvMaterial3Api::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
@@ -32,40 +32,29 @@ import ua.ukrtv.app.util.DeviceClass
 fun TrendsTrailingButton(
     brandColor: Color,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     useLargeCards: Boolean = false,
     provider: String? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
 
-    val deviceClass = LocalDeviceClass.current
-    val cardScale = remember(deviceClass) {
-        when (deviceClass) {
-            DeviceClass.LOW -> 0.75f
-            DeviceClass.MID -> 1.0f
-            DeviceClass.HIGH -> 1.15f
-        }
-    }
-
-    val posterStyle = remember(provider) { PosterStyle.forProvider(provider) }
-    val dims = ProviderSizes.card(posterStyle)
-
-    val largeCardScale = if (deviceClass == DeviceClass.HIGH) 1.25f else 1.15f
-    val baseHeight = if (useLargeCards) dims.height * largeCardScale else dims.height
-    val baseWidth = dims.width * 0.6f
+    // Match the exact card dimensions from MainSectionRow (YouTv layout)
+    val cardW = if (useLargeCards) YouTv.collectionCardW else YouTv.vodCardW
+    val cardH = if (useLargeCards) YouTv.collectionCardH else YouTv.vodCardH
 
     Surface(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(12.dp)),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(YouTv.cardRadius)),
         scale = ClickableSurfaceDefaults.scale(focusedScale = 1.08f),
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.White.copy(alpha = 0.08f),
             focusedContainerColor = brandColor.copy(alpha = 0.25f)
         ),
-        modifier = Modifier
-            .width((baseWidth * cardScale))
-            .height((baseHeight * cardScale))
+        modifier = modifier
+            .width(cardW)
+            .height(cardH)
             .focusProperties {
                 exit = { focusDirection ->
                     if (focusDirection == FocusDirection.Right) FocusRequester.Cancel
@@ -82,14 +71,14 @@ fun TrendsTrailingButton(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
                 tint = if (isFocused) Color.White else Color.White.copy(alpha = 0.6f),
-                modifier = Modifier.size(32.dp * cardScale)
+                modifier = Modifier.size(32.dp)
             )
             if (isFocused) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Більше",
                     color = Color.White,
-                    fontSize = (14.sp.value * cardScale).sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold
                 )
             }

@@ -55,11 +55,7 @@ class EmbeddedPlayerFactory @Inject constructor(
 
         val bandwidthMeter = DefaultBandwidthMeter.Builder(context)
             .setInitialBitrateEstimate(
-                when (deviceClass) {
-                    ua.ukrtv.app.util.DeviceClass.LOW -> 50_000_000L
-                    ua.ukrtv.app.util.DeviceClass.MID -> 100_000_000L
-                    ua.ukrtv.app.util.DeviceClass.HIGH -> 200_000_000L
-                }
+                if (deviceClass == ua.ukrtv.app.util.DeviceClass.HIGH) 200_000_000L else 50_000_000L
             )
             .build()
 

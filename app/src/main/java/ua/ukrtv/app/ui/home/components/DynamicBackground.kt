@@ -65,7 +65,7 @@ fun HomeBackground(
     )
 
     Box(modifier = modifier.fillMaxSize().background(Background)) {
-        // LAYER 1: Backdrop Image (Full screen)
+        // LAYER 1: Backdrop Image (Full screen) — parallax: moves slower than scroll
         if (!backdropUrl.isNullOrEmpty() && deviceClass != DeviceClass.LOW) {
             AsyncImage(
                 model = ImageRequest.Builder(context)
@@ -84,13 +84,14 @@ fun HomeBackground(
                     )
                     .graphicsLayer {
                         val scroll = scrollFraction()
-                        // Cinematic visibility: High but tinted by the overlay
-                        alpha = (1f - scroll * 0.8f).coerceIn(0.2f, 1f)
+                        // Parallax: backdrop scrolls at 40% of content speed
+                        translationY = scroll * size.height * 0.15f
+                        alpha = (1f - scroll * 0.7f).coerceIn(0.15f, 1f)
                     }
             )
         }
 
-        // LAYER 2: TMDB/Netflix Signature Overlay
+        // LAYER 2: TMDB/Netflix Signature Overlay — multi-layer parallax gradients
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -100,10 +101,9 @@ fun HomeBackground(
                     val color = animatedPrimaryColor
 
                     if (immersive) {
-                        // No processed backdrop on this device (e.g. "Швидкість" preset):
-                        // fill the whole page — TopBar zone included — with the accent gradient.
                         val hasImage = !backdropUrl.isNullOrEmpty() && deviceClass != DeviceClass.LOW
                         if (!hasImage) {
+                            // Solid color gradient fill for low-end immersive
                             drawRect(
                                 brush = Brush.verticalGradient(
                                     colors = listOf(
@@ -116,47 +116,75 @@ fun HomeBackground(
                             )
                             return@drawBehind
                         }
-                        // Netflix/Apple TV scrims: subtle left + bottom darkening, no tint.
+                        // Netflix-style cinematic scrims with parallax
+                        // Layer A: Left vignette (moves at 30% speed)
                         drawRect(
                             brush = Brush.horizontalGradient(
                                 colors = listOf(
-                                    Color.Black.copy(alpha = 0.45f),
-                                    Color.Black.copy(alpha = 0.15f),
+                                    Color.Black.copy(alpha = 0.5f),
+                                    Color.Black.copy(alpha = 0.2f),
                                     Color.Transparent
                                 ),
                                 startX = 0f,
-                                endX = s.width * 0.7f
+                                endX = s.width * 0.75f
                             ),
-                            alpha = (1f - scroll * 0.4f).coerceIn(0f, 1f)
+                            alpha = (1f - scroll * 0.35f).coerceIn(0f, 1f)
                         )
+                        // Layer B: Top bar darkening (moves at 20% speed)
                         drawRect(
                             brush = Brush.verticalGradient(
                                 colors = listOf(
-                                    Color.Black.copy(alpha = 0.25f),
+                                    Color.Black.copy(alpha = 0.35f),
+                                    Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = s.height * 0.35f
+                            ),
+                            alpha = (1f - scroll * 0.2f).coerceIn(0.3f, 1f)
+                        )
+                        // Layer C: Bottom fade (scrolls with content)
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
                                     Color.Transparent,
-                                    Background.copy(alpha = 0.6f),
+                                    Background.copy(alpha = 0.5f),
                                     Background
                                 ),
-                                startY = s.height * 0.55f,
+                                startY = s.height * (0.6f - scroll * 0.05f),
                                 endY = s.height
                             )
                         )
+                        // Layer D: Ambient glow (drifts with scroll)
+                        if (animateGlow) {
+                            drawRect(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        animatedFocusColor.copy(alpha = 0.08f),
+                                        Color.Transparent
+                                    ),
+                                    center = Offset(
+                                        s.width * 0.15f,
+                                        s.height * (0.45f - scroll * 0.08f)
+                                    ),
+                                    radius = s.width * 1.8f
+                                )
+                            )
+                        }
                         return@drawBehind
                     }
 
-                    // Dim the blurred poster backdrop so rows stay readable
+                    // Non-immersive: dim blurred poster backdrop
                     if (backdropBlur > 0.dp) {
                         drawRect(color = Color.Black.copy(alpha = 0.35f))
                     }
 
-                    // 2.1 THE TMDB "WASH" - A heavy gradient of the primary color over the image
-                    // This creates the exact TMDB look where the image is tinted by the movie color.
+                    // Layer A: TMDB color wash — horizontal gradient tinting the poster
                     drawRect(
                         brush = Brush.horizontalGradient(
                             colors = listOf(
-                                color.copy(alpha = 1.00f), // Left: 100% Solid
-                                color.copy(alpha = 0.92f), // Mid-left: 92%
-                                color.copy(alpha = 0.60f)  // Right: 60% (Shows image through)
+                                color.copy(alpha = 1.00f),
+                                color.copy(alpha = 0.92f),
+                                color.copy(alpha = 0.60f)
                             ),
                             startX = 0f,
                             endX = s.width
@@ -164,22 +192,22 @@ fun HomeBackground(
                         alpha = (1f - scroll * 0.4f).coerceIn(0f, 1f)
                     )
 
-                    // 2.2 VERTICAL BLEND - Fade to pure app background color at the bottom
+                    // Layer B: Vertical blend — fade to background at bottom
                     drawRect(
                         brush = Brush.verticalGradient(
                             colors = listOf(
-                                Color.Black.copy(alpha = 0.35f), // Top shadow
+                                Color.Black.copy(alpha = 0.35f),
                                 Color.Transparent,
                                 Color.Transparent,
-                                Background.copy(alpha = 0.85f), // Start transition to black
-                                Background                      // Pure black
+                                Background.copy(alpha = 0.85f),
+                                Background
                             ),
                             startY = 0f,
                             endY = s.height
                         )
                     )
 
-                    // 2.3 AMBIENT GLOW
+                    // Layer C: Ambient glow — radial light from focused card
                     if (animateGlow) {
                         drawRect(
                             brush = Brush.radialGradient(
@@ -189,6 +217,20 @@ fun HomeBackground(
                                 ),
                                 center = Offset(s.width * 0.1f, s.height * 0.4f),
                                 radius = s.width * 1.5f
+                            )
+                        )
+                    }
+
+                    // Layer D: Subtle vignette — darken edges for depth
+                    if (animateGlow) {
+                        drawRect(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.Black.copy(alpha = 0.15f)
+                                ),
+                                center = Offset(s.width * 0.5f, s.height * 0.5f),
+                                radius = s.width * 0.85f
                             )
                         )
                     }

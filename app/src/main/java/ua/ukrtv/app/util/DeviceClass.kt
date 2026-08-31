@@ -17,7 +17,7 @@ fun getDeviceClass(context: Context): DeviceClass {
     synchronized(DeviceClass::class.java) {
         cachedDeviceClass?.let { return it }
         
-        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return DeviceClass.MID
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager ?: return DeviceClass.LOW
         val memInfo = ActivityManager.MemoryInfo()
         am.getMemoryInfo(memInfo)
         val totalRamGb = memInfo.totalMem / (1024.0 * 1024.0 * 1024.0)
@@ -44,37 +44,22 @@ fun getDeviceClass(context: Context): DeviceClass {
             else -> 0
         }
 
-        val result = when {
-            score <= 1 -> DeviceClass.LOW
-            score <= 3 -> DeviceClass.MID
-            else -> DeviceClass.HIGH
-        }
+        val result = if (score <= 1) DeviceClass.LOW else DeviceClass.HIGH
         cachedDeviceClass = result
         return result
     }
 }
 
 fun resolveDeviceClass(context: Context, profile: PerformanceProfile): DeviceClass {
-    val hardware = getDeviceClass(context)
     return when (profile) {
-        PerformanceProfile.AUTO -> hardware
         PerformanceProfile.PERFORMANCE -> DeviceClass.LOW
-        PerformanceProfile.BALANCED -> DeviceClass.MID
         PerformanceProfile.VISUAL -> DeviceClass.HIGH
     }
 }
 
-fun DeviceClass.maxPostersPerRow(): Int = when (this) {
-    DeviceClass.LOW -> 8
-    DeviceClass.MID -> 12
-    DeviceClass.HIGH -> 16
-}
+fun DeviceClass.maxPostersPerRow(): Int = if (this == DeviceClass.HIGH) 16 else 8
 
-fun DeviceClass.maxShimmerItems(): Int = when (this) {
-    DeviceClass.LOW -> 4
-    DeviceClass.MID -> 6
-    DeviceClass.HIGH -> 8
-}
+fun DeviceClass.maxShimmerItems(): Int = if (this == DeviceClass.HIGH) 8 else 4
 
 object PlayerBufferConfig {
     data class BufferParams(
@@ -87,30 +72,23 @@ object PlayerBufferConfig {
     )
 
     fun forDevice(deviceClass: DeviceClass, isMediatek: Boolean): BufferParams {
-        val base = when (deviceClass) {
-            DeviceClass.LOW -> BufferParams(
-                minBufferMs = 45_000,
-                maxBufferMs = 120_000,
-                bufferForPlaybackMs = 2_500,
-                bufferForPlaybackAfterRebufferMs = 6_000,
-                maxVideoBitrate = 10_000_000,
-                maxVideoSize = 1280,
-            )
-            DeviceClass.MID -> BufferParams(
-                minBufferMs = 80_000,
-                maxBufferMs = 240_000,
-                bufferForPlaybackMs = 2_000,
-                bufferForPlaybackAfterRebufferMs = 5_000,
-                maxVideoBitrate = 50_000_000,
-                maxVideoSize = 1920,
-            )
-            DeviceClass.HIGH -> BufferParams(
+        val base = if (deviceClass == DeviceClass.HIGH) {
+            BufferParams(
                 minBufferMs = 120_000,
                 maxBufferMs = 600_000,
                 bufferForPlaybackMs = 2_500,
                 bufferForPlaybackAfterRebufferMs = 5_000,
                 maxVideoBitrate = Int.MAX_VALUE,
                 maxVideoSize = 3840,
+            )
+        } else {
+            BufferParams(
+                minBufferMs = 45_000,
+                maxBufferMs = 120_000,
+                bufferForPlaybackMs = 2_500,
+                bufferForPlaybackAfterRebufferMs = 6_000,
+                maxVideoBitrate = 10_000_000,
+                maxVideoSize = 1280,
             )
         }
 

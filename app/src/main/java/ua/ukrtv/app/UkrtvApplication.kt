@@ -268,17 +268,9 @@ class UkrtvApplication : Application(), SingletonImageLoader.Factory, Configurat
     ): ImageLoader {
         val memClass = if (cachedMemoryClass > 0) cachedMemoryClass else (context.getSystemService(ACTIVITY_SERVICE) as ActivityManager).memoryClass
         val maxHeapBytes = memClass * 1024L * 1024L
-        val memPct = when (deviceClass) {
-            DeviceClass.LOW -> 0.08
-            DeviceClass.MID -> 0.12
-            DeviceClass.HIGH -> 0.20
-        }
+        val memPct = if (deviceClass == DeviceClass.HIGH) 0.20 else 0.08
         val adaptiveSize = (maxHeapBytes * memPct).toInt()
-        val diskCacheSize = when (deviceClass) {
-            DeviceClass.LOW -> 32L * 1024 * 1024
-            DeviceClass.MID -> 64L * 1024 * 1024
-            DeviceClass.HIGH -> 200L * 1024 * 1024
-        }
+        val diskCacheSize = if (deviceClass == DeviceClass.HIGH) 200L * 1024 * 1024 else 32L * 1024 * 1024
 
         return ImageLoader.Builder(context)
             .components {

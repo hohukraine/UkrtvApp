@@ -21,12 +21,12 @@ class PerformancePreferences @Inject constructor(
     val revision: StateFlow<Long> = _revision.asStateFlow()
 
     private fun readProfile(): PerformanceProfile {
-        val name = prefs.getString(KEY_PROFILE, PerformanceProfile.AUTO.name)
-            ?: PerformanceProfile.AUTO.name
+        val name = prefs.getString(KEY_PROFILE, PerformanceProfile.VISUAL.name)
+            ?: PerformanceProfile.VISUAL.name
         return try {
             PerformanceProfile.valueOf(name)
         } catch (_: IllegalArgumentException) {
-            PerformanceProfile.AUTO
+            PerformanceProfile.VISUAL
         }
     }
 

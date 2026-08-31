@@ -141,7 +141,7 @@ private fun TvHomeScreen(
     }
 
     val providerColor = remember(configState.brandColor) { Color(configState.brandColor) }
-    val bannerFocusRequester = remember { FocusRequester() }
+    val heroWatchButtonFocusRequester = remember { FocusRequester() }
     val context = LocalContext.current
 
     var activeBannerMovie by remember(heroState.top200Banners) {
@@ -179,7 +179,7 @@ private fun TvHomeScreen(
                         title = configState.trendingLabel,
                         items = mainState.homeTrending,
                         isLoading = mainState.isLoading,
-                        useLargeCards = true
+                        useLargeCards = false
                     )
                 )
             }
@@ -261,6 +261,21 @@ private fun TvHomeScreen(
     }
 
     var rowHasFocus by remember { mutableStateOf(false) }
+    // Debounced backdrop: Netflix-style delay before updating background on focus change
+    // to avoid thrashing during fast D-pad scrolling. Both enter AND exit are debounced.
+    var debouncedFocusedMovie by remember { mutableStateOf<Movie?>(null) }
+    var debouncedFocusColor by remember { mutableStateOf(Color.Unspecified) }
+    LaunchedEffect(rowHasFocus, focusedMovie, focusColor) {
+        if (rowHasFocus && focusedMovie != null) {
+            delay(300)
+            debouncedFocusedMovie = focusedMovie
+            debouncedFocusColor = focusColor
+        } else {
+            delay(150)
+            debouncedFocusedMovie = null
+            debouncedFocusColor = Color.Unspecified
+        }
+    }
     // YouTV transition: once a section row takes focus the banner fades away entirely and
     // the background becomes the focused poster's full-bleed backdrop.
     val heroAlpha by animateFloatAsState(
@@ -274,11 +289,11 @@ private fun TvHomeScreen(
 
     Box(modifier = Modifier.fillMaxSize().background(Background)) {
         HomeBackground(
-            focusedColor = focusColor,
+            focusedColor = if (rowHasFocus) debouncedFocusColor else focusColor,
             brandColor = providerColor,
-            backdropColor = if (rowHasFocus) focusColor else heroBackdropColor,
-            backdropUrl = if (rowHasFocus) focusedMovie?.poster else activeBannerMovie?.backdropUrl,
-            backdropBlur = if (rowHasFocus && deviceClass == DeviceClass.HIGH) 28.dp else 0.dp,
+            backdropColor = if (rowHasFocus) debouncedFocusColor else heroBackdropColor,
+            backdropUrl = if (rowHasFocus) debouncedFocusedMovie?.poster else activeBannerMovie?.backdropUrl,
+            backdropBlur = if (rowHasFocus) (if (deviceClass == DeviceClass.HIGH) 32.dp else 12.dp) else 0.dp,
             immersive = !rowHasFocus,
             scrollFraction = { 0f }
         ) {
@@ -321,8 +336,8 @@ private fun TvHomeScreen(
                             brandColor = providerColor,
                             onItemClick = onTop200ItemClick,
                             onActiveMovieChange = { activeBannerMovie = it },
+                            watchButtonFocusRequester = heroWatchButtonFocusRequester,
                             modifier = Modifier
-                                .focusRequester(bannerFocusRequester)
                                 .graphicsLayer { alpha = heroAlpha }
                         )
                     } else if (heroState.bannerMovies.isNotEmpty()) {
@@ -331,8 +346,8 @@ private fun TvHomeScreen(
                             brandColor = providerColor,
                             onWatchClick = onMovieClick,
                             onActiveColorChange = { viewModel.provideFocusColor(Color(it)) },
+                            watchButtonFocusRequester = heroWatchButtonFocusRequester,
                             modifier = Modifier
-                                .focusRequester(bannerFocusRequester)
                                 .graphicsLayer { alpha = heroAlpha }
                         )
                     }

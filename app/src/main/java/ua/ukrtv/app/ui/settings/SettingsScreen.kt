@@ -248,7 +248,7 @@ private fun TvSettingsScreen(
         items(PerformanceProfile.entries.size) { index ->
             val profile = PerformanceProfile.entries[index]
             val isSelected = profile == uiState.performanceProfile
-            val resolvedDevice = resolvedDevices[profile] ?: DeviceClass.MID
+            val resolvedDevice = resolvedDevices[profile] ?: DeviceClass.LOW
 
             Surface(
                 onClick = { viewModel.setPerformanceProfile(profile) },
@@ -792,11 +792,7 @@ private fun PhoneSettingsScreen(
 
 @Composable
 private fun PreviewCardPhone(deviceClass: DeviceClass, isActive: Boolean) {
-    val cardSize = when (deviceClass) {
-        DeviceClass.LOW -> 40.dp
-        DeviceClass.MID -> 48.dp
-        DeviceClass.HIGH -> 56.dp
-    }
+    val cardSize = if (deviceClass == DeviceClass.HIGH) 56.dp else 40.dp
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
@@ -815,11 +811,7 @@ private fun PreviewCardPhone(deviceClass: DeviceClass, isActive: Boolean) {
 
 @Composable
 private fun PreviewCard(deviceClass: DeviceClass, isActive: Boolean) {
-    val cardSize = when (deviceClass) {
-        DeviceClass.LOW -> 48.dp
-        DeviceClass.MID -> 56.dp
-        DeviceClass.HIGH -> 64.dp
-    }
+    val cardSize = if (deviceClass == DeviceClass.HIGH) 64.dp else 48.dp
     val glowAlpha = if (isActive && deviceClass == DeviceClass.HIGH) 0.6f else 0f
     val animatedGlow by animateFloatAsState(
         targetValue = if (isActive && deviceClass == DeviceClass.HIGH) 1f else 0f,
@@ -831,17 +823,13 @@ private fun PreviewCard(deviceClass: DeviceClass, isActive: Boolean) {
         val baseMod = Modifier
             .size(cardSize)
             .clip(RoundedCornerShape(6.dp))
-        val bgMod = when (deviceClass) {
-            DeviceClass.LOW -> baseMod.background(Color(0xFF2A2A2A))
-            DeviceClass.MID -> baseMod.background(Brush.verticalGradient(listOf(Color(0xFF2A2A2A), Color(0xFF1E1E1E))))
-            DeviceClass.HIGH -> baseMod.background(Brush.verticalGradient(listOf(Color(0xFF3A3A3A), Color(0xFF1E1E1E))))
+        val bgMod = if (deviceClass == DeviceClass.HIGH) {
+            baseMod.background(Brush.verticalGradient(listOf(Color(0xFF3A3A3A), Color(0xFF1E1E1E))))
+        } else {
+            baseMod.background(Color(0xFF2A2A2A))
         }
         val borderMod = if (isActive) {
-            val borderColor = when (deviceClass) {
-                DeviceClass.HIGH -> Color.White
-                DeviceClass.MID -> Color(0xFF6E85B7)
-                DeviceClass.LOW -> Color.White.copy(alpha = 0.6f)
-            }
+            val borderColor = if (deviceClass == DeviceClass.HIGH) Color.White else Color.White.copy(alpha = 0.6f)
             bgMod.then(Modifier.border(2.dp, borderColor, RoundedCornerShape(6.dp)))
         } else bgMod
         val glowMod = if (animatedGlow > 0.5f && isActive) {
@@ -880,21 +868,9 @@ private fun PreviewCard(deviceClass: DeviceClass, isActive: Boolean) {
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center
         )
-        val decodeSize = when (deviceClass) {
-            DeviceClass.LOW -> "120×180"
-            DeviceClass.MID -> "180×270"
-            DeviceClass.HIGH -> "368×207"
-        }
-        val effects = when (deviceClass) {
-            DeviceClass.LOW -> "Без анімацій"
-            DeviceClass.MID -> "Базові ефекти"
-            DeviceClass.HIGH -> "Повні ефекти"
-        }
-        val homeItems = when (deviceClass) {
-            DeviceClass.LOW -> 8
-            DeviceClass.MID -> 15
-            DeviceClass.HIGH -> 20
-        }
+        val decodeSize = if (deviceClass == DeviceClass.HIGH) "368×207" else "120×180"
+        val effects = if (deviceClass == DeviceClass.HIGH) "Повні ефекти" else "Без анімацій"
+        val homeItems = if (deviceClass == DeviceClass.HIGH) 20 else 8
         Text(
             text = "$decodeSize · $homeItems карток\n$effects",
             color = Color.White.copy(alpha = if (isActive) 0.7f else 0.35f),

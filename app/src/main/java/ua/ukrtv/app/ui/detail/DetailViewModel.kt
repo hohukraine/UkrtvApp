@@ -35,7 +35,7 @@ data class DetailUiState(
     val detailState: DetailState = DetailState.Loading,
     val launchState: MediaLaunchState = MediaLaunchState.Idle,
     val isInWatchlist: Boolean = false,
-    val performanceProfile: PerformanceProfile = PerformanceProfile.BALANCED,
+    val performanceProfile: PerformanceProfile = PerformanceProfile.VISUAL,
     val related: List<Movie> = emptyList()
 )
 

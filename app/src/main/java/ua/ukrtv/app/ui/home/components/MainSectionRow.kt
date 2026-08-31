@@ -37,16 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -55,7 +46,6 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -70,6 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import coil3.compose.AsyncImage
 import coil3.request.ImageRequest
@@ -121,7 +112,6 @@ fun MainSectionRow(
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
 
-    // YouTV row fade: moving down swaps instantly, moving up fades the new row in.
     val sectionAlpha = remember { Animatable(1f) }
     var lastIndex by remember { mutableStateOf(index) }
     LaunchedEffect(activeIndex, sections.size) {
@@ -136,15 +126,18 @@ fun MainSectionRow(
         lastIndex = safeIndex
     }
 
-    var hadFocus by remember { mutableStateOf(false) }
     var rowFocusedNow by remember { mutableStateOf(false) }
 
-    // Exact YouTV row heights per card type (MainVerticalGrid.V1, tween 250ms).
-    // Collapsed rows peek as a 52dp strip under the hero; they expand only on focus.
+    // Reserve headroom above the posters equal to the top half of the focus-scale
+    // overshoot, so a focused poster is never clipped by the row's clipToBounds().
+    val youTvScale = if (deviceClass == DeviceClass.HIGH) 1.15f else 1.08f
+    val cardH = if (section.useLargeCards) YouTv.collectionCardH else YouTv.vodCardH
+    val focusHeadroom = cardH * (youTvScale - 1f) / 2f
+
     val targetRowHeight = when {
-        !rowFocusedNow -> YouTv.gridClosedH
-        section.useLargeCards -> YouTv.collectionRowH
-        else -> YouTv.videoRowH
+        !rowFocusedNow -> YouTv.gridClosedH + focusHeadroom
+        section.useLargeCards -> YouTv.collectionRowH + focusHeadroom
+        else -> YouTv.videoRowH + focusHeadroom
     }
     val animatedRowHeight by animateDpAsState(
         targetValue = targetRowHeight,
@@ -153,32 +146,37 @@ fun MainSectionRow(
     )
 
     val lazyListState = rememberLazyListState()
-    val (rowFocusRef, firstItemFocus, trailingFocus, restoreFocus) = remember { FocusRequester.createRefs() }
+    val (rowFocusRef, trailingFocus) = remember { FocusRequester.createRefs() }
 
     val context = LocalContext.current
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
 
-    fun keyOf(movie: Movie) = "${movie.pageUrl}_${movie.season ?: ""}_${movie.episode ?: ""}"
-    val restoreKey = restoreMovie?.let { keyOf(it) }
+    // Set right before onSectionChange so the freshly-composed section knows the switch was
+    // user-initiated and must hand focus to the (scrolled-to) first poster.
+    var quickNav by remember { mutableStateOf(false) }
 
-    // After a section switch the previously focused item is gone — pull focus back into the new row.
+    // On any section change, reset scroll to the left edge. When the user initiated the switch
+    // (quickNav), hand focus to the NEW row AFTER it has composed: rowFocusRef outlives every
+    // card, so there is no race with an item being disposed mid-swap. Retried across frames —
+    // the same proven pattern ContentRow uses for focus restore.
     LaunchedEffect(section.id) {
-        if (!hadFocus) return@LaunchedEffect
-        var granted = false
-        for (attempt in 0 until 4) {
-            if (granted) break
-            withFrameNanos { }
-            granted = runCatching { firstItemFocus.requestFocus() }.getOrDefault(false)
+        runCatching { lazyListState.scrollToItem(0) }
+        if (quickNav) {
+            quickNav = false
+            for (attempt in 0 until 5) {
+                withFrameNanos { }
+                if (runCatching { rowFocusRef.requestFocus() }.getOrDefault(false)) break
+            }
         }
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
-        // Row header appears only while the row is expanded/focused (YouTV closed grids have none).
         val headerAlpha by animateFloatAsState(if (rowFocusedNow) 1f else 0f, tween(250), label = "headerAlpha")
         val headerHeight by animateDpAsState(if (rowFocusedNow) 26.dp else 0.dp, tween(250), label = "headerH")
         Box(
             modifier = Modifier
                 .height(headerHeight)
+                .fillMaxWidth()
                 .clipToBounds()
                 .graphicsLayer { alpha = headerAlpha }
         ) {
@@ -208,25 +206,26 @@ fun MainSectionRow(
                         .focusGroup()
                         .focusRequester(rowFocusRef)
                         .onFocusChanged { state ->
-                            onRowFocusChange(state.hasFocus)
-                            hadFocus = state.hasFocus || hadFocus
-                            rowFocusedNow = state.hasFocus
+                            // While a quick switch is in flight (quickNav set), keep the row
+                            // expanded even if hasFocus briefly drops due to item disposal.
+                            onRowFocusChange(state.hasFocus || quickNav)
+                            rowFocusedNow = state.hasFocus || quickNav
                         }
                         .onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             when (event.key) {
                                 Key.DirectionUp -> if (index > 0) {
-                                    onSectionChange(index - 1); true
+                                    quickNav = true; onSectionChange(index - 1); true
                                 } else false
                                 Key.DirectionDown -> if (index < sections.lastIndex) {
-                                    onSectionChange(index + 1); true
+                                    quickNav = true; onSectionChange(index + 1); true
                                 } else false
                                 else -> false
                             }
                         },
                     state = lazyListState,
                     flingBehavior = rememberSnapFlingBehavior(lazyListState = lazyListState),
-                    contentPadding = PaddingValues(horizontal = YouTv.startLine),
+                    contentPadding = PaddingValues(start = YouTv.startLine, top = focusHeadroom, end = YouTv.startLine),
                     horizontalArrangement = Arrangement.spacedBy(YouTv.rowSpacing)
                 ) {
                     if (section.items.isEmpty() && section.isLoading) {
@@ -245,36 +244,18 @@ fun MainSectionRow(
                         key = { _, it -> "${it.pageUrl}_${it.season ?: ""}_${it.episode ?: ""}" },
                         contentType = { _, it -> if (it.watchProgress != null) "wide" else "movie" }
                     ) { itemIndex, item ->
-                        val isFirst = itemIndex == 0 && !section.isLoading
                         val isLast = itemIndex == section.items.lastIndex
 
-                        val keyBlockMod = remember(isFirst, isLast) {
-                            Modifier.onPreviewKeyEvent { event ->
-                                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                                when {
-                                    isFirst && event.key == Key.DirectionLeft -> true
-                                    isLast && event.key == Key.DirectionRight -> true
-                                    else -> false
-                                }
-                            }
-                        }
-
-                        val isRestoreTarget = restoreKey != null && keyOf(item) == restoreKey
-                        val focusModifier = remember(isFirst, isLast, isRestoreTarget, itemIndex) {
-                            var mod: Modifier = keyBlockMod.focusProperties {
+                        val focusModifier = Modifier
+                            .focusProperties {
                                 exit = { focusDirection ->
-                                    if (focusDirection == FocusDirection.Right && itemIndex == section.items.lastIndex) {
-                                        if (isLast && section.categoryKey != null) trailingFocus
-                                        else FocusRequester.Cancel
+                                    if (focusDirection == FocusDirection.Right && isLast) {
+                                        trailingFocus
                                     } else {
                                         FocusRequester.Default
                                     }
                                 }
                             }
-                            if (isFirst) mod = mod.then(Modifier.focusRequester(firstItemFocus))
-                            if (isRestoreTarget) mod = mod.then(Modifier.focusRequester(restoreFocus))
-                            mod
-                        }
 
                         val lastSoundTime = remember { mutableLongStateOf(0L) }
                         val onFocused = {
@@ -309,22 +290,16 @@ fun MainSectionRow(
                     }
 
                     item(key = "__trailing", contentType = "trailing") {
-                        Box(
-                            modifier = Modifier
-                                .focusRequester(trailingFocus)
-                                .focusTarget()
-                        ) {
-                            TrendsTrailingButton(
-                                brandColor = brandColor,
-                                onClick = { onSeeAllClick(section) },
-                                useLargeCards = section.useLargeCards,
-                                provider = section.items.firstOrNull()?.provider ?: providerHint
-                            )
-                        }
+                        TrendsTrailingButton(
+                            brandColor = brandColor,
+                            onClick = { onSeeAllClick(section) },
+                            modifier = Modifier.focusRequester(trailingFocus),
+                            useLargeCards = section.useLargeCards,
+                            provider = section.items.firstOrNull()?.provider ?: providerHint
+                        )
                     }
                 }
 
-                // Side chevrons while the row scrolls horizontally (YouTV arrow_left/arrow_rigth).
                 val canScrollBack by remember { derivedStateOf { lazyListState.canScrollBackward } }
                 val canScrollFwd by remember { derivedStateOf { lazyListState.canScrollForward } }
                 if (rowFocusedNow) {
@@ -356,10 +331,6 @@ fun MainSectionRow(
     }
 }
 
-/**
- * Card matching YouTV card_video.xml: rounded poster with white stroke on focus,
- * optional seek line and title/genre lines BELOW the poster.
- */
 @Composable
 private fun YouTvCard(
     movie: Movie,
@@ -378,10 +349,17 @@ private fun YouTvCard(
 
     LaunchedEffect(isFocused) { if (isFocused) onFocused() }
 
+    val targetScale = if (deviceClass == DeviceClass.HIGH) 1.15f else 1.08f
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.08f else 1f,
-        animationSpec = spring(dampingRatio = 0.75f, stiffness = 350f),
+        targetValue = if (isFocused) targetScale else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
         label = "youTvCardScale"
+    )
+
+    val glowIntensity by animateFloatAsState(
+        targetValue = if (isFocused) 1f else 0f,
+        animationSpec = tween(300),
+        label = "glowIntensity"
     )
 
     val cardW = if (large) YouTv.collectionCardW else YouTv.vodCardW
@@ -390,8 +368,8 @@ private fun YouTvCard(
 
     val posterStyle = PosterStyle.forProvider(movie.provider)
     val (iw, ih) = when (posterStyle) {
-        PosterStyle.WIDE -> when (deviceClass) { DeviceClass.LOW -> 266 to 148; DeviceClass.MID -> 532 to 296; else -> 798 to 444 }
-        PosterStyle.VERTICAL -> when (deviceClass) { DeviceClass.LOW -> 120 to 164; DeviceClass.MID -> 240 to 328; else -> 360 to 492 }
+        PosterStyle.WIDE -> if (deviceClass == DeviceClass.HIGH) 960 to 540 else 480 to 270
+        PosterStyle.VERTICAL -> if (deviceClass == DeviceClass.HIGH) 480 to 720 else 240 to 360
     }
 
     val imageRequest = remember(movie.poster, deviceClass, posterStyle) {
@@ -404,7 +382,11 @@ private fun YouTvCard(
     Column(
         modifier = Modifier
             .width(cardW)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .zIndex(if (isFocused) 10f else 0f)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
     ) {
         Box(
             modifier = Modifier
@@ -415,9 +397,11 @@ private fun YouTvCard(
                     clip = true
                     this.shape = shape
                     if (isFocused) {
-                        shadowElevation = 18.dp.toPx()
-                        ambientShadowColor = Color.Black.copy(alpha = 0.6f)
-                        spotShadowColor = accentColor.copy(alpha = 0.45f)
+                        shadowElevation = 30.dp.toPx() * glowIntensity
+                        ambientShadowColor = Color.Black.copy(alpha = 0.5f)
+                        spotShadowColor = accentColor.copy(alpha = 0.4f)
+                    } else {
+                        shadowElevation = 0f
                     }
                 }
                 .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
@@ -449,21 +433,21 @@ private fun YouTvCard(
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .background(pColor.copy(alpha = 0.85f), RoundedCornerShape(4.dp))
-                        .padding(horizontal = 5.dp, vertical = 2.dp)
+                        .padding(5.dp)
+                        .background(pColor.copy(alpha = 0.9f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     androidx.tv.material3.Text(
                         text = p.uppercase(),
                         color = Color.White,
                         fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
                     )
                 }
             }
         }
 
-        // Seek progress line under the poster (card_video.xml seekbar slot).
         if (showProgressLine && (movie.watchProgress ?: 0) > 0) {
             Box(
                 modifier = Modifier
@@ -482,26 +466,30 @@ private fun YouTvCard(
             }
         }
 
-        // Title + genre lines below the poster.
-        androidx.tv.material3.Text(
-            text = movie.title,
-            color = Color.White,
-            fontSize = 12.sp,
-            fontFamily = Montserrat,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = if (showProgressLine) 4.dp else 6.dp)
-        )
+        if (!large || isFocused) {
+            androidx.tv.material3.Text(
+                text = movie.title,
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = if (isFocused) FontWeight.Bold else FontWeight.SemiBold,
+                fontFamily = Montserrat,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = if (showProgressLine) 4.dp else 6.dp, start = 2.dp)
+            )
+        }
         if (!large) {
             val genre = movie.genres.firstOrNull() ?: movie.quality?.uppercase() ?: ""
             if (genre.isNotBlank()) {
                 androidx.tv.material3.Text(
                     text = genre,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.55f),
+                    fontSize = 11.sp,
                     fontFamily = Montserrat,
+                    fontWeight = FontWeight.Normal,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 2.dp)
                 )
             }
         }

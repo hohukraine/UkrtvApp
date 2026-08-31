@@ -36,7 +36,8 @@ private val shimmerColors = listOf(
 )
 
 @Composable
-fun Modifier.shimmer(): Modifier {
+fun Modifier.shimmer(enabled: Boolean = true): Modifier {
+    if (!enabled) return this
     val transition = rememberInfiniteTransition(label = "shimmer")
     val translateAnim by transition.animateFloat(
         initialValue = -200f,
@@ -62,12 +63,13 @@ fun Modifier.shimmer(): Modifier {
 @Composable
 fun ShimmerBox(
     modifier: Modifier = Modifier,
-    shape: RoundedCornerShape = RoundedCornerShape(12.dp)
+    shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    enabled: Boolean = true
 ) {
     Box(
         modifier = modifier
             .clip(shape)
-            .shimmer()
+            .shimmer(enabled)
     )
 }
 

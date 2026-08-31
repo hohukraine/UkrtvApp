@@ -57,6 +57,7 @@ import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
 import ua.ukrtv.app.ui.theme.OnSurface
 import ua.ukrtv.app.ui.theme.PlaceholderDark
+import ua.ukrtv.app.ui.theme.PosterStyle
 import ua.ukrtv.app.ui.theme.deviceImage
 import ua.ukrtv.app.util.DeviceClass
 import ua.ukrtv.app.util.PosterColorCache
@@ -88,11 +89,16 @@ fun HeroCarousel(
     val isMediatek = LocalIsMediatek.current
     val imageLoader = remember { ctx.imageLoader }
     LaunchedEffect(actualPage, items.size) {
-        val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 320 to 180; DeviceClass.MID -> 640 to 360; DeviceClass.HIGH -> 960 to 540 }
         for (offset in 1..3) {
             val nextIdx = (actualPage + offset) % items.size
-            val nextPoster = items[nextIdx].poster
+            val nextItem = items[nextIdx]
+            val nextPoster = nextItem.poster
             if (nextPoster.isNotBlank()) {
+                val nextStyle = PosterStyle.forProvider(nextItem.provider)
+                val (iw, ih) = when (nextStyle) {
+                    PosterStyle.WIDE -> if (deviceClass == DeviceClass.HIGH) 960 to 540 else 320 to 180
+                    PosterStyle.VERTICAL -> if (deviceClass == DeviceClass.HIGH) 720 to 540 else 240 to 180
+                }
                 try {
                     val request = ImageRequest.Builder(ctx)
                         .data(nextPoster)
@@ -252,7 +258,7 @@ private fun HeroItemContent(
     val kenBurnsTransition = rememberInfiniteTransition(label = "kenBurns")
     val kenBurnsScale by kenBurnsTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.08f,
+        targetValue = 1.12f,
         animationSpec = infiniteRepeatable(
             animation = tween(8000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
@@ -260,8 +266,12 @@ private fun HeroItemContent(
         label = "kenBurnsScale"
     )
 
-    val (iw, ih) = when (deviceClass) { DeviceClass.LOW -> 320 to 180; DeviceClass.MID -> 640 to 360; DeviceClass.HIGH -> 960 to 540 }
-    val posterRequest = remember(item.poster, deviceClass) {
+    val posterStyle = remember(item) { PosterStyle.forProvider(item.provider) }
+    val (iw, ih) = when (posterStyle) {
+        PosterStyle.WIDE -> if (deviceClass == DeviceClass.HIGH) 960 to 540 else 320 to 180
+        PosterStyle.VERTICAL -> if (deviceClass == DeviceClass.HIGH) 720 to 540 else 240 to 180
+    }
+    val posterRequest = remember(item.poster, deviceClass, posterStyle) {
         ImageRequest.Builder(ctx)
             .data(item.poster)
             .size(iw, ih)
@@ -269,16 +279,8 @@ private fun HeroItemContent(
             .build()
     }
 
-    val titleFontSize = when (deviceClass) {
-        DeviceClass.LOW -> 26.sp
-        DeviceClass.MID -> 32.sp
-        DeviceClass.HIGH -> 48.sp
-    }
-    val titleLetterSpacing = when (deviceClass) {
-        DeviceClass.LOW -> 3.sp
-        DeviceClass.MID -> 4.sp
-        DeviceClass.HIGH -> 8.sp
-    }
+    val titleFontSize = if (deviceClass == DeviceClass.HIGH) 52.sp else 26.sp
+    val titleLetterSpacing = if (deviceClass == DeviceClass.HIGH) 10.sp else 3.sp
     val titleFontWeight = when (deviceClass) {
         DeviceClass.HIGH -> FontWeight.Black
         else -> FontWeight.Light
@@ -322,8 +324,17 @@ private fun HeroItemContent(
                     if (isFocused) {
                         val strokeWidth = 3.dp.toPx()
                         val cornerR = 12.dp.toPx()
+                        // Outer glow layer (Netflix-style luminous border)
                         drawRoundRect(
-                            color = accentColor.copy(alpha = 0.8f),
+                            color = accentColor.copy(alpha = 0.3f),
+                            topLeft = androidx.compose.ui.geometry.Offset(-4f, -4f),
+                            size = androidx.compose.ui.geometry.Size(w + 8f, h + 8f),
+                            cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerR + 4f),
+                            style = Stroke(width = 8f)
+                        )
+                        // Inner crisp border
+                        drawRoundRect(
+                            color = accentColor.copy(alpha = 0.85f),
                             topLeft = androidx.compose.ui.geometry.Offset(strokeWidth / 2f, strokeWidth / 2f),
                             size = androidx.compose.ui.geometry.Size(w - strokeWidth, h - strokeWidth),
                             cornerRadius = androidx.compose.ui.geometry.CornerRadius(cornerR),
@@ -343,7 +354,7 @@ private fun HeroItemContent(
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .aspectRatio(16f / 9f)
+                    .aspectRatio(if (posterStyle == PosterStyle.WIDE) 16f / 9f else 4f / 3f)
                     .graphicsLayer {
                         translationX = pageOffsetProvider() * -50f
                     }
@@ -411,11 +422,11 @@ private fun HeroItemContent(
                 if (!item.description.isNullOrEmpty()) {
                     Text(
                         text = item.description,
-                        color = OnSurface.copy(alpha = 0.7f),
-                        fontSize = if (deviceClass == DeviceClass.HIGH) 18.sp else 16.sp,
+                        color = OnSurface.copy(alpha = 0.75f),
+                        fontSize = if (deviceClass == DeviceClass.HIGH) 20.sp else 16.sp,
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 12.dp, end = 48.dp)
+                        modifier = Modifier.padding(top = 14.dp, end = 48.dp)
                     )
                 }
 
@@ -429,13 +440,13 @@ private fun HeroItemContent(
                         modifier = Modifier
                             .clip(RoundedCornerShape(8.dp))
                             .background(if (isFocused) accentColor else accentColor.copy(alpha = 0.9f))
-                            .padding(horizontal = 24.dp, vertical = 10.dp),
+                            .padding(horizontal = 28.dp, vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.PlayArrow, null, tint = Color.Black, modifier = Modifier.size(24.dp))
+                            Icon(Icons.Default.PlayArrow, null, tint = Color.Black, modifier = Modifier.size(26.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Дивитися", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Дивитися", color = Color.Black, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
                         }
                     }
 
@@ -523,12 +534,18 @@ private fun PageIndicator(
 
             val animatedSize by animateFloatAsState(
                 targetValue = targetSizeDp.value,
-                animationSpec = tween(if (deviceClass == DeviceClass.HIGH) 400 else 200),
+                animationSpec = spring(
+                    dampingRatio = 0.7f,
+                    stiffness = Spring.StiffnessMediumLow
+                ),
                 label = "dotSize"
             )
             val animatedAlpha by animateFloatAsState(
                 targetValue = targetAlpha,
-                animationSpec = tween(if (deviceClass == DeviceClass.HIGH) 300 else 150),
+                animationSpec = spring(
+                    dampingRatio = 0.8f,
+                    stiffness = Spring.StiffnessLow
+                ),
                 label = "dotAlpha"
             )
 

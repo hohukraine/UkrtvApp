@@ -202,27 +202,11 @@ private fun EpisodeCard(
     deviceClass: DeviceClass,
     onClick: () -> Unit
 ) {
-    val cardWidth = when (deviceClass) {
-        DeviceClass.LOW -> 120.dp
-        DeviceClass.MID -> 150.dp
-        DeviceClass.HIGH -> 180.dp
-    }
-    val cardHeight = when (deviceClass) {
-        DeviceClass.LOW -> 110.dp
-        DeviceClass.MID -> 140.dp
-        DeviceClass.HIGH -> 175.dp
-    }
+    val cardWidth = if (deviceClass == DeviceClass.HIGH) 180.dp else 120.dp
+    val cardHeight = if (deviceClass == DeviceClass.HIGH) 175.dp else 110.dp
 
-    val staggerMs = when (deviceClass) {
-        DeviceClass.HIGH -> 40
-        DeviceClass.MID -> 20
-        DeviceClass.LOW -> 0
-    }
-    val animDuration = when (deviceClass) {
-        DeviceClass.HIGH -> 250
-        DeviceClass.MID -> 150
-        DeviceClass.LOW -> 0
-    }
+    val staggerMs = if (deviceClass == DeviceClass.HIGH) 40 else 0
+    val animDuration = if (deviceClass == DeviceClass.HIGH) 250 else 0
 
     var itemVisible by remember(entranceTrigger, index) { mutableStateOf(deviceClass == DeviceClass.LOW) }
     LaunchedEffect(entranceTrigger, index) {
@@ -252,11 +236,7 @@ private fun EpisodeCard(
         label = "epScale"
     )
 
-    val focusScale = when (deviceClass) {
-        DeviceClass.LOW -> 1.05f
-        DeviceClass.MID -> 1.05f
-        DeviceClass.HIGH -> 1.08f
-    }
+    val focusScale = if (deviceClass == DeviceClass.HIGH) 1.08f else 1.05f
 
     Surface(
         onClick = onClick,
@@ -274,11 +254,7 @@ private fun EpisodeCard(
             ),
             focusedBorder = Border(
                 border = androidx.compose.foundation.BorderStroke(
-                    when (deviceClass) {
-                        DeviceClass.LOW -> 1.dp
-                        DeviceClass.MID -> 2.dp
-                        DeviceClass.HIGH -> 2.dp
-                    },
+                    if (deviceClass == DeviceClass.HIGH) 2.dp else 1.dp,
                     accentColor
                 )
             )
@@ -312,11 +288,7 @@ private fun EpisodeCard(
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
                 // Episode number — typography as hero
-                val numSize = when (deviceClass) {
-                    DeviceClass.LOW -> 28.sp
-                    DeviceClass.MID -> 36.sp
-                    DeviceClass.HIGH -> 44.sp
-                }
+                val numSize = if (deviceClass == DeviceClass.HIGH) 44.sp else 28.sp
                 Text(
                     text = episode.number.toString().padStart(2, '0'),
                     fontSize = numSize,
@@ -330,14 +302,12 @@ private fun EpisodeCard(
                     }
                 )
 
-                // Accent divider line (MID+)
-                if (deviceClass >= DeviceClass.MID) {
-                    val lineW = if (deviceClass == DeviceClass.MID) 30.dp else 40.dp
-                    val lineH = if (deviceClass == DeviceClass.MID) 1.dp else 2.dp
+                // Accent divider line
+                if (deviceClass == DeviceClass.HIGH) {
                     Box(
                         modifier = Modifier
-                            .width(lineW)
-                            .height(lineH)
+                            .width(40.dp)
+                            .height(2.dp)
                             .background(accentColor.copy(alpha = 0.4f))
                             .graphicsLayer {
                                 alpha = animAlpha
@@ -352,11 +322,7 @@ private fun EpisodeCard(
                 } else {
                     "Епізод ${episode.number}"
                 }
-                val titleSize = when (deviceClass) {
-                    DeviceClass.LOW -> 11.sp
-                    DeviceClass.MID -> 12.sp
-                    DeviceClass.HIGH -> 13.sp
-                }
+                val titleSize = if (deviceClass == DeviceClass.HIGH) 13.sp else 11.sp
                 Text(
                     text = epTitle,
                     fontSize = titleSize,

@@ -25,18 +25,19 @@ object YouTv {
 
     // Row layout (MainVerticalGrid / card_video.xml).
     val gridClosedH: Dp = 52.dp
-    val videoRowH: Dp = 242.dp          // MainVerticalGrid.V1(VIDEO)
-    val collectionRowH: Dp = 224.dp     // V1(COLLECTION)
+    val videoRowH: Dp = 250.dp          // MainVerticalGrid.V1(VIDEO)
+    val collectionRowH: Dp = 250.dp     // V1(COLLECTION)
     val rowSpacing: Dp = 26.dp          // channel_card_spacing
     val cardRadius: Dp = 12.dp          // channel_card_corner_radius
 
     // VOD card (card_video.xml): poster 120x164 + title/genre lines under it.
-    val vodCardW: Dp = 120.dp
-    val vodCardH: Dp = 164.dp
+    val vodCardW: Dp = 130.dp
+    val vodCardH: Dp = 180.dp
 
     // Landscape "collection" cards used for trends rows.
-    val collectionCardW: Dp = 266.dp
-    val collectionCardH: Dp = 148.dp
+    // Normalized to match VOD height for consistent row scaling.
+    val collectionCardW: Dp = 320.dp 
+    val collectionCardH: Dp = 180.dp
 
     // Buttons (bg_button_selector): dark pill -> brand fill on focus.
     val buttonRadius: Dp = 18.dp        // tab_radius

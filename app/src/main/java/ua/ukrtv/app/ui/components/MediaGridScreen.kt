@@ -239,11 +239,7 @@ private fun CompactMediaCard(
     val entranceScale by animateFloatAsState(if (itemVisible) 1f else 0.95f, spring(0.7f, 300f))
     val focusScale = if (isFocused) 1.05f else 1f
 
-    val (gridW, gridH) = when (deviceClass) {
-        DeviceClass.LOW -> 180 to 270
-        DeviceClass.MID -> 300 to 450
-        else -> 360 to 540
-    }
+    val (gridW, gridH) = if (deviceClass == DeviceClass.HIGH) 360 to 540 else 180 to 270
     
     Column(modifier = Modifier.graphicsLayer {
         val s = entranceScale * focusScale

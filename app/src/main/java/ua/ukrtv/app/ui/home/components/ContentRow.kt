@@ -6,7 +6,9 @@ import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -38,6 +40,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -121,7 +124,13 @@ private fun PhoneContentRow(
     LaunchedEffect(items) {
         if (!entranceDone && items.isNotEmpty()) {
             entranceDone = true
-            rowEntrance.animateTo(1f, tween(250))
+            rowEntrance.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = 0.85f,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
         } else {
             rowEntrance.snapTo(1f)
         }
@@ -166,8 +175,13 @@ private fun PhoneContentRow(
                         ?: brandColor
                 }
                 val entranceMod = Modifier.graphicsLayer {
-                    val start = index * 0.04f
-                    alpha = ((rowEntrance.value - start) * 5f).coerceIn(0f, 1f)
+                    val start = index * 0.035f
+                    val progress = ((rowEntrance.value - start) * 5f).coerceIn(0f, 1f)
+                    alpha = progress
+                    val s = 0.93f + (progress * 0.07f)
+                    scaleX = s
+                    scaleY = s
+                    translationY = (1f - progress) * 24.dp.toPx()
                 }
 
                 if (item.watchProgress != null) {
@@ -229,11 +243,7 @@ private fun TvContentRow(
     val deviceClass = LocalDeviceClass.current
     val isMediatek = LocalIsMediatek.current
     val cardScale = remember(deviceClass) {
-        when (deviceClass) {
-            DeviceClass.LOW -> 0.75f
-            DeviceClass.MID -> 1.0f
-            DeviceClass.HIGH -> 1.15f
-        }
+        if (deviceClass == DeviceClass.HIGH) 1.15f else 0.75f
     }
     // "Use large cards" is used for trending rows; keep it subtle on the premium preset
     val largeCardScale = remember(deviceClass) {
@@ -274,7 +284,14 @@ private fun TvContentRow(
     LaunchedEffect(items) {
         if (animateEntrance && !entranceDone && items.isNotEmpty()) {
             entranceDone = true
-            rowEntrance.animateTo(1f, tween(300))
+            // Netflix-style: spring entrance with overshoot for bouncy feel
+            rowEntrance.animateTo(
+                targetValue = 1f,
+                animationSpec = spring(
+                    dampingRatio = 0.8f,
+                    stiffness = Spring.StiffnessLow
+                )
+            )
         } else {
             rowEntrance.snapTo(1f)
         }
@@ -289,10 +306,13 @@ private fun TvContentRow(
     val cardWidth = (if (useLargeCards) tvDims.width * largeCardScale else tvDims.width) * cardScale
     val cardHeight = (if (useLargeCards) tvDims.height * largeCardScale else tvDims.height) * cardScale
 
-    // Rail Fade: non-focused rows dim so the active shelf stands out (premium preset).
+    // Rail Fade: non-focused rows dim dramatically so active shelf pops (Netflix pattern).
     val rowAlpha by animateFloatAsState(
-        targetValue = if (!rowFadeEnabled || isRowFocused) 1f else 0.5f,
-        animationSpec = tween(250),
+        targetValue = if (!rowFadeEnabled || isRowFocused) 1f else 0.35f,
+        animationSpec = spring(
+            dampingRatio = 0.9f,
+            stiffness = Spring.StiffnessLow
+        ),
         label = "rowFade"
     )
 
@@ -365,14 +385,13 @@ private fun TvContentRow(
                     contentType = { _, it -> if (it.watchProgress != null) "wide" else "movie" }
                 ) { index, item ->
                     val isFirst = index == 0
-                    val isLast = index == items.lastIndex && trailingContent == null
+                    val isLastItem = index == items.lastIndex
 
-                    val keyBlockMod = remember(isFirst, isLast) {
+                    val keyBlockMod = remember(isFirst, isLastItem) {
                         Modifier.onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             when {
                                 isFirst && event.key == Key.DirectionLeft -> true
-                                isLast && event.key == Key.DirectionRight -> true
                                 else -> false
                             }
                         }
@@ -386,10 +405,8 @@ private fun TvContentRow(
                         var mod: Modifier = keyBlockMod
                             .focusProperties {
                                 exit = { focusDirection ->
-                                    if (focusDirection == androidx.compose.ui.focus.FocusDirection.Right) {
-                                        if (isLast) androidx.compose.ui.focus.FocusRequester.Cancel
-                                        else if (index == items.lastIndex && trailingContent != null) trailingFocus
-                                        else androidx.compose.ui.focus.FocusRequester.Default
+                                    if (focusDirection == FocusDirection.Right && isLastItem) {
+                                        trailingFocus
                                     } else {
                                         androidx.compose.ui.focus.FocusRequester.Default
                                     }
@@ -415,12 +432,16 @@ private fun TvContentRow(
                     val entranceMod = Modifier
                         .graphicsLayer {
                             if (animateEntrance) {
-                                val start = index * 0.05f
-                                alpha = ((rowEntrance.value - start) * 4f).coerceIn(0f, 1f)
-                                val s = 0.95f + (alpha * 0.05f)
+                                // Netflix-style stagger: each card enters with delay
+                                val start = index * 0.04f
+                                val progress = ((rowEntrance.value - start) * 4.5f).coerceIn(0f, 1f)
+                                alpha = progress
+                                // Scale from 0.92 → 1.0 (subtle zoom-in)
+                                val s = 0.92f + (progress * 0.08f)
                                 scaleX = s
                                 scaleY = s
-                                translationY = (1f - alpha) * 20.dp.toPx()
+                                // Slide up 30dp → 0
+                                translationY = (1f - progress) * 30.dp.toPx()
                             }
                             compositingStrategy = CompositingStrategy.ModulateAlpha
                         }
