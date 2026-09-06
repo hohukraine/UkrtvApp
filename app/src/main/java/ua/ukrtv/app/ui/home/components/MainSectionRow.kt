@@ -1,7 +1,6 @@
 package ua.ukrtv.app.ui.home.components
 
 import android.content.Context
-import android.media.AudioManager
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
@@ -13,6 +12,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
@@ -32,10 +32,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,6 +48,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -69,7 +72,11 @@ import ua.ukrtv.app.ui.components.ShimmerBox
 import ua.ukrtv.app.ui.theme.Montserrat
 import ua.ukrtv.app.ui.theme.PlaceholderDark
 import ua.ukrtv.app.ui.theme.PosterStyle
+import ua.ukrtv.app.ui.theme.ProviderSizes
 import ua.ukrtv.app.ui.theme.YouTv
+import ua.ukrtv.app.ui.components.playNavigationSound
+import ua.ukrtv.app.ui.components.MutableLongStateHolder
+import ua.ukrtv.app.ui.components.restoreFocus
 import ua.ukrtv.app.ui.theme.LocalDeviceClass
 import ua.ukrtv.app.ui.theme.LocalIsMediatek
 import ua.ukrtv.app.util.DeviceClass
@@ -149,7 +156,6 @@ fun MainSectionRow(
     val (rowFocusRef, trailingFocus) = remember { FocusRequester.createRefs() }
 
     val context = LocalContext.current
-    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
 
     // Set right before onSectionChange so the freshly-composed section knows the switch was
     // user-initiated and must hand focus to the (scrolled-to) first poster.
@@ -163,10 +169,7 @@ fun MainSectionRow(
         runCatching { lazyListState.scrollToItem(0) }
         if (quickNav) {
             quickNav = false
-            for (attempt in 0 until 5) {
-                withFrameNanos { }
-                if (runCatching { rowFocusRef.requestFocus() }.getOrDefault(false)) break
-            }
+            rowFocusRef.restoreFocus(maxAttempts = 15, initialDelayFrames = 3)
         }
     }
 
@@ -203,6 +206,7 @@ fun MainSectionRow(
                         .height(animatedRowHeight)
                         .fillMaxWidth()
                         .clipToBounds()
+                        .focusRestorer()
                         .focusGroup()
                         .focusRequester(rowFocusRef)
                         .onFocusChanged { state ->
@@ -232,8 +236,14 @@ fun MainSectionRow(
                         items(deviceClass.maxShimmerItems(), key = { "shimmer_$it" }) {
                             ShimmerBox(
                                 modifier = Modifier
-                                    .width(if (section.useLargeCards) YouTv.collectionCardW else YouTv.vodCardW)
-                                    .height(if (section.useLargeCards) YouTv.collectionCardH else YouTv.vodCardH),
+                                    .width(
+                                        when {
+                                            section.id == "continue_watching" -> ProviderSizes.tvContinueCard().width
+                                            section.useLargeCards -> YouTv.collectionCardW
+                                            else -> YouTv.vodCardW
+                                        }
+                                    )
+                                    .height(YouTv.vodCardH),
                                 shape = RoundedCornerShape(YouTv.cardRadius)
                             )
                         }
@@ -257,14 +267,10 @@ fun MainSectionRow(
                                 }
                             }
 
-                        val lastSoundTime = remember { mutableLongStateOf(0L) }
+                        val lastSoundTime = remember { MutableLongStateHolder() }
                         val onFocused = {
                             onItemFocused?.invoke(item)
-                            val now = System.currentTimeMillis()
-                            if (now - lastSoundTime.longValue > 150L) {
-                                lastSoundTime.longValue = now
-                                audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
-                            }
+                            playNavigationSound(context, lastTimeHolder = lastSoundTime)
                         }
 
                         val onClick = remember(item) { { onMovieClick(item) } }
@@ -347,7 +353,13 @@ private fun YouTvCard(
     val deviceClass = LocalDeviceClass.current
     val context = LocalContext.current
 
-    LaunchedEffect(isFocused) { if (isFocused) onFocused() }
+    // Long-press (or Menu/Settings key) on a dismissable card arms "delete mode": an X overlay
+    // appears and Confirm/Enter (or tapping the card) removes it. Back cancels.
+    var deleteMode by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isFocused) {
+        if (isFocused) onFocused() else deleteMode = false
+    }
 
     val targetScale = if (deviceClass == DeviceClass.HIGH) 1.15f else 1.08f
     val scale by animateFloatAsState(
@@ -362,11 +374,18 @@ private fun YouTvCard(
         label = "glowIntensity"
     )
 
-    val cardW = if (large) YouTv.collectionCardW else YouTv.vodCardW
-    val cardH = if (large) YouTv.collectionCardH else YouTv.vodCardH
+    val posterStyle = PosterStyle.forProvider(movie.provider)
+
+    // Every shelf (including "Continue watching") keeps a constant 180dp height so all rows
+    // line up, but the width adapts to the provider's poster aspect (UaFix → wide, Uakino →
+    // narrow), so wide and narrow posters each show in their natural proportions.
+    val cardW = when {
+        large -> YouTv.collectionCardW
+        else -> ProviderSizes.tvRowCard(posterStyle).width
+    }
+    val cardH = YouTv.vodCardH
     val shape = RoundedCornerShape(YouTv.cardRadius)
 
-    val posterStyle = PosterStyle.forProvider(movie.provider)
     val (iw, ih) = when (posterStyle) {
         PosterStyle.WIDE -> if (deviceClass == DeviceClass.HIGH) 960 to 540 else 480 to 270
         PosterStyle.VERTICAL -> if (deviceClass == DeviceClass.HIGH) 480 to 720 else 240 to 360
@@ -404,11 +423,23 @@ private fun YouTvCard(
                         shadowElevation = 0f
                     }
                 }
-                .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = { if (deleteMode) onDismiss?.invoke() else onClick() },
+                    onLongClick = { if (onDismiss != null && !deleteMode) deleteMode = true }
+                )
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     val isMenu = event.key == Key.Menu || event.key == Key.Settings
-                    if (isMenu && onDismiss != null) { onDismiss(); true } else false
+                    if (deleteMode) {
+                        if (event.key == Key.Back || event.key == Key.NumPadEnter || event.key == Key.Enter) {
+                            if (event.key == Key.Back) { deleteMode = false; return@onPreviewKeyEvent true }
+                            if (onDismiss != null) { onDismiss(); return@onPreviewKeyEvent true }
+                        }
+                        return@onPreviewKeyEvent false
+                    }
+                    if (isMenu && onDismiss != null) { deleteMode = true; true } else false
                 }
         ) {
             AsyncImage(
@@ -443,6 +474,39 @@ private fun YouTvCard(
                         fontSize = 9.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp
+                    )
+                }
+            }
+
+            // Delete-mode X overlay (red circle + close glyph) shown on long-press.
+            if (deleteMode) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .border(2.dp, Color.White, shape)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(36.dp)
+                            .background(Color(0xFFE53935), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = "Видалити",
+                            tint = Color.White,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    androidx.tv.material3.Text(
+                        text = "Видалити",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(end = 52.dp, top = 22.dp)
                     )
                 }
             }

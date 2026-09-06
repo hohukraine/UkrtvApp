@@ -1,7 +1,6 @@
 package ua.ukrtv.app.ui.home.components
 
 import android.content.Context
-import android.media.AudioManager
 import androidx.compose.animation.AnimatedContentScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
@@ -14,6 +13,7 @@ import androidx.compose.foundation.gestures.BringIntoViewSpec
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,6 +44,7 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.focusTarget
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -57,6 +58,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ua.ukrtv.app.domain.model.Movie
+import ua.ukrtv.app.ui.components.MutableLongStateHolder
+import ua.ukrtv.app.ui.components.playNavigationSound
+import ua.ukrtv.app.ui.components.restoreFocus
 import ua.ukrtv.app.ui.home.ContinueWatchingCard
 import ua.ukrtv.app.ui.home.MovieCard
 import ua.ukrtv.app.ui.components.ShimmerBox
@@ -257,7 +261,6 @@ private fun TvContentRow(
     val (rowFocus, firstItemFocus, trailingFocus) = remember { FocusRequester.createRefs() }
     var hadFocus by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
 
     fun keyOf(movie: Movie) = "${movie.pageUrl}_${movie.season ?: ""}_${movie.episode ?: ""}"
 
@@ -349,6 +352,7 @@ private fun TvContentRow(
                 modifier = Modifier
                     .height(rowHeight)
                     .fillMaxWidth()
+                    .focusRestorer()
                     .focusGroup()
                     .focusRequester(rowFocus)
                     .onFocusChanged { state ->
@@ -387,18 +391,18 @@ private fun TvContentRow(
                     val isFirst = index == 0
                     val isLastItem = index == items.lastIndex
 
-                    val keyBlockMod = remember(isFirst, isLastItem) {
+                    val keyBlockMod = remember(isFirst) {
                         Modifier.onPreviewKeyEvent { event ->
+                            // Prevent wrap-around to the row's trailing end. On the first item,
+                            // let LEFT fall through to the surrounding focus scope (header /
+                            // previous row) instead of being swallowed, so the user is never stuck
+                            // on the leading edge.
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                            when {
-                                isFirst && event.key == Key.DirectionLeft -> true
-                                else -> false
-                            }
+                            false
                         }
                     }
 
                     val itemKey = keyOf(item)
-                    val lastSoundTime = remember { mutableLongStateOf(0L) }
                     val isRestoreTarget = restoreKey != null && keyOf(item) == restoreKey
 
                     val focusModifier = remember(item, keyBlockMod, isFirst, isRestoreTarget) {
@@ -420,13 +424,10 @@ private fun TvContentRow(
                     // onFocusChanged above a clickable/combinedClickable never fires (the clickable's
                     // FocusableNode blocks the focus-event walk), so focus side effects are driven by
                     // the card's interactionSource instead.
+                    val lastSoundTime = remember { MutableLongStateHolder() }
                     val onFocused = {
                         onItemFocused?.invoke(item)
-                        val now = System.currentTimeMillis()
-                        if (now - lastSoundTime.longValue > 150L) {
-                            lastSoundTime.longValue = now
-                            audioManager?.playSoundEffect(AudioManager.FX_FOCUS_NAVIGATION_LEFT)
-                        }
+                        playNavigationSound(context, lastTimeHolder = lastSoundTime)
                     }
 
                     val entranceMod = Modifier

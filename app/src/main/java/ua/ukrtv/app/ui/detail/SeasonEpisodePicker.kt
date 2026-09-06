@@ -53,6 +53,18 @@ fun SeasonEpisodePicker(
     }
     val selectedSeason = distinctSeasons.find { it.number == selectedSeasonNum }
 
+    // Debounced auto-select: when the user scrolls through pills quickly, only commit the
+    // season after a short settle window so the episode rail doesn't re-render mid-scroll.
+    var pendingSeasonNum by remember(seasonKey) { mutableStateOf<Int?>(null) }
+    LaunchedEffect(pendingSeasonNum) {
+        val target = pendingSeasonNum ?: return@LaunchedEffect
+        delay(120)
+        if (pendingSeasonNum == target) {
+            selectedSeasonNum = target
+            pendingSeasonNum = null
+        }
+    }
+
     val voiceoverOptions = remember(selectedSeason) {
         selectedSeason?.voiceoverOptions?.filter { it.isNotBlank() } ?: emptyList()
     }
@@ -118,7 +130,7 @@ fun SeasonEpisodePicker(
                         ),
                         modifier = Modifier
                             .onFocusChanged { focused ->
-                                if (focused.isFocused) selectedSeasonNum = season.number
+                                if (focused.isFocused) pendingSeasonNum = season.number
                             }
                             .semantics { contentDescription = "Сезон ${season.number}" }
                     ) {

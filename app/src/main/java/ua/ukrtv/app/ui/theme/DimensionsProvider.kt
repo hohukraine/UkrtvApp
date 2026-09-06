@@ -37,4 +37,15 @@ object ProviderSizes {
         PosterStyle.WIDE -> CardDimensions(DetailDefaults.wideWidth, DetailDefaults.wideHeight)
         PosterStyle.VERTICAL -> CardDimensions(DetailDefaults.posterWidth, DetailDefaults.posterHeight)
     }
+
+    // TV home shelf rows keep a constant height (matching the current VOD row) so every
+    // section lines up; only the width adapts to the provider's poster aspect.
+    fun tvRowCard(style: PosterStyle): CardDimensions = when (style) {
+        PosterStyle.WIDE -> CardDimensions(YouTv.collectionCardW, YouTv.vodCardH)
+        PosterStyle.VERTICAL -> CardDimensions(YouTv.vodCardW, YouTv.vodCardH)
+    }
+
+    // "Continue watching" is always presented as a uniform 16:9 landscape tile regardless of
+    // provider, so UaFix wide posters fit fully and Uakino posters center-crop consistently.
+    fun tvContinueCard(): CardDimensions = CardDimensions(YouTv.collectionCardW, YouTv.vodCardH)
 }

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import ua.ukrtv.app.ui.components.restoreFocus
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -338,11 +339,11 @@ fun EmbeddedPlayerScreen(
         if (uiState.status is PlayerStatus.Ready && showControls) {
             lastInteractionTime = System.currentTimeMillis()
             delay(150)
-            try {
-                playButtonFocusRequester.requestFocus()
+            val granted = playButtonFocusRequester.restoreFocus(maxAttempts = 15, initialDelayFrames = 2)
+            if (!granted) {
+                AppLogger.w("EmbeddedPlayer", "Play button focus not granted")
+            } else {
                 AppLogger.d("EmbeddedPlayer", "Play button focus requested")
-            } catch (e: Exception) {
-                AppLogger.w("EmbeddedPlayer", "Play button focus failed: ${e.message}")
             }
         }
     }
@@ -351,13 +352,9 @@ fun EmbeddedPlayerScreen(
         if (showControls) {
             lastInteractionTime = System.currentTimeMillis()
             delay(150)
-            try {
-                playButtonFocusRequester.requestFocus()
-            } catch (_: Exception) {}
+            playButtonFocusRequester.restoreFocus(maxAttempts = 15, initialDelayFrames = 2)
         } else {
-            try {
-                rootFocusRequester.requestFocus()
-            } catch (_: Exception) {}
+            rootFocusRequester.restoreFocus(maxAttempts = 10, initialDelayFrames = 1)
         }
     }
 

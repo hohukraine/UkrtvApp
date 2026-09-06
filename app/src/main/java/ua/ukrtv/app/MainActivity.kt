@@ -44,6 +44,7 @@ import ua.ukrtv.app.ui.splash.SplashScreen
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.toRoute
 import kotlinx.coroutines.delay
+import ua.ukrtv.app.ui.components.FocusDebugOverlay
 
 private const val MIN_SPLASH_MS = 800L
 private const val MAX_SPLASH_MS = 8000L
@@ -329,5 +330,8 @@ fun UkrtvTVApp(formFactor: FormFactor, onHomeContentReady: () -> Unit = {}) {
                 }
             }
         }
+
+        // QA debug HUD — toggle with MENU on TV. Focus "lost in space" detection.
+        FocusDebugOverlay(enabled = formFactor == FormFactor.TV)
     }
 }

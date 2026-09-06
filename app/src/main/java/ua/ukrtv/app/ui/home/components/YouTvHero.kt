@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -44,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
@@ -51,6 +53,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
@@ -81,15 +84,21 @@ fun YouTvTop200Hero(
     items: List<Top200Movie>,
     brandColor: Color,
     onItemClick: (Top200Movie) -> Unit,
+    onItemLongClick: (Top200Movie) -> Unit = {},
     onActiveMovieChange: ((Top200Movie) -> Unit)?,
     modifier: Modifier = Modifier,
     watchButtonFocusRequester: FocusRequester = remember { FocusRequester() }
 ) {
     if (items.isEmpty()) return
     val deviceClass = LocalDeviceClass.current
-    HeroPagerContainer(items = items.size, modifier = modifier, onActivePage = { onActiveMovieChange?.invoke(items[it]) }) { page ->
+    HeroPagerContainer(
+        items = items.size,
+        modifier = modifier,
+        onActivePage = { onActiveMovieChange?.invoke(items[it]) },
+        onPageLongPress = { page -> onItemLongClick(items[page]) }
+    ) { page ->
         val movie = items[page]
-        val posterStyle = if (movie.backdropUrl.isNotBlank()) PosterStyle.WIDE else PosterStyle.VERTICAL
+        val posterStyle = PosterStyle.VERTICAL
         if (deviceClass == DeviceClass.LOW) {
             LiteHeroBanner(
                 title = movie.title,
@@ -99,7 +108,7 @@ fun YouTvTop200Hero(
                     addAll(movie.genres.take(2))
                 },
                 description = movie.comment,
-                imageUrl = movie.backdropUrl.ifBlank { movie.posterUrl },
+                imageUrl = movie.posterUrl,
                 brandColor = brandColor,
                 posterStyle = posterStyle,
                 onClick = { onItemClick(movie) },
@@ -295,6 +304,7 @@ private fun HeroPagerContainer(
     items: Int,
     modifier: Modifier = Modifier,
     onActivePage: (Int) -> Unit,
+    onPageLongPress: ((Int) -> Unit)? = null,
     pageContent: @Composable (Int) -> Unit
 ) {
     val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { items })
@@ -319,6 +329,22 @@ private fun HeroPagerContainer(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .onFocusChanged { state ->
+                // Focus entering the hero from outside (TopBar DOWN / row UP) can land on the
+                // pre-composed neighbor page (beyondViewportPageCount = 1) and flip the pager
+                // right. Pin external arrivals to the first page; reset the nav flag on exit so
+                // the next re-entry is treated as a fresh arrival again.
+                if (state.hasFocus) {
+                    if (!userNavigated) {
+                        scope.launch {
+                            withFrameNanos { }
+                            pageFocusRequesters[0]?.requestFocus()
+                        }
+                    }
+                } else {
+                    userNavigated = false
+                }
+            }
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
@@ -367,6 +393,15 @@ private fun HeroPagerContainer(
                     .fillMaxSize()
                     .focusRequester(requester)
             ) {
+                // Full-surface long-press → e.g. open Top 200 from the banner. Registered on a
+                // bottom layer so the watch button above still receives normal clicks.
+                if (onPageLongPress != null) {
+                    Box(
+                        Modifier
+                            .matchParentSize()
+                            .pointerInput(page) { detectTapGestures(onLongPress = { onPageLongPress(page) }) }
+                    )
+                }
                 pageContent(page)
             }
         }

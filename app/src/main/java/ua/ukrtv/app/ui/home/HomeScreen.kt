@@ -75,7 +75,7 @@ import ua.ukrtv.app.ui.theme.PosterStyle
 import ua.ukrtv.app.ui.theme.ProviderSizes
 import ua.ukrtv.app.ui.home.components.TrendsTrailingButton
 import ua.ukrtv.app.util.HomeLayout
-private const val FOCUS_RESTORE_WINDOW_MS = 1500L
+private const val FOCUS_RESTORE_WINDOW_MS = 10_000L
 
 @Composable
 fun HomeScreen(
@@ -335,6 +335,7 @@ private fun TvHomeScreen(
                             items = heroState.top200Banners,
                             brandColor = providerColor,
                             onItemClick = onTop200ItemClick,
+                            onItemLongClick = { onTop200Click() },
                             onActiveMovieChange = { activeBannerMovie = it },
                             watchButtonFocusRequester = heroWatchButtonFocusRequester,
                             modifier = Modifier

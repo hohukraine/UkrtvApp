@@ -100,7 +100,7 @@ private fun TvMediaGridScreen(
         if (!isLoading) {
             entranceTrigger = System.currentTimeMillis()
             withFrameNanos { }
-            gridFocusRequester.requestFocus()
+            gridFocusRequester.restoreFocus(maxAttempts = 15, initialDelayFrames = 3)
         }
     }
 
