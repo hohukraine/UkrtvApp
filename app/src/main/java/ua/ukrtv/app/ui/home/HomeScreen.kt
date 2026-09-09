@@ -177,7 +177,7 @@ private fun TvHomeScreen(
                     HomeSectionUi(
                         id = "trending",
                         title = configState.trendingLabel,
-                        items = mainState.homeTrending,
+                        items = mainState.homeTrending.take(maxItems),
                         isLoading = mainState.isLoading,
                         useLargeCards = false
                     )
@@ -622,7 +622,7 @@ private fun PhoneHomeScreen(
                                 val provider = homeTrending.firstOrNull()?.provider ?: configState.currentProviderId
                                 val posterStyle = PosterStyle.forProvider(provider)
                                 val phoneDims = ProviderSizes.phoneCard(posterStyle)
-                                
+
                                 ContentRow(
                                     configState.trendingLabel,
                                     homeTrending,

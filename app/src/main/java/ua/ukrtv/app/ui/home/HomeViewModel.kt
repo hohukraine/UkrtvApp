@@ -168,46 +168,8 @@ class HomeViewModel @Inject constructor(
         }
         .onEach { _isLoading.value = false }
 
-    private var stableTrending: List<Movie> = emptyList()
-    private var stableTrendingIds: Set<String> = emptySet()
-
-    private fun stabilizeTrending(list: List<Movie>): List<Movie> {
-        val ids = list.map { it.pageUrl }.toSet()
-        if (ids == stableTrendingIds) return stableTrending
-        stableTrendingIds = ids
-        val result = if (list.size > 15) list.shuffled().take(15) else list
-        stableTrending = result
-        return result
-    }
-
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val homeTrending: Flow<List<Movie>> = combine(
-        providerManager.activeProvider,
-        _retryTrigger
-    ) { provider, trigger -> provider to trigger }
-        .flatMapLatest { (provider, trigger) ->
-            flow {
-                var hasData = false
-                try {
-                    val cached = mediaRepository.getTmdbTrendsCached(provider)
-                    if (cached.isNotEmpty()) {
-                        hasData = true
-                        emit(cached)
-                    }
-                    val fresh = mediaRepository.getTmdbTrends(provider, forceRefresh = trigger > 0)
-                    if (fresh.isNotEmpty()) {
-                        hasData = true
-                        emit(fresh)
-                    }
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    AppLogger.w("HomeVM", "TMDB trends failed: ${e.message}")
-                }
-                if (!hasData) emit(emptyList())
-            }.flowOn(Dispatchers.IO)
-        }
-        .map { list -> stabilizeTrending(list) }
-        .distinctUntilChanged()
+    private val homeTrending: Flow<List<Movie>> = providerManager.activeProvider
+        .flatMapLatest { mediaRepository.getPopularByCategory(ContentCategory.TRENDS).catch { emit(emptyList()) } }
 
     private val continueWatching: Flow<List<Movie>> = mediaRepository.getContinueWatching()
         .combine(_dismissedIds) { list, dismissed ->

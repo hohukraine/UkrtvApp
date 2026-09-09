@@ -100,12 +100,12 @@ val UaflixProfile = DleProviderProfile(
         seriesUrlPatterns = listOf("/serials/", "/anime/", "/dorama/", "/cartoons/", "season-", "-episode-")
     ),
     categoryPaths = mapOf(
-        ContentCategory.TRENDS to "",
+        ContentCategory.TRENDS to "?do=popular",
         ContentCategory.MOVIES to "film/",
         ContentCategory.SERIES to "serials/",
         ContentCategory.ANIME to "anime/",
         ContentCategory.CARTOONS to "cartoons/",
-        ContentCategory.CARTOON_SERIES to "cartoons/"
+        ContentCategory.CARTOON_SERIES to "serials/multseial/"
     ),
     metadataRules = mapOf(
         "genres" to listOf(ExtractionRule("span[itemprop='genre']")),

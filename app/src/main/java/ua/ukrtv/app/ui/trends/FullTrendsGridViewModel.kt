@@ -8,6 +8,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import ua.ukrtv.app.data.providers.ContentCategory
 import ua.ukrtv.app.data.providers.ProviderManager
 import ua.ukrtv.app.data.repository.ContentRepository
 import ua.ukrtv.app.domain.model.Movie
@@ -58,9 +59,8 @@ class FullTrendsGridViewModel @Inject constructor(
             _isLoading.value = true
             _error.value = null
             try {
-                val provider = providerManager.activeProvider.value
                 val result = withContext(Dispatchers.IO) {
-                    contentRepository.getTmdbTrends(provider, forceRefresh = forceRefresh)
+                    contentRepository.getPopularByCategory(ContentCategory.TRENDS).first()
                 }
                 _items.value = result
             } catch (e: Exception) {
