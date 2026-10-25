@@ -144,20 +144,29 @@ private fun TvHomeScreen(
     val heroWatchButtonFocusRequester = remember { FocusRequester() }
     val context = LocalContext.current
 
-    var activeBannerMovie by remember(heroState.top200Banners) {
-        mutableStateOf(heroState.top200Banners.firstOrNull())
+    var activeBannerMovie by remember { mutableStateOf<Top200Movie?>(null) }
+    // Initialize once only
+    LaunchedEffect(Unit) {
+        if (activeBannerMovie == null && heroState.top200Banners.isNotEmpty()) {
+            activeBannerMovie = heroState.top200Banners.firstOrNull()
+        }
+    }
+    // If never initialized and banners appear later, initialize once
+    if (activeBannerMovie == null && heroState.top200Banners.isNotEmpty()) {
+        activeBannerMovie = heroState.top200Banners.firstOrNull()
     }
 
     // YouTV-style home: fixed hero on top, a single section row below that swaps content on ↑/↓.
     val sections = remember(mainState, categoriesState, configState, maxItems) {
         buildList {
-            if (configState.homeLayout.showContinueWatching && (mainState.continueWatching.isNotEmpty() || mainState.isLoading)) {
+            val showContinueWatching = mainState.continueWatching.isNotEmpty() || configState.homeLayout.showContinueWatching
+            if (showContinueWatching && (mainState.continueWatching.isNotEmpty() || mainState.isLoading)) {
                 add(
                     HomeSectionUi(
                         id = "continue_watching",
                         title = "Продовжити перегляд",
                         items = mainState.continueWatching.take(maxItems),
-                        isLoading = mainState.isLoading,
+                        isLoading = mainState.isLoading && mainState.continueWatching.isEmpty(),
                         dismissable = true
                     )
                 )
@@ -261,17 +270,16 @@ private fun TvHomeScreen(
     }
 
     var rowHasFocus by remember { mutableStateOf(false) }
-    // Debounced backdrop: Netflix-style delay before updating background on focus change
-    // to avoid thrashing during fast D-pad scrolling. Both enter AND exit are debounced.
+    // Debounced backdrop: short delay to avoid thrashing during fast D-pad scrolling.
     var debouncedFocusedMovie by remember { mutableStateOf<Movie?>(null) }
     var debouncedFocusColor by remember { mutableStateOf(Color.Unspecified) }
     LaunchedEffect(rowHasFocus, focusedMovie, focusColor) {
         if (rowHasFocus && focusedMovie != null) {
-            delay(300)
+            delay(50)
             debouncedFocusedMovie = focusedMovie
             debouncedFocusColor = focusColor
         } else {
-            delay(150)
+            delay(50)
             debouncedFocusedMovie = null
             debouncedFocusColor = Color.Unspecified
         }
@@ -280,7 +288,7 @@ private fun TvHomeScreen(
     // the background becomes the focused poster's full-bleed backdrop.
     val heroAlpha by animateFloatAsState(
         targetValue = if (rowHasFocus) 0f else 1f,
-        animationSpec = tween(250),
+        animationSpec = tween(0),
         label = "heroFade"
     )
     val heroBackdropColor = activeBannerMovie?.accentColor?.let {
@@ -336,7 +344,7 @@ private fun TvHomeScreen(
                             brandColor = providerColor,
                             onItemClick = onTop200ItemClick,
                             onItemLongClick = { onTop200Click() },
-                            onActiveMovieChange = { activeBannerMovie = it },
+                            onActiveMovieChange = { movie -> activeBannerMovie = movie },
                             watchButtonFocusRequester = heroWatchButtonFocusRequester,
                             modifier = Modifier
                                 .graphicsLayer { alpha = heroAlpha }

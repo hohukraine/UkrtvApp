@@ -1,6 +1,6 @@
 [versions]
 kotlin = "2.4.0"
-agp = "9.2.1"
+agp = "9.4.1"
 compose-bom = "2026.05.01"
 tv-compose = "1.0.0"
 hilt = "2.59.2"

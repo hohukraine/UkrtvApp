@@ -318,9 +318,14 @@ private fun HeroPagerContainer(
     // which steals vertical focus movement from us. We re-emit via FocusManager instead.
     val focusManager = LocalFocusManager.current
     val pageFocusRequesters = remember { mutableStateMapOf<Int, FocusRequester>() }
-    LaunchedEffect(pagerState.currentPage) {
-        onActivePage(pagerState.currentPage)
+    var lastReportedPage by remember { mutableIntStateOf(-1) }
+    LaunchedEffect(userNavigated, pagerState.currentPage) {
         if (userNavigated) {
+            val page = pagerState.currentPage
+            if (page != lastReportedPage) {
+                lastReportedPage = page
+                onActivePage(page)
+            }
             withFrameNanos { }
             pageFocusRequesters[pagerState.currentPage]?.requestFocus()
         }
@@ -330,18 +335,7 @@ private fun HeroPagerContainer(
         modifier = modifier
             .fillMaxSize()
             .onFocusChanged { state ->
-                // Focus entering the hero from outside (TopBar DOWN / row UP) can land on the
-                // pre-composed neighbor page (beyondViewportPageCount = 1) and flip the pager
-                // right. Pin external arrivals to the first page; reset the nav flag on exit so
-                // the next re-entry is treated as a fresh arrival again.
-                if (state.hasFocus) {
-                    if (!userNavigated) {
-                        scope.launch {
-                            withFrameNanos { }
-                            pageFocusRequesters[0]?.requestFocus()
-                        }
-                    }
-                } else {
+                if (!state.hasFocus) {
                     userNavigated = false
                 }
             }
@@ -378,7 +372,8 @@ private fun HeroPagerContainer(
     ) {
         androidx.compose.foundation.pager.HorizontalPager(
             state = pagerState,
-            beyondViewportPageCount = 1,
+            beyondViewportPageCount = 0,
+            userScrollEnabled = false,
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val requester = remember { FocusRequester() }
@@ -611,12 +606,6 @@ private fun HeroWatchButton(
     val isFocused by interactionSource.collectIsFocusedAsState()
     val shape = RoundedCornerShape(YouTv.buttonRadius)
 
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.1f else 1f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 400f),
-        label = "heroBtnScale"
-    )
-
     // bg_button_selector: dark translucent pill, brand fill + white content when focused.
     androidx.tv.material3.Surface(
         onClick = onClick,
@@ -631,13 +620,6 @@ private fun HeroWatchButton(
         modifier = modifier
             .focusRequester(focusRequester)
             .size(width = YouTv.heroBtnW, height = YouTv.heroBtnH)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                if (isFocused) {
-                    shadowElevation = 8.dp.toPx()
-                }
-            }
     ) {
         Row(
             horizontalArrangement = Arrangement.Center,
