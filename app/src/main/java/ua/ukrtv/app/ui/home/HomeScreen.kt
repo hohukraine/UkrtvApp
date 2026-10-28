@@ -145,15 +145,11 @@ private fun TvHomeScreen(
     val context = LocalContext.current
 
     var activeBannerMovie by remember { mutableStateOf<Top200Movie?>(null) }
-    // Initialize once only
-    LaunchedEffect(Unit) {
-        if (activeBannerMovie == null && heroState.top200Banners.isNotEmpty()) {
-            activeBannerMovie = heroState.top200Banners.firstOrNull()
+    // Initialize when banners become available
+    LaunchedEffect(heroState.top200Banners.firstOrNull()) {
+        if (heroState.top200Banners.isNotEmpty() && activeBannerMovie == null) {
+            activeBannerMovie = heroState.top200Banners.first()
         }
-    }
-    // If never initialized and banners appear later, initialize once
-    if (activeBannerMovie == null && heroState.top200Banners.isNotEmpty()) {
-        activeBannerMovie = heroState.top200Banners.firstOrNull()
     }
 
     // YouTV-style home: fixed hero on top, a single section row below that swaps content on ↑/↓.
