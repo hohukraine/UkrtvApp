@@ -44,6 +44,13 @@ fun getStreamType(url: String): StreamType = when {
 
 fun inferReferer(url: String): String = when {
     url.contains("uafix.net") || url.contains("uaflix.") -> "https://uafix.net/"
-    url.contains("uakino.best") || url.contains("ashdi.vip") -> "https://uakino.best/"
+    // ashdi.vip only accepts its own origin as the playback Referer (the CDN/WAF rejects
+    // uakino/uafix referers on some devices even though curl from desktop succeeds).
+    url.contains("ashdi.vip") -> "https://ashdi.vip/"
+    url.contains("uakino.best") -> "https://uakino.best/"
     else -> ""
 }
+
+/** Returns the Referer a player must send for [streamUrl], overriding provider referers for ashdi. */
+fun normalizePlaybackReferer(streamUrl: String, referer: String): String =
+    if (streamUrl.contains("ashdi.vip", ignoreCase = true)) "https://ashdi.vip/" else referer

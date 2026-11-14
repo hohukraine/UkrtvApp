@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +39,7 @@ fun TopBar(
     currentProviderId: String,
     scrollFraction: () -> Float = { 0f },
     onSearchClick: () -> Unit,
+    onTop200Click: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     searchFocusRequester: FocusRequester = remember { FocusRequester() },
     modifier: Modifier = Modifier
@@ -83,6 +85,10 @@ fun TopBar(
             ProviderChip(providerName = currentProviderId, brandColor = brandColor)
 
             Spacer(Modifier.weight(1f))
+
+            Top200Action(brandColor = brandColor, onClick = onTop200Click)
+
+            Spacer(Modifier.width(12.dp))
 
             SearchAction(
                 brandColor = brandColor,
@@ -185,6 +191,52 @@ fun SearchAction(
             Spacer(Modifier.width(8.dp))
             Text(
                 text = "Пошук",
+                fontSize = if (compact) 13.sp else 15.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.5.sp
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalTvMaterial3Api::class)
+@Composable
+fun Top200Action(
+    brandColor: Color,
+    onClick: () -> Unit,
+    focusRequester: FocusRequester? = null,
+    compact: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    val height = if (compact) 34.dp else TopBarDefaults.actionHeight
+    Surface(
+        onClick = onClick,
+        scale = ClickableSurfaceDefaults.scale(focusedScale = if (compact) 1.05f else 1.06f),
+        colors = ClickableSurfaceDefaults.colors(
+            containerColor = Color.White.copy(alpha = 0.06f),
+            focusedContainerColor = brandColor.copy(alpha = 0.14f),
+            contentColor = Color.White.copy(alpha = 0.55f),
+            focusedContentColor = Color.White
+        ),
+        shape = ClickableSurfaceDefaults.shape(RoundedCornerShape(50)),
+        modifier = modifier
+            .height(height)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(horizontal = if (compact) 14.dp else 18.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = "ТОП 200",
+                modifier = Modifier.size(if (compact) 16.dp else 18.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "ТОП 200",
                 fontSize = if (compact) 13.sp else 15.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 0.5.sp

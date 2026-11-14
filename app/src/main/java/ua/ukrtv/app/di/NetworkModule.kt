@@ -88,7 +88,23 @@ object NetworkModule {
                     builder.header("User-Agent", Constants.USER_AGENT)
                 }
 
-                if (isLowDevice || isMediatek || url.contains(".webp") || url.contains("format=webp")) {
+                // Only steer *image* requests away from AVIF/WebP on devices that cannot decode
+                // them. Never rewrite Accept for HTML or media/playlist requests: providers and
+                // stream WAFs use it to distinguish a browser from a hotlink, and overriding it
+                // here (on every MediaTek request) breaks playback with HTTP 403.
+                val existingAccept = request.header("Accept")
+                val isMediaRequest = url.substringBefore("?").let { clean ->
+                    clean.endsWith(".m3u8", ignoreCase = true) ||
+                        clean.endsWith(".mpd", ignoreCase = true) ||
+                        clean.endsWith(".ts", ignoreCase = true) ||
+                        clean.endsWith(".mp4", ignoreCase = true) ||
+                        clean.endsWith(".m4s", ignoreCase = true) ||
+                        clean.endsWith(".webm", ignoreCase = true)
+                }
+                val isImageRequest = url.contains(".webp") || url.contains("format=webp") ||
+                    existingAccept?.startsWith("image/", ignoreCase = true) == true ||
+                    existingAccept == null
+                if (!isMediaRequest && (isLowDevice || isMediatek) && isImageRequest) {
                     builder.header("Accept", "image/avif,image/jpeg,image/png,*/*;q=0.5")
                 }
 

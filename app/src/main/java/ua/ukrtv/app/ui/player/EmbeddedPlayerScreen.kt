@@ -110,6 +110,7 @@ fun EmbeddedPlayerScreen(
     }
 
     var autoAdvancing by remember { mutableStateOf(false) }
+    var errorRetryInFlight by remember { mutableStateOf(false) }
     var videoQualityCount by remember { mutableIntStateOf(0) }
     var currentVideoSize by remember { mutableStateOf<androidx.media3.common.VideoSize?>(null) }
     val scope = rememberCoroutineScope()
@@ -163,6 +164,13 @@ fun EmbeddedPlayerScreen(
                     )
                 }
             }
+
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                AppLogger.e("EmbeddedPlayer", "Playback error ${error.errorCodeName}: ${error.message}", error)
+                if (errorRetryInFlight) return
+                errorRetryInFlight = true
+                viewModel.onPlaybackError(error.errorCodeName)
+            }
         }
     }
 
@@ -172,11 +180,16 @@ fun EmbeddedPlayerScreen(
     }
 
     val currentUrl = remember { mutableStateOf("") }
+    val currentReferer = remember { mutableStateOf("") }
     LaunchedEffect(uiState.status) {
         autoAdvancing = false
         val status = uiState.status
-        if (status is PlayerStatus.Ready && status.url != currentUrl.value) {
+        if (status is PlayerStatus.Ready &&
+            (status.url != currentUrl.value || status.referer != currentReferer.value)
+        ) {
             currentUrl.value = status.url
+            currentReferer.value = status.referer
+            errorRetryInFlight = false
             val mimeType = when (status.streamType) {
                 StreamType.HLS -> MimeTypes.APPLICATION_M3U8
                 StreamType.MPD -> MimeTypes.APPLICATION_MPD
@@ -184,7 +197,14 @@ fun EmbeddedPlayerScreen(
                 else -> null
             }
             playerFactory.setDefaultRequestProperties(
-                if (status.referer.isNotBlank()) mapOf("Referer" to status.referer) else emptyMap()
+                if (status.referer.isNotBlank()) {
+                    val headers = mutableMapOf("Referer" to status.referer)
+                    if (status.url.contains("ashdi")) {
+                        headers["Origin"] = status.referer.trimEnd('/')
+                        headers["Accept"] = "*/*"
+                    }
+                    headers
+                } else emptyMap()
             )
             val mediaItem = MediaItem.Builder()
                 .setUri(status.url)

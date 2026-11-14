@@ -18,11 +18,19 @@ class IframeResolutionStrategy @Inject constructor(
     }
 
     override suspend fun resolve(url: String, context: ResolutionContext): StreamResolutionResult? {
-        val referer = context.referer.ifEmpty { inferReferer(url) }
-        
+        val fetchReferer = if (url.contains("ashdi")) {
+            context.referer.ifEmpty { "https://uakino.best/" }
+        } else {
+            context.referer.ifEmpty { inferReferer(url) }
+        }
+        if (url.contains("ashdi")) {
+            try {
+                htmlHttpClient.getHtml("https://ashdi.vip/", fetchReferer)
+            } catch (_: Exception) {}
+        }
         logger.log(url, name, "Fetching HTML for iframe extraction")
         val html = try {
-            htmlHttpClient.getHtml(url, referer)
+            htmlHttpClient.getHtml(url, fetchReferer)
         } catch (e: Exception) {
             logger.log(url, name, "HTML fetch failed: ${e.message}", isError = true)
             null
@@ -37,10 +45,11 @@ class IframeResolutionStrategy @Inject constructor(
                 it.url.contains("index.m3u8", ignoreCase = true)
             }
             val primary = master ?: extracted.first()
+            val playbackReferer = if (primary.url.contains("ashdi")) "https://ashdi.vip/" else fetchReferer
             return StreamResolutionResult(
                 streamUrl = primary.url,
                 streamType = primary.type,
-                referer = referer,
+                referer = playbackReferer,
                 fallbackStreams = extracted.filter { it.url != primary.url }.map { it.url },
                 sourcePageUrl = url
             )

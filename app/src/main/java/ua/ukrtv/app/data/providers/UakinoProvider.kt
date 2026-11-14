@@ -25,6 +25,8 @@ import ua.ukrtv.app.domain.model.Movie
 import ua.ukrtv.app.util.AppLogger
 import ua.ukrtv.app.matching.SearchScorer
 
+private const val DEEP_FETCH_STAGGER_MS = 450L
+
 class UakinoProvider(
     htmlHttpClient: HtmlHttpClient,
     sessionRepository: SessionRepository,
@@ -147,12 +149,15 @@ class UakinoProvider(
         }
 
         if (targetSeasons.isNotEmpty()) {
-            val seasonSemaphore = Semaphore(3) // Increase parallel limit for speed
+            // Deep resolution fans out over every other season. uakino.best answers a burst with
+            // HTTP 429 and then Cloudflare 522, so keep concurrency low and space requests out;
+            // the HtmlHttpClient host cooldown stops the remaining ones if a 429 still happens.
+            val seasonSemaphore = Semaphore(2)
             coroutineScope {
                 targetSeasons.filter { (sNum, _) -> allSeasons.none { it.number == sNum } }
                     .mapIndexed { idx, (sNum, newsIdOrUrl) ->
                         async(Dispatchers.IO) {
-                            if (idx > 0) delay(Constants.SERIES_FETCH_STAGGER_MS * idx)
+                            if (idx > 0) delay(DEEP_FETCH_STAGGER_MS * idx)
                             seasonSemaphore.withPermit {
                                 try {
                                     // A digit value is the news_id extracted from the season URL;

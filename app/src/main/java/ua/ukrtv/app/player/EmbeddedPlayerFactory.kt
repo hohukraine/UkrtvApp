@@ -16,7 +16,9 @@ import androidx.media3.exoplayer.trackselection.AdaptiveTrackSelection
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import dagger.hilt.android.qualifiers.ApplicationContext
+import okhttp3.Call
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import ua.ukrtv.app.Constants
 import ua.ukrtv.app.util.PlayerBufferConfig
 import ua.ukrtv.app.util.getDeviceClass
@@ -29,7 +31,18 @@ class EmbeddedPlayerFactory @Inject constructor(
     @ApplicationContext private val context: Context,
     private val okHttpClient: OkHttpClient
 ) {
-    private val dataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
+    private val ashdiClient: OkHttpClient by lazy {
+        okHttpClient.newBuilder()
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .build()
+    }
+
+    private val callFactory = Call.Factory { request ->
+        if (request.url.host.contains("ashdi")) ashdiClient.newCall(request)
+        else okHttpClient.newCall(request)
+    }
+
+    private val dataSourceFactory = OkHttpDataSource.Factory(callFactory)
         .setUserAgent(Constants.USER_AGENT)
 
     private val deviceClass = getDeviceClass(context)

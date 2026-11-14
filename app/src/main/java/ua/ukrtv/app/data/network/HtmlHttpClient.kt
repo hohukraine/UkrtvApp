@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody
 import ua.ukrtv.app.Constants
@@ -19,16 +20,43 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Semaphore
 import javax.net.ssl.SSLException
 
+private const val RATE_LIMIT_COOLDOWN_MS = 30_000L
+
 class HtmlHttpClient(
     private val okHttpClient: OkHttpClient,
     private val htmlCacheDao: ua.ukrtv.app.data.local.dao.HtmlCacheDao,
     private val tag: String = "HtmlHttpClient",
 ) {
+    private val ashdiClient: OkHttpClient by lazy {
+        okHttpClient.newBuilder()
+            .protocols(listOf(Protocol.HTTP_1_1))
+            .build()
+    }
     private val userAgent: String = Constants.USER_AGENT
     private var refreshJob = SupervisorJob()
     private var refreshScope = CoroutineScope(Dispatchers.IO + refreshJob)
     private val hostSemaphores = ConcurrentHashMap<String, Semaphore>()
     private val inflightRefreshes = ConcurrentHashMap<String, Boolean>()
+
+    /** Hosts that recently returned HTTP 429; all requests to them fail fast until the timestamp. */
+    private val hostCooldownUntil = ConcurrentHashMap<String, Long>()
+
+    private fun isHostCoolingDown(host: String?): Boolean {
+        if (host == null) return false
+        val until = hostCooldownUntil[host] ?: return false
+        if (System.currentTimeMillis() >= until) {
+            hostCooldownUntil.remove(host)
+            return false
+        }
+        return true
+    }
+
+    private fun coolDownHost(host: String?) {
+        if (host == null) return
+        val until = System.currentTimeMillis() + RATE_LIMIT_COOLDOWN_MS
+        hostCooldownUntil[host] = until
+        AppLogger.w(tag, "HTTP 429: cooling down $host for ${RATE_LIMIT_COOLDOWN_MS}ms")
+    }
 
     private fun getHostSemaphore(host: String): Semaphore {
         return hostSemaphores.computeIfAbsent(host) { Semaphore(2) }
@@ -49,6 +77,7 @@ class HtmlHttpClient(
         htmlCache.clear()
         hostSemaphores.clear()
         inflightRefreshes.clear()
+        hostCooldownUntil.clear()
     }
 
     private fun isSslError(e: Exception): Boolean {
@@ -68,13 +97,40 @@ class HtmlHttpClient(
     )
 
     private fun applyHeaders(builder: Request.Builder, referer: String?, isAjax: Boolean) {
+        val urlStr = try { builder.build().url.toString() } catch (_: Exception) { "" }
         builder.header("User-Agent", userAgent)
-        builder.header("Accept-Language", "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7")
+        builder.header("Accept-Language", "ru-RU,ru;q=0.9,uk-UA;q=0.8,uk;q=0.7,en-US;q=0.6,en;q=0.5")
         builder.header("Connection", "keep-alive")
+        builder.header("Cache-Control", "max-age=0")
 
-        builder.header("sec-ch-ua", "\"Chromium\";v=\"124\", \"Google Chrome\";v=\"124\", \"Not-A.Brand\";v=\"99\"")
+        builder.header("sec-ch-ua", "\"Not:A-Brand\";v=\"99\", \"Google Chrome\";v=\"125\", \"Chromium\";v=\"125\"")
         builder.header("sec-ch-ua-mobile", "?0")
         builder.header("sec-ch-ua-platform", "\"Windows\"")
+
+        if (urlStr.contains("ashdi")) {
+            if (isAjax) {
+                builder.header("X-Requested-With", "XMLHttpRequest")
+                builder.header("Accept", "*/*")
+                builder.header("Sec-Fetch-Dest", "empty")
+                builder.header("Sec-Fetch-Mode", "cors")
+                builder.header("Sec-Fetch-Site", "cross-site")
+            } else {
+                builder.header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+                builder.header("Upgrade-Insecure-Requests", "1")
+                builder.header("Sec-Fetch-Dest", "iframe")
+                builder.header("Sec-Fetch-Mode", "navigate")
+                builder.header("Sec-Fetch-Site", "cross-site")
+            }
+            val ref = referer ?: "https://uakino.best/"
+            builder.header("Referer", ref)
+            try {
+                val uri = java.net.URI(ref)
+                builder.header("Origin", "${uri.scheme}://${uri.host}")
+            } catch (_: Exception) {
+                builder.header("Origin", "https://uakino.best")
+            }
+            return
+        }
 
         if (isAjax) {
             builder.header("X-Requested-With", "XMLHttpRequest")
@@ -133,8 +189,16 @@ class HtmlHttpClient(
                 if (skipRateLimitRetry && e.message?.contains("429") == true) {
                     // In bulk series-fetch paths a 5s/10s backoff per blocked season blows
                     // the whole resolution budget, so treat 429 as "skip now" instead.
+                    coolDownHost(host)
                     AppLogger.w(tag, "HTTP 429 skipped (rate-limit retry disabled): $host")
                     return null
+                }
+
+                if (e.message?.contains("429") == true) {
+                    // Even on a normal retry path, stop hammering a host that is rate limiting
+                    // us: the 429s escalate into Cloudflare 522s (connection timeouts) and the
+                    // app burns its whole resolution budget.
+                    coolDownHost(host)
                 }
 
                 val delayTime = when {
@@ -223,6 +287,10 @@ class HtmlHttpClient(
             null
         }
         val semaphore = host?.let { getHostSemaphore(it) }
+        if (isHostCoolingDown(host)) {
+            AppLogger.w(tag, "Host $host is rate-limit cooling down, skipping: $url")
+            return null
+        }
         semaphore?.acquire()
         try {
             return withTimeoutOrNull(20_000L) {
@@ -231,7 +299,8 @@ class HtmlHttpClient(
                     applyHeaders(builder, referer, isAjax)
                     val request = builder.build()
 
-                    okHttpClient.newCall(request).execute().use { response ->
+                    val client = if (url.contains("ashdi")) ashdiClient else okHttpClient
+                    client.newCall(request).execute().use { response ->
                         val responseCode = response.code
 
                         if (response.isSuccessful) {
@@ -268,8 +337,13 @@ class HtmlHttpClient(
         isAjax: Boolean = false,
         skipRateLimitRetry: Boolean = false
     ): String? = withContext(Dispatchers.IO) {
+        val host = runCatching { java.net.URI(url).host }.getOrNull()
+        if (isHostCoolingDown(host)) {
+            AppLogger.w(tag, "Host $host is rate-limit cooling down, skipping POST: $url")
+            return@withContext null
+        }
         withTimeoutOrNull(20_000L) {
-            runWithRetries(tag, host = runCatching { java.net.URI(url).host }.getOrNull(), skipRateLimitRetry = skipRateLimitRetry, block = { attempt ->
+            runWithRetries(tag, host = host, skipRateLimitRetry = skipRateLimitRetry, block = { attempt ->
                 val builder = Request.Builder().url(url)
                 applyHeaders(builder, referer, isAjax)
                 val request = builder.post(body).build()

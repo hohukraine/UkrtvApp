@@ -306,6 +306,7 @@ private fun TvHomeScreen(
                     currentProviderId = configState.currentProviderId,
                     brandColor = providerColor,
                     onSearchClick = onSearchClick,
+                    onTop200Click = onTop200Click,
                     onSettingsClick = onSettingsClick
                 )
 
@@ -361,7 +362,35 @@ private fun TvHomeScreen(
                     // repoints at the focused card (title/pill/meta/description, no button).
                     // Fallback to the section's first item so the spot is never empty.
                     val infoPanelMovie = focusedMovie
-                        ?: sections.getOrNull(activeIndex.coerceIn(0, sections.lastIndex))?.items?.firstOrNull()
+                        ?: if (rowHasFocus) {
+                            sections.getOrNull(activeIndex.coerceIn(0, sections.lastIndex))?.items?.firstOrNull()
+                        } else {
+                            activeBannerMovie?.let { b ->
+                                Movie(
+                                    id = b.uakinoUrl.ifBlank { b.uaflixUrl }.ifBlank { b.title },
+                                    title = b.title,
+                                    poster = b.posterUrl,
+                                    pageUrl = b.uakinoUrl.ifBlank { b.uaflixUrl },
+                                    year = b.year.toIntOrNull(),
+                                    genres = b.genres,
+                                    duration = if (b.year.isNotBlank()) b.year else null,
+                                    description = b.comment.ifBlank { b.originalTitle },
+                                    provider = if (b.uaflixUrl.isNotBlank()) "uaflix" else if (b.uakinoUrl.isNotBlank()) "uakino" else null
+                                )
+                            } ?: heroState.top200Banners.firstOrNull()?.let { b ->
+                                Movie(
+                                    id = b.uakinoUrl.ifBlank { b.uaflixUrl }.ifBlank { b.title },
+                                    title = b.title,
+                                    poster = b.posterUrl,
+                                    pageUrl = b.uakinoUrl.ifBlank { b.uaflixUrl },
+                                    year = b.year.toIntOrNull(),
+                                    genres = b.genres,
+                                    duration = if (b.year.isNotBlank()) b.year else null,
+                                    description = b.comment.ifBlank { b.originalTitle },
+                                    provider = if (b.uaflixUrl.isNotBlank()) "uaflix" else if (b.uakinoUrl.isNotBlank()) "uakino" else null
+                                )
+                            } ?: sections.getOrNull(activeIndex.coerceIn(0, sections.lastIndex))?.items?.firstOrNull()
+                        }
                     infoPanelMovie?.let { movie ->
                         YouTvFocusInfoPanel(
                             movie = movie,

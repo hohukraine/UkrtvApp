@@ -65,6 +65,7 @@ class PlayerViewModel @Inject constructor(
     private var crossProviderRetried = false
     private var availableStreams: MutableList<String> = mutableListOf()
     private var currentStreamIndex: Int = 0
+    private var ashdiRefererFixed = false
     private var seasons: List<Season> = emptyList()
 
     private var loadJob: kotlinx.coroutines.Job? = null
@@ -207,11 +208,14 @@ class PlayerViewModel @Inject constructor(
                 val cached = withContext(Dispatchers.IO) { watchProgressRepository.getStreamCache(contentId, episodeId) }
                 if (cached != null && ua.ukrtv.app.data.streaming.isDirectStreamUrl(cached.streamUrl)) {
                     this@PlayerViewModel.availableStreams = (listOf(cached.streamUrl) + cached.fallbackUrls).distinct().toMutableList()
-                    this@PlayerViewModel.referer = cached.referer
+                    currentStreamIndex = 0
+                    ashdiRefererFixed = false
+                    val cachedReferer = ua.ukrtv.app.data.streaming.normalizePlaybackReferer(cached.streamUrl, cached.referer)
+                    this@PlayerViewModel.referer = cachedReferer
                     val pos = forceStartPosition ?: withContext(Dispatchers.IO) { watchProgressRepository.getProgress(contentId, episodeId)?.positionMs } ?: 0L
                     val displayTitle = if (subtitle.isNotEmpty()) "${this@PlayerViewModel.title} ($subtitle)" else this@PlayerViewModel.title
                     _state.update { it.copy(
-                        status = PlayerStatus.Ready(cached.streamUrl, displayTitle, subtitle, pos, cached.durationMs, cached.referer, safeStreamType(cached.streamType, cached.streamUrl)),
+                        status = PlayerStatus.Ready(cached.streamUrl, displayTitle, subtitle, pos, cached.durationMs, cachedReferer, safeStreamType(cached.streamType, cached.streamUrl)),
                         availableSeasons = this@PlayerViewModel.seasons
                     ) }
                     updateNavigationState()
@@ -239,7 +243,10 @@ class PlayerViewModel @Inject constructor(
 
     private fun applyStreamResult(res: ua.ukrtv.app.domain.model.StreamResolutionResult, subtitle: String, pos: Long) {
         availableStreams = (listOf(res.streamUrl) + res.fallbackStreams).distinct().toMutableList()
-        referer = res.referer
+        currentStreamIndex = 0
+        ashdiRefererFixed = false
+        val playbackReferer = ua.ukrtv.app.data.streaming.normalizePlaybackReferer(res.streamUrl, res.referer)
+        referer = playbackReferer
         
         // Merge seasons instead of overwriting
         val newSeasons = res.seasons
@@ -273,7 +280,7 @@ class PlayerViewModel @Inject constructor(
         } else this.title
 
         _state.update { it.copy(
-            status = PlayerStatus.Ready(res.streamUrl, displayTitle, subtitle, pos, 0L, res.referer, res.streamType),
+            status = PlayerStatus.Ready(res.streamUrl, displayTitle, subtitle, pos, 0L, playbackReferer, res.streamType),
             availableSeasons = seasons
         ) }
         updateNavigationState()
@@ -375,6 +382,46 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun retry() { loadStream(pageUrl, this.subtitle, null) }
+
+    /**
+     * Called by the embedded player when ExoPlayer fails to open/parse a stream. Before showing
+     * an error we try the two fixes that resolve the known ashdi 403s:
+     *  1. Re-request the manifest with the ashdi origin as Referer (provider referers are rejected
+     *     by the ashdi WAF on some Android TV devices).
+     *  2. Move to the next resolved mirror/fallback URL.
+     */
+    fun onPlaybackError(errorName: String) {
+        val ready = _state.value.status as? PlayerStatus.Ready ?: return
+
+        if (ready.url.contains("ashdi.vip", ignoreCase = true) && !ashdiRefererFixed) {
+            ashdiRefererFixed = true
+            referer = "https://ashdi.vip/"
+            AppLogger.w("Player", "ashdi playback error ($errorName); retrying with Referer=https://ashdi.vip/")
+            _state.update { it.copy(status = ready.copy(referer = "https://ashdi.vip/")) }
+            return
+        }
+
+        val nextIndex = currentStreamIndex + 1
+        if (nextIndex < availableStreams.size) {
+            currentStreamIndex = nextIndex
+            val nextUrl = availableStreams[nextIndex]
+            val nextReferer = ua.ukrtv.app.data.streaming.inferReferer(nextUrl).ifEmpty { ready.referer }
+            AppLogger.w("Player", "Playback error ($errorName); trying fallback ${nextIndex + 1}/${availableStreams.size}: $nextUrl")
+            _state.update {
+                it.copy(
+                    status = ready.copy(
+                        url = nextUrl,
+                        referer = nextReferer,
+                        streamType = safeStreamType("", nextUrl)
+                    )
+                )
+            }
+            return
+        }
+
+        AppLogger.e("Player", "Playback failed for ${ready.url}: $errorName")
+        _state.update { it.copy(status = PlayerStatus.Error(errorName)) }
+    }
 
     fun prepareNextEpisode(): Boolean {
         val nav = EpisodeNavigator.nextEpisode(seasons, season, episode) ?: return false

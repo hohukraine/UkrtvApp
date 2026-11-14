@@ -43,10 +43,16 @@ class ProviderResolutionStrategy @Inject constructor(
             }
         }
 
+        // ashdi.vip streams must be requested with the ashdi origin as Referer, regardless of
+        // which provider page produced them (uakino.best or uafix.net). The WAF accepts the
+        // provider referer on desktop but returns 403 for the same manifest on Android TV.
+        val resolvedReferer = source.referer.ifEmpty { context.referer.ifEmpty { inferReferer(url) } }
+        val playbackReferer = normalizePlaybackReferer(streamUrl, resolvedReferer)
+
         return StreamResolutionResult(
             streamUrl = streamUrl,
             streamType = getStreamType(streamUrl),
-            referer = source.referer.ifEmpty { context.referer.ifEmpty { inferReferer(url) } },
+            referer = playbackReferer,
             fallbackStreams = fallbackUrls.distinct(),
             providerName = source.providerName,
             sourcePageUrl = url,
